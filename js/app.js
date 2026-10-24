@@ -1,4 +1,7 @@
-// SCaD Gestión · App · v0.4.0
+// SCaD Gestión · App · v0.5.0
+// v0.5.0: Programación sobre el núcleo SYS (gestionCore v0.3.0): tipos de actividad del
+//         catálogo SYS autorizados por rol; el ADM programa requeridas (de un proyecto o
+//         generales de la EO); permisos por actividad desde el backend; vista Instancia.
 // v0.4.0: actividades requeridas (ADM) y propias (colaborador, ligadas a un proyecto); alta, edición y
 //         baja de propias; cumplimiento desde la actividad o desde Seguimiento (siempre deja anotación);
 //         el ADM convierte una propia en requerida; pestaña Agenda en el proyecto.
@@ -15,10 +18,10 @@ import { captureTokenFromHash, hasToken, startLogin, logout } from "./auth.js";
 import { contexto, api, sys, archivo, subirADrive, ApiError } from "./api.js";
 import {
   abrirProgramacion, repintarProgramacion, setContexto, actividades, buscarActividad, idDe, listaHtml, deHoy,
-  inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorTipo
+  inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.4.0";
+export const VERSION = "GESTION_APP v0.5.0";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -278,7 +281,7 @@ function ruta() {
   document.querySelectorAll("[data-sec]").forEach(a => a.classList.toggle("on", a.dataset.sec === (prg ? "programacion" : "proyectos")));
   if (prg) {
     S.det = null;
-    abrirProgramacion($("#view"), S.ctx, { puedeProgramar: puedeProgramar(), subtitulo: S.modo === "OPERACION" ? "Actividades requeridas y las tuyas, de tus proyectos." : "Actividades de la EO y de los proyectos." });
+    abrirProgramacion($("#view"), S.ctx, { puedeProgramar: puedeProgramar(), subtitulo: S.modo === "OPERACION" ? "Actividades requeridas y las tuyas, de tus proyectos." : S.modo === "INSTANCIA" ? "Actividades de los proyectos en los que participa tu instancia." : "Actividades de la EO y de los proyectos." });
     if (prg[1]) dlgActividad(decodeURIComponent(prg[1]));
     return;
   }
@@ -334,7 +337,7 @@ function bloqueHoy() {
   const hoy = deHoy(S.ctx);
   if (!hoy.length) return "";
   return `<section class="hoy"><div class="row"><h3>Actividades de hoy</h3><a href="#/programacion" class="sm">Ver programación ›</a></div>
-    ${hoy.slice(0, 4).map(a => `<a class="hoy-item ${origenDe(a) === "USUARIO" ? "propia" : ""}" href="#/programacion/${encodeURIComponent(idDe(a))}"><span class="prg-hora">${esc(hora(a))}</span><i style="--c:${colorTipo(tipoDe(a))}"></i><span class="prg-copy"><b>${cumplida(a) ? "✓ " : ""}${esc(titulo(a))}</b><span>${esc([origenDe(a) === "USUARIO" ? "Propia" : "Requerida", tipoDe(a), a.proyectoFolio].filter(Boolean).join(" · "))}</span></span></a>`).join("")}
+    ${hoy.slice(0, 4).map(a => `<a class="hoy-item ${origenDe(a) === "USUARIO" ? "propia" : ""}" href="#/programacion/${encodeURIComponent(idDe(a))}"><span class="prg-hora">${esc(hora(a))}</span><i style="--c:${colorDe(a)}"></i><span class="prg-copy"><b>${cumplida(a) ? "✓ " : ""}${esc(titulo(a))}</b><span>${esc([origenDe(a) === "USUARIO" ? "Propia" : "Requerida", tipoDe(a), a.proyectoFolio].filter(Boolean).join(" · "))}</span></span></a>`).join("")}
     ${hoy.length > 4 ? `<p class="muted xs">y ${hoy.length - 4} más</p>` : ""}</section>`;
 }
 
@@ -453,6 +456,7 @@ function vistaSeguimiento() {
     <ol class="timeline">${h.map(s => `<li>
       <div class="row"><span class="muted xs">${fechaHora(s.fechaRegistro)} · ${esc(s.autorNombre)}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}</span>${s.visibleCliente && S.modo !== "INSTANCIA" ? `<span class="chip mute xs">Visible para la instancia</span>` : ""}</div>
       ${s.referenciaEtiqueta ? `<div class="ref">${esc(s.referenciaEtiqueta)}</div>` : ""}
+      ${s.actividadEtiqueta ? `<div class="ref act">▦ ${esc(s.actividadEtiqueta)}</div>` : ""}
       ${s.tipo === "ACTIVIDAD_CUMPLIDA" ? `<span class="chip ok">Actividad cumplida</span>` : ""}
       ${s.tipo === "CAMBIO_ESTADO" && s.estadoNuevo ? `<span class="chip ${(ESTADOS[s.estadoNuevo] || {}).c || "info"}">${esc((ESTADOS[s.estadoNuevo] || {}).t || ESTATUS[s.estadoNuevo] || s.estadoNuevo)}</span>` : ""}
       <p>${esc(s.nota)}</p>
@@ -492,16 +496,15 @@ function vistaFicha() {
 }
 
 // ── Actividades: requeridas (ADM) y propias (colaborador) ────
-// El backend puede enviar puedeEditar / puedeCumplir / puedePromover por actividad; si no, se aplican estas reglas.
-const yo = () => [usr().usrId, usr().memberId, S.ctx?.memberId].filter(Boolean).map(String);
-const esMia = a => a?.esMia === true || (a?.creadoPorId && yo().includes(String(a.creadoPorId)));
-const misProyectos = () => S.modo === "OPERACION" ? S.proyectos.filter(p => p.fase !== "CERRADO") : [];
-const enMisProyectos = id => !!id && misProyectos().some(p => p.id === id);
-const flag = (a, k, def) => typeof a?.[k] === "boolean" ? a[k] : def;
-const puedeProgramar = () => misProyectos().length > 0;
-const puedeEditar = a => S.modo === "OPERACION" && !cumplida(a) && flag(a, "puedeEditar", origenDe(a) === "USUARIO" && esMia(a));
-const puedeCumplir = a => S.modo === "OPERACION" && programada(a) && flag(a, "puedeCumplir", origenDe(a) === "USUARIO" ? esMia(a) : enMisProyectos(a.proyectoId));
-const puedePromover = a => esAdm() && origenDe(a) === "USUARIO" && flag(a, "puedePromover", true);
+// Los permisos por actividad (puedeEditar / puedeCumplir / puedePromover) los decide el backend.
+const flag = (a, k) => a?.[k] === true;
+const enEscritura = () => S.modo !== "INSTANCIA";
+const misProyectos = () => (S.modo === "OPERACION" || (esAdm() && S.modo === "DIRECCION")) ? S.proyectos.filter(p => p.fase !== "CERRADO") : [];
+const tiposActividad = () => S.ctx?.catalogos?.tiposActividad || [];
+const puedeProgramar = () => enEscritura() && S.ctx?.programacion?.puedeProgramar === true && (esAdm() || misProyectos().length > 0);
+const puedeEditar = a => enEscritura() && !cumplida(a) && flag(a, "puedeEditar");
+const puedeCumplir = a => enEscritura() && programada(a) && flag(a, "puedeCumplir");
+const puedePromover = a => enEscritura() && esAdm() && origenDe(a) === "USUARIO" && flag(a, "puedePromover");
 const actsDe = pid => actividades(S.ctx).filter(a => a.proyectoId === pid).sort((x, y) => inicio(x) - inicio(y));
 const pendientesAgenda = pid => actsDe(pid).filter(sinCumplir).length;
 const fechaCorta = a => { const d = inicio(a); return isNaN(d) ? "Sin fecha" : d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" }) + (todoDia(a) ? "" : " " + hora(a)); };
@@ -522,7 +525,7 @@ async function trasActividad(r) {
 function vistaAgenda() {
   const p = S.det.proyecto;
   const L = actsDe(p.id);
-  const puede = S.modo === "OPERACION" && p.fase !== "CERRADO";
+  const puede = puedeProgramar() && p.fase !== "CERRADO" && misProyectos().some(x => x.id === p.id);
   return `<div class="row agenda-head"><p class="muted sm">Requeridas por el administrador y propias del equipo del proyecto.</p>${puede ? `<button type="button" class="btn pri sm" data-programar="${esc(p.id)}">+ Programar actividad</button>` : ""}</div>
     ${listaHtml(L, "Sin actividades para este proyecto.")}`;
 }
@@ -541,7 +544,7 @@ function dlgActividad(id) {
     puedePromover(a) ? `<button class="btn" data-act-accion="promover" data-act-id="${esc(idDe(a))}">Convertir en requerida</button>` : "",
     a.proyectoId && S.proyectos.some(p => p.id === a.proyectoId) && S.det?.proyecto?.id !== a.proyectoId ? `<button class="btn ghost" data-act-accion="proyecto" data-act-id="${esc(idDe(a))}">Ver proyecto</button>` : ""
   ].filter(Boolean).join("");
-  dialogo(`<div class="row wrap"><span class="chip ${propia ? "propia" : "req"}">${propia ? "Propia" : "Requerida"}</span><span class="chip" style="background:color-mix(in srgb,${colorTipo(tipoDe(a))} 14%,#fff);color:${colorTipo(tipoDe(a))}">${esc(tipoDe(a))}</span>${estado}</div>
+  dialogo(`<div class="row wrap"><span class="chip ${propia ? "propia" : "req"}">${propia ? "Propia" : "Requerida"}</span><span class="chip" style="background:color-mix(in srgb,${colorDe(a)} 14%,#fff);color:${colorDe(a)}">${esc(tipoDe(a))}</span>${estado}</div>
     <h3>${esc(titulo(a))}</h3>
     <dl class="act-dl">
       ${fila("Proyecto", esc(pryEtq(a)) || (propia ? "" : "General de la EO"))}
@@ -554,7 +557,7 @@ function dlgActividad(id) {
       ${propia && a.visibleCliente && S.modo !== "INSTANCIA" ? fila("Visibilidad", "Visible para la instancia") : ""}
       ${cumplida(a) ? fila("Cumplimiento", esc([fecha(a.fechaCumplimiento), a.cumplidaPorNombre].filter(x => x && x !== "—").join(" · ")) + (a.notaCumplimiento ? `<br><span class="muted">${esc(a.notaCumplimiento)}</span>` : "")) : ""}
     </dl>
-    ${!propia && !a.proyectoId && programada(a) && S.modo === "OPERACION" ? `<p class="muted xs">Actividad general de la EO: su cumplimiento lo registra el administrador en el panel.</p>` : ""}
+
     ${acciones ? `<div class="act-acciones">${acciones}</div>` : ""}`, null, { textoCerrar: "Cerrar" });
 }
 
@@ -582,37 +585,38 @@ function dlgCumplir(a) {
 const hhmm = d => isNaN(d) ? "" : `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 function dlgProgramar(a = null, proyectoId = "") {
   const P = misProyectos();
-  if (!P.length) { aviso("Sólo puedes programar actividades en proyectos que tienes asignados.", "bad"); return; }
-  const pid = a?.proyectoId || proyectoId || (P.length === 1 ? P[0].id : "");
+  const tipos = tiposActividad();
+  if (!a && !puedeProgramar()) { aviso("Sólo puedes programar actividades en proyectos que tienes asignados.", "bad"); return; }
+  if (!tipos.length) { aviso("No tienes tipos de actividad autorizados. El administrador los configura en Programación del panel.", "bad"); return; }
+  const adm = esAdm();
+  const pid = a ? (a.proyectoId || "") : (proyectoId || (P.length === 1 && !adm ? P[0].id : ""));
   const s = a ? inicio(a) : null, e = a ? fin(a) : null;
-  const tipos = (S.ctx.catalogos?.tiposActividad || []).map(t => typeof t === "string" ? t : (t.etiqueta || t.clave)).filter(Boolean);
-  const usados = [...new Set(actividades(S.ctx).map(tipoDe))];
   const tipoSel = a ? tipoDe(a) : "";
   dialogo(`<h3>${a ? "Editar actividad" : "Programar actividad"}</h3>
-    <p class="muted xs">Actividad propia: organiza tu trabajo en el proyecto. Las requeridas las programa el administrador.</p>
-    <label class="f">Proyecto<select id="aPry" ${a ? "disabled" : ""}><option value="">Elige un proyecto</option>${P.map(p => `<option value="${esc(p.id)}" ${p.id === pid ? "selected" : ""}>${esc(p.folio)} · ${esc(p.nombre)}</option>`).join("")}</select></label>
-    <label class="f">Actividad<input id="aTit" maxlength="160" value="${esc(a ? titulo(a) : "")}" placeholder="Ej. Llamada con el enlace de SIOP"></label>
-    <label class="f">Tipo${tipos.length ? `<select id="aTipo">${tipos.map(t => `<option ${t === tipoSel ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>`
-      : `<input id="aTipo" list="aTipos" maxlength="60" value="${esc(tipoSel)}" placeholder="Reunión, visita, llamada…"><datalist id="aTipos">${usados.map(t => `<option value="${esc(t)}">`).join("")}</datalist>`}</label>
+    <p class="muted xs">${adm ? "Como administrador, la actividad queda como <b>requerida</b>." : "Actividad propia: organiza tu trabajo en el proyecto. Las requeridas las programa el administrador."}</p>
+    <label class="f">Proyecto<select id="aPry" ${a ? "disabled" : ""}>${adm ? `<option value="">General de la EO (sin proyecto)</option>` : `<option value="">Elige un proyecto</option>`}${P.map(p => `<option value="${esc(p.id)}" ${p.id === pid ? "selected" : ""}>${esc(p.folio)} · ${esc(p.nombre)}</option>`).join("")}${a && a.proyectoId && !P.some(p => p.id === a.proyectoId) ? `<option selected>${esc(a.proyectoFolio || "Proyecto")}</option>` : ""}</select></label>
+    <label class="f">Actividad<input id="aTit" maxlength="180" value="${esc(a ? titulo(a) : "")}" placeholder="Ej. Llamada con el enlace de SIOP"></label>
+    <label class="f">Tipo<select id="aTipo">${tipos.map(t => `<option value="${esc(t.id)}" ${t.etiqueta === tipoSel ? "selected" : ""}>${esc(t.etiqueta)}</option>`).join("")}</select></label>
     <div class="grid3">
       <label class="f">Fecha<input type="date" id="aFecha" value="${s ? isoDia(s) : ""}"></label>
       <label class="f">Inicio<input type="time" id="aHoraIni" value="${s && !todoDia(a) ? hhmm(s) : ""}" ${a && todoDia(a) ? "disabled" : ""}></label>
       <label class="f">Término<input type="time" id="aHoraFin" value="${e && !todoDia(a) ? hhmm(e) : ""}" ${a && todoDia(a) ? "disabled" : ""}></label>
     </div>
     <label class="check"><input type="checkbox" id="aTodo" ${a && todoDia(a) ? "checked" : ""}> Todo el día</label>
-    <label class="f">Lugar (opcional)<input id="aLugar" maxlength="160" value="${esc(a ? lugar(a) : "")}"></label>
+    <label class="f">Lugar (opcional)<input id="aLugar" maxlength="240" value="${esc(a ? lugar(a) : "")}"></label>
     <label class="f">Detalle (opcional)<textarea id="aDet" rows="2">${esc(a ? detalle(a) : "")}</textarea></label>
-    <label class="f">Enlace (opcional)<input id="aEnl" type="url" maxlength="400" value="${esc(a?.enlace || "")}" placeholder="https://"></label>
+    <label class="f">Enlace (opcional)<input id="aEnl" type="url" maxlength="500" value="${esc(a?.enlace || "")}" placeholder="https://"></label>
     <label class="check"><input type="checkbox" id="aVis" ${a?.visibleCliente ? "checked" : ""}> Visible para la instancia</label>`,
   () => {
     const fechaV = $("#aFecha").value, todo = $("#aTodo").checked, hi = $("#aHoraIni").value, hf = $("#aHoraFin").value;
     const datos = {
-      actividadId: a?.id || "", proyectoId: a?.proyectoId || $("#aPry").value, titulo: $("#aTit").value.trim(), tipoActividad: $("#aTipo").value.trim(),
+      actividadId: a?.id || "", proyectoId: a ? (a.proyectoId || "") : $("#aPry").value, titulo: $("#aTit").value.trim(), tipoId: $("#aTipo").value,
       todoElDia: todo, lugar: $("#aLugar").value.trim(), descripcion: $("#aDet").value.trim(), enlace: $("#aEnl").value.trim(), visibleCliente: $("#aVis").checked
     };
-    if (!datos.proyectoId) { aviso("Elige el proyecto.", "bad"); return; }
+    if (!adm && !datos.proyectoId) { aviso("Elige el proyecto.", "bad"); return; }
     if (!datos.titulo) { aviso("Escribe el nombre de la actividad.", "bad"); return; }
     if (!fechaV || (!todo && !hi)) { aviso(todo ? "Indica la fecha." : "Indica la fecha y la hora de inicio.", "bad"); return; }
+    if (datos.enlace && !/^https?:\/\//i.test(datos.enlace)) { aviso("El enlace debe iniciar con https://", "bad"); return; }
     const ini = new Date(`${fechaV}T${todo ? "00:00" : hi}`);
     const fn = !todo && hf ? new Date(`${fechaV}T${hf}`) : null;
     if (fn && fn <= ini) { aviso("La hora de término debe ser posterior al inicio.", "bad"); return; }

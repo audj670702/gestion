@@ -1,4 +1,4 @@
-// SCaD Gestión · Programación · v0.4.0
+// SCaD Gestión · Programación · v0.5.0 (color del Tipo SYS cuando existe)
 // Modelo NEXUS (schedule.js) extendido, compatible hacia atrás:
 //   origen  ADM (requerida, la captura el ADM)  |  USUARIO (propia del colaborador, ligada a un proyecto)
 //   estado  PROGRAMADA | CUMPLIDA   (sin estado = sólo informativa, como en NEXUS)
@@ -15,7 +15,7 @@ let caja = null;
 let opciones = {};
 
 const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const norm = v => String(v ?? "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+const norm = v => String(v ?? "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 export const actividades = c => Array.isArray(c?.actividades) ? c.actividades : (Array.isArray(c?.programacion) ? c.programacion : []);
 const lista = () => actividades(ctx);
 export const inicio = a => new Date(a?.inicio || a?.fechaInicio || a?.fecha || a?.start || "");
@@ -39,6 +39,7 @@ export const idDe = a => { const i = lista().indexOf(a); return String(a?.id || 
 export const buscarActividad = id => lista().find(a => idDe(a) === String(id)) || null;
 const diaClave = d => Number.isNaN(d?.getTime?.()) ? "" : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 export const hora = a => { if (todoDia(a)) return "Todo el día"; const d = inicio(a); return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }); };
+export const colorDe = a => (/^#[0-9a-f]{6}$/i.test(String(a?.color || "")) ? a.color : colorTipo(tipoDe(a)));
 export function colorTipo(t) { let h = 0; for (const c of String(t)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return `hsl(${h % 360} 58% 42%)`; }
 const clases = a => [origenDe(a) === "USUARIO" ? "propia" : "", cumplida(a) ? "hecha" : "", sinCumplir(a) ? "vencida" : ""].join(" ");
 const marca = a => cumplida(a) ? `<em class="ok">✓</em>` : sinCumplir(a) ? `<em class="bad">!</em>` : "";
@@ -63,7 +64,7 @@ export function listaHtml(L, vacio = "Aún no hay actividades programadas.") {
     const d = inicio(a), k = diaClave(d);
     const cab = k !== ult ? (ult = k, `<div class="prg-ldia">${esc(Number.isNaN(d.getTime()) ? "Sin fecha" : d.toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long", year: d.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined }))}</div>`) : "";
     const sub = [origenDe(a) === "USUARIO" ? "Propia" : "Requerida", tipoDe(a), a.proyectoFolio, lugar(a)].filter(Boolean).join(" · ");
-    return cab + `<button type="button" class="prg-item ${clases(a)}" data-actividad="${esc(idDe(a))}"><span class="prg-hora">${esc(hora(a))}</span><i style="--c:${colorTipo(tipoDe(a))}"></i><span class="prg-copy"><b>${marca(a)}${esc(titulo(a))}</b><span>${esc(sub)}</span></span><span class="muted">›</span></button>`;
+    return cab + `<button type="button" class="prg-item ${clases(a)}" data-actividad="${esc(idDe(a))}"><span class="prg-hora">${esc(hora(a))}</span><i style="--c:${colorDe(a)}"></i><span class="prg-copy"><b>${marca(a)}${esc(titulo(a))}</b><span>${esc(sub)}</span></span><span class="muted">›</span></button>`;
   }).join("")}</div>`;
 }
 
@@ -80,7 +81,7 @@ function pintarFiltros() {
   caja.querySelector("#prgOrigen").innerHTML = !hayPropias && !opciones.puedeProgramar ? "" : [["TODAS", "Todas"], ["ADM", "Requeridas"], ["USUARIO", "Propias"]].map(([k, t]) =>
     `<button type="button" class="${origen === k ? "on" : ""}" data-prg-origen="${k}">${k === "TODAS" ? "" : `<i class="ori ${k === "USUARIO" ? "propia" : ""}"></i>`}${t}</button>`).join("");
   caja.querySelector("#prgTipos").innerHTML = tipos.length < 2 ? "" : ["TODAS", ...tipos].map(t =>
-    `<button type="button" class="${tipo === t ? "on" : ""}" data-prg-tipo="${esc(t)}">${t === "TODAS" ? "" : `<i style="--c:${colorTipo(t)}"></i>`}${esc(t === "TODAS" ? "Todos los tipos" : t)}</button>`).join("");
+    `<button type="button" class="${tipo === t ? "on" : ""}" data-prg-tipo="${esc(t)}">${t === "TODAS" ? "" : `<i style="--c:${colorDe(lista().find(a => tipoDe(a) === t))}"></i>`}${esc(t === "TODAS" ? "Todos los tipos" : t)}</button>`).join("");
 }
 
 function pintarCalendario() {
@@ -92,7 +93,7 @@ function pintarCalendario() {
   for (let d = 1; d <= dias; d++) {
     const k = diaClave(new Date(y, m, d)), items = por.get(k) || [];
     celdas.push(`<div class="prg-dia ${k === hoy ? "hoy" : ""}"><span class="prg-num">${d}</span>${items.map(a =>
-      `<button type="button" class="prg-ev ${clases(a)}" style="--c:${colorTipo(tipoDe(a))}" data-actividad="${esc(idDe(a))}"><small>${esc(hora(a))}</small><b>${marca(a)}${esc(titulo(a))}</b></button>`).join("")}</div>`);
+      `<button type="button" class="prg-ev ${clases(a)}" style="--c:${colorDe(a)}" data-actividad="${esc(idDe(a))}"><small>${esc(hora(a))}</small><b>${marca(a)}${esc(titulo(a))}</b></button>`).join("")}</div>`);
   }
   return `<div class="prg-mes"><button type="button" class="btn sm" data-prg-mes="-1" aria-label="Mes anterior">‹</button><strong>${esc(primero.toLocaleDateString("es-MX", { month: "long" }).replace(/^./, c => c.toUpperCase()) + " " + y)}</strong><button type="button" class="btn sm" data-prg-mes="1" aria-label="Mes siguiente">›</button></div>
     <div class="prg-sem"><span>LUN</span><span>MAR</span><span>MIÉ</span><span>JUE</span><span>VIE</span><span>SÁB</span><span>DOM</span></div>

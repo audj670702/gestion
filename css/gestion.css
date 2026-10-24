@@ -1,4 +1,4 @@
-/* SCaD Gestión · App operativa · v0.1.0 */
+/* SCaD Gestión · App operativa · v0.1.1 */
 :root{
   --ink:#15253d;--muted:#64748b;--line:#e2e8f0;--bg:#f5f7fb;--card:#fff;
   --blue:#2478d2;--cyan:#1fb6d6;--violet:#7654c6;
@@ -128,3 +128,6 @@ dialog::backdrop{background:rgba(21,37,61,.45)}
 .spinner{width:30px;height:30px;border:3px solid #dbe4f0;border-top-color:var(--blue);border-radius:50%;animation:g .8s linear infinite;margin:0 auto}
 @keyframes g{to{transform:rotate(360deg)}}
 .ver{text-align:center;font-size:10px;color:#a0aec0;padding:20px 0 30px}
+.sub-h{font-size:14px;margin:14px 0 8px}
+.otgs{display:grid;gap:8px}
+.otg{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:3px}

@@ -1,11 +1,12 @@
-// SCaD Gestión · App operativa · Modo Operación · v0.1.0
+// SCaD Gestión · App operativa · Modo Operación · v0.1.1
+// v0.1.1: la ficha muestra todas las instancias otorgantes con su aportación y resultado.
 // El colaborador responsable ve sólo sus proyectos, trabaja el checklist,
 // sube documentos al Drive de la EO y anota el Seguimiento.
 // Los momentos del proyecto los valida el ADM en el panel (aquí: lectura).
 import { captureTokenFromHash, hasToken, startLogin, logout } from "./auth.js";
 import { contexto, api, archivo, subirADrive, ApiError } from "./api.js";
 
-export const VERSION = "GESTION_APP v0.1.0";
+export const VERSION = "GESTION_APP v0.1.1";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
 const ESTATUS = {
@@ -22,6 +23,7 @@ const ACCION = {
   SOLICITADO: { t: "Marcar solicitado", c: "" }, VALIDADO: { t: "Validar", c: "pri" }, OBSERVADO: { t: "Observar", c: "bad" },
   NO_APLICA: { t: "No aplica", c: "" }, PENDIENTE: { t: "Reactivar", c: "" }
 };
+const RESULTADO = { PENDIENTE: { t: "Pendiente", c: "" }, ENTREGADO: { t: "Expediente entregado", c: "info" }, OTORGADO: { t: "Otorgado", c: "ok" }, NO_OTORGADO: { t: "No otorgado", c: "bad" } };
 const MEDIOS = { OFICIO: "Oficio", CORREO: "Correo electrónico", EN_MANO: "Entrega en mano", OTRO: "Otro medio" };
 
 const $ = s => document.querySelector(s);
@@ -245,22 +247,33 @@ function vistaSeguimiento() {
 
 function vistaFicha() {
   const p = S.det.proyecto;
-  const o = ins(p.instanciaOtorganteId);
-  const ef = o?.enlaceFormal;
+  const otorgantes = (p.otorgantes && p.otorgantes.length) ? p.otorgantes : (p.instanciaOtorganteId ? [{ instanciaId: p.instanciaOtorganteId, aportacion: null, resultado: "PENDIENTE" }] : []);
+  const bloqueOtorgante = o => {
+    const i = ins(o.instanciaId);
+    const ef = i?.enlaceFormal;
+    const r = RESULTADO[o.resultado] || RESULTADO.PENDIENTE;
+    return `<div class="otg">
+      <div class="row"><b>${esc(i?.siglas || i?.nombre || "—")}</b><span class="chip ${r.c}">${esc(r.t)}</span></div>
+      ${i?.siglas ? `<div class="muted sm">${esc(i.nombre)}</div>` : ""}
+      ${o.aportacion !== null && o.aportacion !== undefined ? `<div class="sm">Aportación: ${pesos(o.aportacion)}</div>` : ""}
+      ${o.fechaResultado ? `<div class="muted xs">Resultado registrado: ${fecha(o.fechaResultado)}</div>` : ""}
+      ${ef?.nombre ? `<div class="sm">Enlace formal: ${esc(ef.nombre)}${ef.cargo ? ` · ${esc(ef.cargo)}` : ""}
+        ${ef.telefono ? `<br><a href="tel:${esc(ef.telefono.replace(/[^\d+]/g, ""))}">${esc(ef.telefono)}</a>` : ""}
+        ${ef.email ? `<br><a href="mailto:${esc(ef.email)}">${esc(ef.email)}</a>` : ""}</div>` : ""}
+    </div>`;
+  };
   return `<div class="card ficha">
     ${p.descripcion ? `<p>${esc(p.descripcion)}</p>` : ""}
     <dl>
       <dt>Tipo de proyecto</dt><dd>${esc(tipoPry(p.tipoProyectoClave) || "—")}</dd>
       <dt>Valor</dt><dd>${pesos(p.valor)}</dd>
-      <dt>Instancia otorgante</dt><dd>${esc(o?.nombre || "—")}${o?.siglas ? ` (${esc(o.siglas)})` : ""}</dd>
-      ${ef?.nombre ? `<dt>Enlace formal</dt><dd>${esc(ef.nombre)}${ef.cargo ? ` · ${esc(ef.cargo)}` : ""}
-        ${ef.telefono ? `<br><a href="tel:${esc(ef.telefono.replace(/[^\d+]/g, ""))}">${esc(ef.telefono)}</a>` : ""}
-        ${ef.email ? `<br><a href="mailto:${esc(ef.email)}">${esc(ef.email)}</a>` : ""}</dd>` : ""}
       <dt>Fase</dt><dd>${esc(FASES[p.fase] || p.fase)}</dd>
       <dt>Momento</dt><dd>${esc(ESTATUS[p.estatus] || p.estatus)}</dd>
       <dt>Alta</dt><dd>${fecha(p.fechaAlta)}</dd>
     </dl>
-    <p class="muted xs">Los datos del proyecto y sus momentos los administra el ADM en el panel de SCaD Gestión.</p>
+    <h3 class="sub-h">${otorgantes.length > 1 ? "Instancias otorgantes" : "Instancia otorgante"}</h3>
+    <div class="otgs">${otorgantes.map(bloqueOtorgante).join("") || `<p class="muted sm">Sin instancia otorgante.</p>`}</div>
+    <p class="muted xs">Los datos del proyecto, sus momentos y el resultado de cada otorgante los registra el ADM en el panel de SCaD Gestión.</p>
   </div>`;
 }
 

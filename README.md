@@ -9,4 +9,4 @@ Seguimiento de proyectos e integración del expediente técnico. Primera versió
 - Documentos: Drive de la Empresa Operadora (carga directa desde el navegador).
 - Panel ADM: Wix (`/panel-gestion`).
 
-**Versión:** v0.1.0
+**Versión:** v0.1.1

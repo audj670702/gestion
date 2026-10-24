@@ -13,6 +13,6 @@ Menú de cuenta: avatar + nombre a mostrar, correo, Actualizar, Editar perfil (`
 - Documentos: Drive de la Empresa Operadora (carga directa desde el navegador).
 - Panel ADM: Wix (`/panel-gestion`).
 
-Programación: mismo modelo que NEXUS. Las actividades llegan en el contexto SYS (`actividades` o `programacion`), las captura el ADM en el panel y en la app son de consulta (calendario, lista, filtro por tipo, búsqueda, detalle y bloque «Actividades de hoy»).
+Programación: modelo NEXUS extendido. Las actividades llegan en el contexto SYS (`actividades`). **Requeridas** (origen ADM): las programa el administrador, generales de la EO o de un proyecto. **Propias** (origen USUARIO): las programa el colaborador, siempre ligadas a un proyecto suyo. Las de proyecto se marcan cumplidas desde la actividad o desde Seguimiento (siempre dejan anotación); el ADM puede convertir una propia en requerida. Calendario, lista, filtros por origen y tipo, búsqueda, agenda por proyecto y bloque «Actividades de hoy».
 
-**Versión:** v0.3.0
+**Versión:** v0.4.0

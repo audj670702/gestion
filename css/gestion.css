@@ -1,4 +1,4 @@
-/* SCaD Gestión · App · v0.3.0 */
+/* SCaD Gestión · App · v0.4.0 */
 :root{
   --ink:#15253d;--muted:#64748b;--line:#e2e8f0;--bg:#f5f7fb;--card:#fff;
   --blue:#2478d2;--cyan:#1fb6d6;--violet:#7654c6;
@@ -124,7 +124,7 @@ details{margin:6px 0} details .row{padding:4px 0}
 
 .compose textarea,.f input,.f select,.f textarea,.compose select{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;font:inherit;background:#fff;color:var(--ink)}
 .compose .row{margin-top:8px}
-.compose select{width:auto;flex:1;min-width:160px}
+.compose select{width:auto;flex:1 1 220px;min-width:0}
 .check{display:flex;align-items:center;gap:6px;font-size:13px;margin:6px 0}
 .timeline{list-style:none;padding:0;margin:12px 0;display:grid;gap:8px}
 .timeline li{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
@@ -207,3 +207,29 @@ dialog::backdrop{background:rgba(21,37,61,.45)}
 .hoy>.row{padding:0 12px 6px}
 .hoy-item{grid-template-columns:72px 8px minmax(0,1fr)}
 .hoy>p{padding:4px 12px 6px;margin:0}
+
+/* Requeridas / propias / cumplimiento */
+.prg-ev.propia{border-left-style:dashed;background:#fff;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 35%,#fff)}
+.prg-ev.hecha,.prg-item.hecha{opacity:.62}
+.prg-ev.vencida{background:#fdecec}
+.prg-item.propia i,.hoy-item.propia i{background:#fff;box-shadow:inset 0 0 0 2px var(--c)}
+.prg-item.vencida .prg-hora{color:var(--bad)}
+.prg-ev em,.prg-item em{font-style:normal;font-weight:800;margin-right:3px}
+em.ok{color:var(--ok)} em.bad{color:var(--bad)}
+.seg i.ori{width:10px;height:10px;border-radius:3px;background:var(--ink);display:inline-block}
+.seg i.ori.propia{background:#fff;border:1.5px dashed var(--ink)}
+#prgOrigen,#prgTipos{padding-bottom:6px}
+#prgOrigen:empty,#prgTipos:empty{display:none}
+.hero>.row h1{margin:4px 0}
+.chip.req{background:var(--ink);color:#fff}
+.chip.propia{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);border:0}
+.act-dl{display:grid;grid-template-columns:110px 1fr;gap:6px 12px;margin:4px 0;font-size:14px}
+.act-dl dt{color:var(--muted);font-size:13px}
+.act-dl dd{margin:0;overflow-wrap:anywhere}
+@media(max-width:480px){.act-dl{grid-template-columns:1fr}.act-dl dt{margin-top:4px}}
+.act-acciones{display:flex;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
+.agenda-head{margin:0 0 10px;align-items:flex-start}
+.agenda-head p{margin:4px 0}
+.grid3{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px}
+@media(max-width:420px){.grid3{grid-template-columns:1fr 1fr}.grid3 label:first-child{grid-column:1/-1}}
+.f input:disabled{opacity:.5}

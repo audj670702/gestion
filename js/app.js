@@ -1,4 +1,7 @@
-// SCaD Gestión · App · v0.3.0
+// SCaD Gestión · App · v0.4.0
+// v0.4.0: actividades requeridas (ADM) y propias (colaborador, ligadas a un proyecto); alta, edición y
+//         baja de propias; cumplimiento desde la actividad o desde Seguimiento (siempre deja anotación);
+//         el ADM convierte una propia en requerida; pestaña Agenda en el proyecto.
 // v0.3.0: módulo Programación (modelo NEXUS: actividades del contexto SYS, calendario/lista,
 //         filtro por tipo, búsqueda, detalle) y bloque "Actividades de hoy" en los listados.
 // v0.2.0: menú de cuenta normalizado (avatar + nombre a mostrar), Editar perfil (sysPwaProfile),
@@ -10,9 +13,12 @@
 // Dirección e Instancia son de consulta. Los momentos del proyecto los valida el ADM en el panel.
 import { captureTokenFromHash, hasToken, startLogin, logout } from "./auth.js";
 import { contexto, api, sys, archivo, subirADrive, ApiError } from "./api.js";
-import { abrirProgramacion, actividades, deHoy, hora, titulo, tipoDe, colorTipo } from "./programacion.js";
+import {
+  abrirProgramacion, repintarProgramacion, setContexto, actividades, buscarActividad, idDe, listaHtml, deHoy,
+  inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorTipo
+} from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.3.0";
+export const VERSION = "GESTION_APP v0.4.0";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -128,6 +134,7 @@ async function actualizar() {
   const c = await tarea(() => contexto());
   if (!c) return;
   S.ctx = c;
+  setContexto(c);
   pintarIdentidad();
   if (!modosDisponibles().includes(S.modo)) S.modo = resolverModo();
   pintarModo();
@@ -242,6 +249,7 @@ async function iniciar() {
   pantalla("cargando");
   try {
     S.ctx = await contexto();
+    setContexto(S.ctx);
   } catch (e) {
     if (e.code === "AUTH_REQUIRED") { if (!startLogin()) pantalla("login"); return; }
     pantalla("error", e.message);
@@ -268,7 +276,12 @@ function ruta() {
   const h = location.hash || "";
   const prg = /^#\/programacion(?:\/([^/]+))?/.exec(h);
   document.querySelectorAll("[data-sec]").forEach(a => a.classList.toggle("on", a.dataset.sec === (prg ? "programacion" : "proyectos")));
-  if (prg) { S.det = null; abrirProgramacion($("#view"), S.ctx, prg[1] ? decodeURIComponent(prg[1]) : ""); return; }
+  if (prg) {
+    S.det = null;
+    abrirProgramacion($("#view"), S.ctx, { puedeProgramar: puedeProgramar(), subtitulo: S.modo === "OPERACION" ? "Actividades requeridas y las tuyas, de tus proyectos." : "Actividades de la EO y de los proyectos." });
+    if (prg[1]) dlgActividad(decodeURIComponent(prg[1]));
+    return;
+  }
   const m = /^#\/p\/([\w-]+)/.exec(h);
   if (m) abrirProyecto(m[1]);
   else { S.det = null; pintarLista(); }
@@ -321,7 +334,7 @@ function bloqueHoy() {
   const hoy = deHoy(S.ctx);
   if (!hoy.length) return "";
   return `<section class="hoy"><div class="row"><h3>Actividades de hoy</h3><a href="#/programacion" class="sm">Ver programación ›</a></div>
-    ${hoy.slice(0, 4).map(a => `<a class="hoy-item" href="#/programacion/${encodeURIComponent(a.id || a._id || actividades(S.ctx).indexOf(a))}"><span class="prg-hora">${esc(hora(a))}</span><i style="--c:${colorTipo(tipoDe(a))}"></i><span class="prg-copy"><b>${esc(titulo(a))}</b><span>${esc(tipoDe(a))}</span></span></a>`).join("")}
+    ${hoy.slice(0, 4).map(a => `<a class="hoy-item ${origenDe(a) === "USUARIO" ? "propia" : ""}" href="#/programacion/${encodeURIComponent(idDe(a))}"><span class="prg-hora">${esc(hora(a))}</span><i style="--c:${colorTipo(tipoDe(a))}"></i><span class="prg-copy"><b>${cumplida(a) ? "✓ " : ""}${esc(titulo(a))}</b><span>${esc([origenDe(a) === "USUARIO" ? "Propia" : "Requerida", tipoDe(a), a.proyectoFolio].filter(Boolean).join(" · "))}</span></span></a>`).join("")}
     ${hoy.length > 4 ? `<p class="muted xs">y ${hoy.length - 4} más</p>` : ""}</section>`;
 }
 
@@ -364,7 +377,7 @@ const editable = () => S.modo === "OPERACION" && S.det?.proyecto?.estatus === "E
 
 function pintarProyecto() {
   const p = S.det.proyecto;
-  const tabs = [["checklist", `Checklist${p.checklist?.entregados ? ` <span class="badge">${p.checklist.entregados}</span>` : ""}`], ["seguimiento", "Seguimiento"], ["ficha", "Ficha"]];
+  const tabs = [["checklist", `Checklist${p.checklist?.entregados ? ` <span class="badge">${p.checklist.entregados}</span>` : ""}`], ["seguimiento", "Seguimiento"], ["agenda", `Agenda${pendientesAgenda(p.id) ? ` <span class="badge">${pendientesAgenda(p.id)}</span>` : ""}`], ["ficha", "Ficha"]];
   $("#view").innerHTML = `
     <section class="pry-head">
       <a class="back" href="#/">‹ ${MODOS[S.modo].lista}</a>
@@ -373,7 +386,7 @@ function pintarProyecto() {
       <p class="muted sm">${esc(FASES[p.fase] || "")} · El momento del proyecto lo valida el administrador en el panel.</p>
     </section>
     <nav class="tabs">${tabs.map(([k, t]) => `<button class="${S.tab === k ? "on" : ""}" data-tab="${k}">${t}</button>`).join("")}</nav>
-    <section id="tabBody">${{ checklist: vistaChecklist, seguimiento: vistaSeguimiento, ficha: vistaFicha }[S.tab]()}</section>`;
+    <section id="tabBody">${{ checklist: vistaChecklist, seguimiento: vistaSeguimiento, agenda: vistaAgenda, ficha: vistaFicha }[S.tab]()}</section>`;
 }
 
 function vistaChecklist() {
@@ -430,12 +443,17 @@ function vistaSeguimiento() {
       <textarea id="segNota" rows="3" placeholder="Escribe una anotación del proyecto: gestiones, acuerdos, llamadas…"></textarea>
       <div class="row wrap">
         <select id="segReq"><option value="">Proyecto en general</option>${S.det.checklist.map(x => `<option value="${esc(x.id)}">${esc(x.etiqueta)}</option>`).join("")}</select>
+        ${actsDe(p.id).length ? `<select id="segAct"><option value="">Sin relacionar con actividad</option>${actsDe(p.id).map(a => `<option value="${esc(idDe(a))}" data-cumplible="${puedeCumplir(a) ? 1 : ""}">${esc(fechaCorta(a))} · ${esc(titulo(a))}${cumplida(a) ? " (cumplida)" : ""}</option>`).join("")}</select>` : ""}
+      </div>
+      <div class="row wrap">
+        <label class="check" id="segCumpleBox" hidden><input type="checkbox" id="segCumple"> Da por cumplida la actividad</label>
         <label class="check"><input type="checkbox" id="segVis"> Visible para la instancia</label>
         <button class="btn pri" data-act="anotarGeneral">Registrar</button>
       </div></div>` : ""}
     <ol class="timeline">${h.map(s => `<li>
       <div class="row"><span class="muted xs">${fechaHora(s.fechaRegistro)} · ${esc(s.autorNombre)}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}</span>${s.visibleCliente && S.modo !== "INSTANCIA" ? `<span class="chip mute xs">Visible para la instancia</span>` : ""}</div>
       ${s.referenciaEtiqueta ? `<div class="ref">${esc(s.referenciaEtiqueta)}</div>` : ""}
+      ${s.tipo === "ACTIVIDAD_CUMPLIDA" ? `<span class="chip ok">Actividad cumplida</span>` : ""}
       ${s.tipo === "CAMBIO_ESTADO" && s.estadoNuevo ? `<span class="chip ${(ESTADOS[s.estadoNuevo] || {}).c || "info"}">${esc((ESTADOS[s.estadoNuevo] || {}).t || ESTATUS[s.estadoNuevo] || s.estadoNuevo)}</span>` : ""}
       <p>${esc(s.nota)}</p>
     </li>`).join("") || `<li class="empty">Sin anotaciones.</li>`}</ol>`;
@@ -473,12 +491,144 @@ function vistaFicha() {
   </div>`;
 }
 
+// ── Actividades: requeridas (ADM) y propias (colaborador) ────
+// El backend puede enviar puedeEditar / puedeCumplir / puedePromover por actividad; si no, se aplican estas reglas.
+const yo = () => [usr().usrId, usr().memberId, S.ctx?.memberId].filter(Boolean).map(String);
+const esMia = a => a?.esMia === true || (a?.creadoPorId && yo().includes(String(a.creadoPorId)));
+const misProyectos = () => S.modo === "OPERACION" ? S.proyectos.filter(p => p.fase !== "CERRADO") : [];
+const enMisProyectos = id => !!id && misProyectos().some(p => p.id === id);
+const flag = (a, k, def) => typeof a?.[k] === "boolean" ? a[k] : def;
+const puedeProgramar = () => misProyectos().length > 0;
+const puedeEditar = a => S.modo === "OPERACION" && !cumplida(a) && flag(a, "puedeEditar", origenDe(a) === "USUARIO" && esMia(a));
+const puedeCumplir = a => S.modo === "OPERACION" && programada(a) && flag(a, "puedeCumplir", origenDe(a) === "USUARIO" ? esMia(a) : enMisProyectos(a.proyectoId));
+const puedePromover = a => esAdm() && origenDe(a) === "USUARIO" && flag(a, "puedePromover", true);
+const actsDe = pid => actividades(S.ctx).filter(a => a.proyectoId === pid).sort((x, y) => inicio(x) - inicio(y));
+const pendientesAgenda = pid => actsDe(pid).filter(sinCumplir).length;
+const fechaCorta = a => { const d = inicio(a); return isNaN(d) ? "Sin fecha" : d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" }) + (todoDia(a) ? "" : " " + hora(a)); };
+const pryEtq = a => { const p = S.proyectos.find(x => x.id === a.proyectoId); return a.proyectoFolio || p?.folio ? `${a.proyectoFolio || p.folio} · ${a.proyectoNombre || p?.nombre || ""}` : (a.proyectoNombre || ""); };
+
+async function recargarActividades() {
+  try { const c = await contexto(); S.ctx = c; setContexto(c); } catch (_) { /* se conserva lo que había */ }
+  repintarProgramacion(S.ctx);
+}
+async function trasActividad(r) {
+  if (!r) return;
+  cerrarDialogo();
+  await recargarActividades();
+  if (S.det) await abrirProyecto(S.det.proyecto.id, { silencioso: true });
+  else if (!/^#\/programacion/.test(location.hash)) pintarLista();
+}
+
+function vistaAgenda() {
+  const p = S.det.proyecto;
+  const L = actsDe(p.id);
+  const puede = S.modo === "OPERACION" && p.fase !== "CERRADO";
+  return `<div class="row agenda-head"><p class="muted sm">Requeridas por el administrador y propias del equipo del proyecto.</p>${puede ? `<button type="button" class="btn pri sm" data-programar="${esc(p.id)}">+ Programar actividad</button>` : ""}</div>
+    ${listaHtml(L, "Sin actividades para este proyecto.")}`;
+}
+
+function dlgActividad(id) {
+  const a = buscarActividad(id);
+  if (!a) { aviso("La actividad ya no está disponible.", "bad"); return; }
+  const s = inicio(a), e = fin(a), propia = origenDe(a) === "USUARIO";
+  const cuando = isNaN(s) ? "—" : todoDia(a) ? s.toLocaleDateString("es-MX", { dateStyle: "full" }) + " · Todo el día" : s.toLocaleString("es-MX", { dateStyle: "full", timeStyle: "short" });
+  const fila = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : "";
+  const estado = cumplida(a) ? `<span class="chip ok">Cumplida</span>` : sinCumplir(a) ? `<span class="chip bad">Sin cumplir</span>` : programada(a) ? `<span class="chip info">Programada</span>` : "";
+  const acciones = [
+    puedeCumplir(a) ? `<button class="btn pri" data-act-accion="cumplir" data-act-id="${esc(idDe(a))}">Marcar cumplida</button>` : "",
+    puedeEditar(a) ? `<button class="btn" data-act-accion="editar" data-act-id="${esc(idDe(a))}">Editar</button>` : "",
+    puedeEditar(a) ? `<button class="btn bad" data-act-accion="eliminar" data-act-id="${esc(idDe(a))}">Eliminar</button>` : "",
+    puedePromover(a) ? `<button class="btn" data-act-accion="promover" data-act-id="${esc(idDe(a))}">Convertir en requerida</button>` : "",
+    a.proyectoId && S.proyectos.some(p => p.id === a.proyectoId) && S.det?.proyecto?.id !== a.proyectoId ? `<button class="btn ghost" data-act-accion="proyecto" data-act-id="${esc(idDe(a))}">Ver proyecto</button>` : ""
+  ].filter(Boolean).join("");
+  dialogo(`<div class="row wrap"><span class="chip ${propia ? "propia" : "req"}">${propia ? "Propia" : "Requerida"}</span><span class="chip" style="background:color-mix(in srgb,${colorTipo(tipoDe(a))} 14%,#fff);color:${colorTipo(tipoDe(a))}">${esc(tipoDe(a))}</span>${estado}</div>
+    <h3>${esc(titulo(a))}</h3>
+    <dl class="act-dl">
+      ${fila("Proyecto", esc(pryEtq(a)) || (propia ? "" : "General de la EO"))}
+      ${fila("Inicio", esc(cuando))}
+      ${e && !isNaN(e) && !todoDia(a) ? fila("Término", esc(e.toLocaleString("es-MX", { dateStyle: "full", timeStyle: "short" }))) : ""}
+      ${fila("Lugar", esc(lugar(a)))}
+      ${fila("Detalle", esc(detalle(a)))}
+      ${a.enlace ? fila("Enlace", `<a href="${esc(a.enlace)}" target="_blank" rel="noopener noreferrer">Abrir ↗</a>`) : ""}
+      ${fila(propia ? "Programó" : "Capturó", esc(a.creadoPorNombre || ""))}
+      ${propia && a.visibleCliente && S.modo !== "INSTANCIA" ? fila("Visibilidad", "Visible para la instancia") : ""}
+      ${cumplida(a) ? fila("Cumplimiento", esc([fecha(a.fechaCumplimiento), a.cumplidaPorNombre].filter(x => x && x !== "—").join(" · ")) + (a.notaCumplimiento ? `<br><span class="muted">${esc(a.notaCumplimiento)}</span>` : "")) : ""}
+    </dl>
+    ${!propia && !a.proyectoId && programada(a) && S.modo === "OPERACION" ? `<p class="muted xs">Actividad general de la EO: su cumplimiento lo registra el administrador en el panel.</p>` : ""}
+    ${acciones ? `<div class="act-acciones">${acciones}</div>` : ""}`, null, { textoCerrar: "Cerrar" });
+}
+
+function accionActividad(accion, id) {
+  const a = buscarActividad(id);
+  if (!a) return;
+  if (accion === "cumplir") return dlgCumplir(a);
+  if (accion === "editar") return dlgProgramar(a);
+  if (accion === "proyecto") { cerrarDialogo(); S.tab = "agenda"; location.hash = `#/p/${a.proyectoId}`; return; }
+  if (accion === "eliminar") return dialogo(`<h3>Eliminar actividad</h3><p>${esc(titulo(a))}</p><p class="muted sm">Se elimina de la programación. Esta acción no se puede deshacer.</p>`,
+    () => tarea(() => api("ACT_ELIMINAR", { actividadId: a.id }), { mensajeOk: "Actividad eliminada." }).then(trasActividad), { textoBoton: "Eliminar", clase: "bad" });
+  if (accion === "promover") return dialogo(`<h3>Convertir en requerida</h3><p>${esc(titulo(a))}</p><p class="muted sm">La actividad pasa a ser requerida para el proceso del proyecto: su autor ya no podrá editarla ni eliminarla y su cumplimiento corresponde al responsable.</p>`,
+    () => tarea(() => api("ACT_PROMOVER", { actividadId: a.id }), { mensajeOk: "La actividad ahora es requerida." }).then(trasActividad), { textoBoton: "Convertir" });
+}
+
+function dlgCumplir(a) {
+  dialogo(`<h3>Marcar cumplida</h3><p class="muted">${esc(titulo(a))} · ${esc(fechaCorta(a))}</p>
+    <label class="f">Anotación (opcional)<textarea id="cNota" rows="3" placeholder="Resultado, acuerdos, asistentes…"></textarea></label>
+    <label class="check"><input type="checkbox" id="cVis"> Visible para la instancia</label>
+    <p class="muted xs">Queda registrada en el Seguimiento del proyecto.</p>`,
+  () => tarea(() => api("ACT_CUMPLIR", { actividadId: a.id, nota: $("#cNota").value, visibleCliente: $("#cVis").checked }), { mensajeOk: "Actividad cumplida." }).then(trasActividad),
+  { textoBoton: "Marcar cumplida" });
+}
+
+const hhmm = d => isNaN(d) ? "" : `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+function dlgProgramar(a = null, proyectoId = "") {
+  const P = misProyectos();
+  if (!P.length) { aviso("Sólo puedes programar actividades en proyectos que tienes asignados.", "bad"); return; }
+  const pid = a?.proyectoId || proyectoId || (P.length === 1 ? P[0].id : "");
+  const s = a ? inicio(a) : null, e = a ? fin(a) : null;
+  const tipos = (S.ctx.catalogos?.tiposActividad || []).map(t => typeof t === "string" ? t : (t.etiqueta || t.clave)).filter(Boolean);
+  const usados = [...new Set(actividades(S.ctx).map(tipoDe))];
+  const tipoSel = a ? tipoDe(a) : "";
+  dialogo(`<h3>${a ? "Editar actividad" : "Programar actividad"}</h3>
+    <p class="muted xs">Actividad propia: organiza tu trabajo en el proyecto. Las requeridas las programa el administrador.</p>
+    <label class="f">Proyecto<select id="aPry" ${a ? "disabled" : ""}><option value="">Elige un proyecto</option>${P.map(p => `<option value="${esc(p.id)}" ${p.id === pid ? "selected" : ""}>${esc(p.folio)} · ${esc(p.nombre)}</option>`).join("")}</select></label>
+    <label class="f">Actividad<input id="aTit" maxlength="160" value="${esc(a ? titulo(a) : "")}" placeholder="Ej. Llamada con el enlace de SIOP"></label>
+    <label class="f">Tipo${tipos.length ? `<select id="aTipo">${tipos.map(t => `<option ${t === tipoSel ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>`
+      : `<input id="aTipo" list="aTipos" maxlength="60" value="${esc(tipoSel)}" placeholder="Reunión, visita, llamada…"><datalist id="aTipos">${usados.map(t => `<option value="${esc(t)}">`).join("")}</datalist>`}</label>
+    <div class="grid3">
+      <label class="f">Fecha<input type="date" id="aFecha" value="${s ? isoDia(s) : ""}"></label>
+      <label class="f">Inicio<input type="time" id="aHoraIni" value="${s && !todoDia(a) ? hhmm(s) : ""}" ${a && todoDia(a) ? "disabled" : ""}></label>
+      <label class="f">Término<input type="time" id="aHoraFin" value="${e && !todoDia(a) ? hhmm(e) : ""}" ${a && todoDia(a) ? "disabled" : ""}></label>
+    </div>
+    <label class="check"><input type="checkbox" id="aTodo" ${a && todoDia(a) ? "checked" : ""}> Todo el día</label>
+    <label class="f">Lugar (opcional)<input id="aLugar" maxlength="160" value="${esc(a ? lugar(a) : "")}"></label>
+    <label class="f">Detalle (opcional)<textarea id="aDet" rows="2">${esc(a ? detalle(a) : "")}</textarea></label>
+    <label class="f">Enlace (opcional)<input id="aEnl" type="url" maxlength="400" value="${esc(a?.enlace || "")}" placeholder="https://"></label>
+    <label class="check"><input type="checkbox" id="aVis" ${a?.visibleCliente ? "checked" : ""}> Visible para la instancia</label>`,
+  () => {
+    const fechaV = $("#aFecha").value, todo = $("#aTodo").checked, hi = $("#aHoraIni").value, hf = $("#aHoraFin").value;
+    const datos = {
+      actividadId: a?.id || "", proyectoId: a?.proyectoId || $("#aPry").value, titulo: $("#aTit").value.trim(), tipoActividad: $("#aTipo").value.trim(),
+      todoElDia: todo, lugar: $("#aLugar").value.trim(), descripcion: $("#aDet").value.trim(), enlace: $("#aEnl").value.trim(), visibleCliente: $("#aVis").checked
+    };
+    if (!datos.proyectoId) { aviso("Elige el proyecto.", "bad"); return; }
+    if (!datos.titulo) { aviso("Escribe el nombre de la actividad.", "bad"); return; }
+    if (!fechaV || (!todo && !hi)) { aviso(todo ? "Indica la fecha." : "Indica la fecha y la hora de inicio.", "bad"); return; }
+    const ini = new Date(`${fechaV}T${todo ? "00:00" : hi}`);
+    const fn = !todo && hf ? new Date(`${fechaV}T${hf}`) : null;
+    if (fn && fn <= ini) { aviso("La hora de término debe ser posterior al inicio.", "bad"); return; }
+    datos.inicio = ini.toISOString();
+    datos.fin = fn ? fn.toISOString() : "";
+    return tarea(() => api("ACT_GUARDAR", datos), { mensajeOk: a ? "Actividad actualizada." : "Actividad programada." }).then(trasActividad);
+  }, { textoBoton: a ? "Guardar" : "Programar" });
+}
+
 // ── Diálogos ─────────────────────────────────────────────────
 let alEnviar = null;
 function dialogo(html, enviar, { textoBoton = "Guardar", clase = "pri", textoCerrar = "Cancelar" } = {}) {
   $("#dlgBody").innerHTML = `${html}<div class="dlg-acts"><button class="btn" data-dlg="cerrar">${esc(textoCerrar)}</button>${enviar ? `<button class="btn ${clase}" data-dlg="ok">${esc(textoBoton)}</button>` : ""}</div>`;
   alEnviar = enviar;
-  $("#dlg").showModal();
+  if (!$("#dlg").open) $("#dlg").showModal();
+  $("#dlgBody").scrollTop = 0;
 }
 function cerrarDialogo() { if ($("#dlg").open) $("#dlg").close(); alEnviar = null; }
 const reqPorId = id => S.det.checklist.find(x => x.id === id);
@@ -610,6 +760,9 @@ document.addEventListener("click", e => {
   if (d.menu === "perfil") { dlgPerfil(); return; }
   if (d.menu === "panel") { abrirPanel(); return; }
   if (d.modo) { cambiarModo(d.modo); return; }
+  if (d.actividad) { e.preventDefault(); dlgActividad(d.actividad); return; }
+  if ("programar" in d) { cerrarDialogo(); dlgProgramar(null, d.programar || S.det?.proyecto?.id || ""); return; }
+  if (d.actAccion) { accionActividad(d.actAccion, d.actId); return; }
   if (d.foto) { const i = $("#pFoto"); if (d.foto === "camara") i.setAttribute("capture", "user"); else i.removeAttribute("capture"); i.click(); return; }
   if (d.dlg === "cerrar") { cerrarDialogo(); return; }
   if (d.dlg === "ok") { alEnviar && alEnviar(); return; }
@@ -624,11 +777,15 @@ document.addEventListener("click", e => {
   if (d.ver) { verArchivo(d.ver); return; }
   if (d.act === "agregar") { dlgAgregar(); return; }
   if (d.act === "anotarGeneral") {
-    tarea(() => api("ANOTAR", { proyectoId: S.det.proyecto.id, prqId: $("#segReq").value, nota: $("#segNota").value, visibleCliente: $("#segVis").checked })).then(trasCambio);
+    const actividadId = $("#segAct")?.value || "", cumpleActividad = !!actividadId && $("#segCumple").checked;
+    tarea(() => api("ANOTAR", { proyectoId: S.det.proyecto.id, prqId: $("#segReq").value, nota: $("#segNota").value, visibleCliente: $("#segVis").checked, actividadId, cumpleActividad }))
+      .then(async r => { if (r && cumpleActividad) await recargarActividades(); return trasCambio(r); });
   }
 });
 document.addEventListener("change", e => {
   if (e.target.id === "dNom") $("#dMedioBox").hidden = !e.target.checked;
+  if (e.target.id === "segAct") $("#segCumpleBox").hidden = !e.target.selectedOptions[0]?.dataset.cumplible;
+  if (e.target.id === "aTodo") { $("#aHoraIni").disabled = $("#aHoraFin").disabled = e.target.checked; }
   if (e.target.id === "fTipo") { S.tipo = e.target.value; pintarTarjetas(); }
   if (e.target.id === "pFoto") { const f = e.target.files?.[0]; if (f) pintarAvatar($("#pAvatar"), URL.createObjectURL(f), ""); }
 });

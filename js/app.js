@@ -364,7 +364,7 @@ function tarjetaProyecto(p) {
 // ── Proyecto ─────────────────────────────────────────────────
 async function abrirProyecto(id, { silencioso = false } = {}) {
   if (!silencioso) $("#view").innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
-  const r = await tarea(() => api("PROYECTO", { proyectoId: id }));
+  const r = await tarea(() => api("PROYECTO", { proyectoId: id, vista: S.modo }));
   if (!r) { location.hash = "#/"; return; }
   S.det = r;
   const i = S.proyectos.findIndex(p => p.id === id);
@@ -738,7 +738,7 @@ function dlgSubir(id) {
 }
 
 async function verArchivo(id) {
-  const r = await tarea(() => archivo(id));
+  const r = await tarea(() => archivo(id, S.modo));
   if (!r) return;
   const url = URL.createObjectURL(r.blob);
   dialogo(`<h3>Documento listo</h3><p>${esc(r.nombre)}</p>

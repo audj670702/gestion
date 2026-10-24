@@ -53,11 +53,11 @@ export async function sys(ruta, cuerpo = {}) {
   }));
 }
 
-export async function archivo(archivoId) {
+export async function archivo(archivoId, vista = "") {
   const r = await solicitar("gestionArchivo", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ archivoId })
+    body: JSON.stringify({ archivoId, vista })
   });
   if (!r.ok) await comoJson(r);
   const nombre = decodeURIComponent(r.headers.get("X-Archivo-Nombre") || "documento");

@@ -10,7 +10,8 @@
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="./assets/favicon-32.png" sizes="32x32">
   <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
-  <link rel="stylesheet" href="./css/gestion.css?v=0.1.1">
+  <script>window.__gestionInstallPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__gestionInstallPrompt=e;});window.addEventListener("appinstalled",function(){window.__gestionInstallPrompt=null;});</script>
+  <link rel="stylesheet" href="./css/gestion.css?v=0.2.0">
 </head>
 <body>
   <header class="topbar">
@@ -18,14 +19,27 @@
       <img src="./assets/icon-192.png" alt="" class="logo">
       <div><strong>SCaD Gestión</strong><span id="eoName"></span></div>
     </div>
-    <button id="account" class="account" type="button" hidden aria-label="Menú de cuenta"><span id="avatar">U</span></button>
-    <div id="accountMenu" class="account-menu" hidden>
-      <strong id="menuName"></strong>
-      <span id="menuEmail"></span>
-      <button id="btnRefresh" type="button">Actualizar</button>
-      <button id="btnLogout" type="button" class="danger">Cerrar sesión</button>
+    <div class="top-actions">
+      <button id="installButton" class="install-button" type="button" hidden>Instalar app</button>
+      <button id="account" class="account-trigger" type="button" hidden aria-label="Abrir menú de cuenta" aria-expanded="false">
+        <span id="topAvatar" class="avatar">U</span><span id="topName" class="account-name"></span><span class="chev" aria-hidden="true">⌄</span>
+      </button>
     </div>
+    <aside id="accountMenu" class="account-menu" hidden>
+      <div class="menu-id">
+        <span id="menuAvatar" class="avatar lg">U</span>
+        <div><strong id="menuName"></strong><span id="menuEmail"></span></div>
+      </div>
+      <div id="menuModos" class="menu-modos" hidden></div>
+      <nav class="menu-acts">
+        <button type="button" data-menu="refresh">Actualizar</button>
+        <button type="button" data-menu="perfil">Editar perfil</button>
+        <button type="button" data-menu="panel" id="btnPanel" hidden>Panel de Control</button>
+        <button type="button" data-menu="logout" class="danger">Cerrar sesión</button>
+      </nav>
+    </aside>
   </header>
+  <div id="modeBand" class="mode-band" hidden></div>
 
   <div id="driveWarn" class="drive-warn" hidden>El Drive de la EO no está conectado: por ahora no se pueden subir documentos.</div>
 
@@ -39,6 +53,6 @@
   <div id="busy" class="busy" hidden><div class="spinner"></div></div>
   <footer class="ver" id="ver"></footer>
 
-  <script type="module" src="./js/app.js?v=0.1.1"></script>
+  <script type="module" src="./js/app.js?v=0.2.0"></script>
 </body>
 </html>

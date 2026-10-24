@@ -1,4 +1,4 @@
-/* SCaD Gestión · App operativa · v0.1.1 */
+/* SCaD Gestión · App · v0.2.0 */
 :root{
   --ink:#15253d;--muted:#64748b;--line:#e2e8f0;--bg:#f5f7fb;--card:#fff;
   --blue:#2478d2;--cyan:#1fb6d6;--violet:#7654c6;
@@ -20,11 +20,34 @@ h3{font-size:15px;margin:0}
 .brand .logo{width:34px;height:34px;border-radius:9px}
 .brand strong{display:block;font-size:16px}
 .brand span{display:block;font-size:12px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.account{width:36px;height:36px;border-radius:50%;border:0;background:linear-gradient(135deg,var(--cyan),var(--violet));color:#fff;font-weight:700;cursor:pointer}
-.account-menu{position:absolute;right:12px;top:calc(56px + env(safe-area-inset-top));background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 12px 30px rgba(21,37,61,.18);padding:12px;display:grid;gap:6px;min-width:220px}
-.account-menu span{font-size:12px;color:var(--muted);margin-bottom:6px}
-.account-menu button{border:0;background:var(--bg);border-radius:10px;padding:9px 10px;text-align:left;font:inherit;cursor:pointer}
-.account-menu .danger{color:var(--bad)}
+.top-actions{display:flex;align-items:center;gap:10px;flex:0 0 auto}
+.install-button{border:0;background:none;color:var(--cyan);font:700 13px inherit;font-family:inherit;padding:6px 2px;cursor:pointer;white-space:nowrap;animation:pulso 1.6s ease-in-out infinite}
+@keyframes pulso{50%{color:#fff;text-shadow:0 0 9px rgba(31,182,214,.7)}}
+.account-trigger{display:flex;align-items:center;gap:8px;border:0;background:rgba(255,255,255,.08);color:#fff;border-radius:999px;padding:3px 10px 3px 3px;cursor:pointer;min-width:0;font:inherit}
+.account-name{max-width:150px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chev{font-size:12px;opacity:.7}
+.avatar{flex:0 0 auto;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--cyan),var(--violet)) center/cover no-repeat;color:#fff;font-size:12px;font-weight:800}
+.avatar[style*="url"]{background-size:cover;background-position:center}
+.avatar.lg{width:40px;height:40px;font-size:14px}
+.avatar.xl{width:52px;height:52px;font-size:18px}
+.account-menu{position:absolute;right:12px;top:calc(58px + env(safe-area-inset-top));width:min(290px,calc(100vw - 24px));background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 12px 30px rgba(21,37,61,.18);padding:8px;z-index:30}
+.menu-id{display:flex;align-items:center;gap:10px;padding:6px 6px 10px;border-bottom:1px solid var(--line)}
+.menu-id div{min-width:0}
+.menu-id strong,.menu-id span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.menu-id span{font-size:12px;color:var(--muted);margin-top:2px}
+.menu-modos{display:grid;gap:2px;padding:6px 0;border-bottom:1px solid var(--line)}
+.menu-sec{font-size:10px;font-weight:800;letter-spacing:.12em;color:var(--muted);padding:4px 8px}
+.menu-modo{display:flex;align-items:center;gap:9px;border:0;background:none;border-radius:9px;padding:9px 8px;font:inherit;font-size:14px;color:var(--ink);text-align:left;cursor:pointer}
+.menu-modo span{flex:1}
+.menu-modo i{width:9px;height:9px;border-radius:50%;background:var(--mode,var(--blue))}
+.menu-modo.on{background:var(--bg);font-weight:700}
+.menu-acts{display:grid;gap:2px;padding-top:6px}
+.menu-acts button{border:0;background:none;border-radius:9px;padding:10px 8px;text-align:left;font:inherit;font-size:14px;color:var(--ink);cursor:pointer}
+.menu-acts button:hover,.menu-modo:hover{background:var(--bg)}
+.menu-acts .danger{color:var(--bad);border-top:1px solid var(--line);border-radius:0;margin-top:4px;padding-top:12px}
+[data-tone="DIRECCION"]{--mode:#7654c6} [data-tone="OPERACION"]{--mode:#0f8f9a} [data-tone="INSTANCIA"]{--mode:#2478d2}
+.mode-band{background:#fff;border-bottom:1px solid var(--line);border-left:4px solid var(--mode);color:var(--mode);font-size:11px;font-weight:800;letter-spacing:.14em;padding:7px 16px}
+@media(max-width:480px){.account-name{max-width:96px}.top-actions{gap:6px}.install-button{font-size:12px}}
 .drive-warn{background:#fff6e5;color:#7a5200;padding:8px 16px;font-size:13px;border-bottom:1px solid #f1dcb0}
 
 main{max-width:760px;margin:0 auto;padding:16px}
@@ -131,3 +154,17 @@ dialog::backdrop{background:rgba(21,37,61,.45)}
 .sub-h{font-size:14px;margin:14px 0 8px}
 .otgs{display:grid;gap:8px}
 .otg{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:3px}
+
+.buscar{display:flex;gap:8px;margin:4px 0 10px}
+.buscar input,.buscar select{border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:inherit;background:#fff;color:var(--ink);min-width:0}
+.buscar input{flex:1}
+.buscar select{flex:0 1 190px}
+@media(max-width:480px){.buscar{flex-direction:column}.buscar select{flex:auto}}
+#conteo{margin:0 0 8px}
+#conteo:empty{display:none}
+.tuto{display:block;width:100%;max-height:62vh;object-fit:contain;background:#000;border-radius:12px}
+.perfil-head{display:flex;align-items:center;gap:12px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.kicker{display:block;font-size:10px;font-weight:800;letter-spacing:.14em;color:var(--cyan)}
+.fijo{display:grid;grid-template-columns:80px 1fr;gap:8px;font-size:13px;padding-top:4px}
+.fijo span{color:var(--muted)} .fijo b{overflow-wrap:anywhere;font-weight:600}
+.f .row{justify-content:flex-start}

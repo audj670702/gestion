@@ -1,4 +1,4 @@
-// SCaD Gestión · Comunicación con el backend · v0.1.0
+// SCaD Gestión · Comunicación con el backend · v0.2.0
 import { API_BASE, authToken, refreshToken, forgetSession } from "./auth.js";
 
 export class ApiError extends Error {
@@ -28,7 +28,7 @@ async function solicitar(ruta, opciones = {}, reintento = true) {
 
 async function comoJson(r) {
   const d = await r.json().catch(() => ({}));
-  if (!r.ok || d?.ok !== true) throw new ApiError(d?.mensaje || `No fue posible completar la operación (${r.status}).`, d?.code || "", r.status);
+  if (!r.ok || d?.ok !== true) throw new ApiError(d?.mensaje || d?.error || `No fue posible completar la operación (${r.status}).`, d?.code || "", r.status);
   return d;
 }
 
@@ -41,6 +41,15 @@ export async function api(accion, datos = {}) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ accion, datos })
+  }));
+}
+
+// Endpoints genéricos de SYS (p. ej. sysPwaProfile), con el mismo token.
+export async function sys(ruta, cuerpo = {}) {
+  return comoJson(await solicitar(ruta, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(cuerpo)
   }));
 }
 

@@ -1,12 +1,16 @@
-// SCaD Gestión · App operativa · Modo Operación · v0.1.1
+// SCaD Gestión · App · v0.2.0
+// v0.2.0: menú de cuenta normalizado (avatar + nombre a mostrar), Editar perfil (sysPwaProfile),
+//         Instalar app (tutorial en video para iPhone), vistas Dirección / Operación / Instancia
+//         (el ADM las alterna desde el menú), Panel de Control sólo ADM, búsqueda y filtro de proyectos.
 // v0.1.1: la ficha muestra todas las instancias otorgantes con su aportación y resultado.
-// El colaborador responsable ve sólo sus proyectos, trabaja el checklist,
-// sube documentos al Drive de la EO y anota el Seguimiento.
-// Los momentos del proyecto los valida el ADM en el panel (aquí: lectura).
+// Vistas por rol de la EO (sin roles nuevos): ADM → las tres · EJECUTIVO → Dirección ·
+// staff → Operación · CLIENTE → Instancia. Sólo en Operación se trabaja el checklist;
+// Dirección e Instancia son de consulta. Los momentos del proyecto los valida el ADM en el panel.
 import { captureTokenFromHash, hasToken, startLogin, logout } from "./auth.js";
-import { contexto, api, archivo, subirADrive, ApiError } from "./api.js";
+import { contexto, api, sys, archivo, subirADrive, ApiError } from "./api.js";
 
-export const VERSION = "GESTION_APP v0.1.1";
+export const VERSION = "GESTION_APP v0.2.0";
+const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
 const ESTATUS = {
@@ -34,12 +38,155 @@ const isoDia = v => { if (!v) return ""; const d = new Date(v); if (isNaN(d)) re
 const pesos = v => (v === null || v === undefined) ? "—" : "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const tamano = b => b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
 
-const S = { ctx: null, proyectos: [], fase: "ACTIVOS", det: null, tab: "checklist", filtroReq: "TODOS" };
+const S = { ctx: null, modo: null, proyectos: [], fase: "ACTIVOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS" };
 
 const ins = id => (S.ctx?.instancias || []).find(i => i.id === id) || null;
 const insEtq = id => { const i = ins(id); return i ? (i.siglas || i.nombre) : ""; };
 const tipoDoc = k => (S.ctx?.catalogos?.tiposDocumento || []).find(x => x.clave === k)?.etiqueta || "";
 const tipoPry = k => (S.ctx?.catalogos?.tiposProyecto || []).find(x => x.clave === k)?.etiqueta || "";
+const norm = v => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+// ── Vistas (modo) ────────────────────────────────────────────
+const MODOS = {
+  DIRECCION: { t: "Dirección", band: "MODO DIRECCIÓN", lista: "Proyectos", sub: "Cartera de proyectos de la EO." },
+  OPERACION: { t: "Operación", band: "MODO OPERACIÓN", lista: "Mis proyectos", sub: "Proyectos de los que eres responsable." },
+  INSTANCIA: { t: "Instancia", band: "MODO INSTANCIA", lista: "Proyectos", sub: "Proyectos en los que participa tu instancia." }
+};
+const usr = () => S.ctx?.usuario || {};
+const rolApp = () => String(usr().modo || "").toUpperCase();
+const esAdm = () => rolApp() === "ADM" || usr().admPrincipal === true;
+function modosDisponibles() {
+  if (esAdm()) return ["DIRECCION", "OPERACION", "INSTANCIA"];
+  return { EJECUTIVO: ["DIRECCION"], OPERACION: ["OPERACION"], CLIENTE: ["INSTANCIA"] }[rolApp()] || [];
+}
+const claveModo = () => `gestion.modo.${usr().memberId || S.ctx?.memberId || usr().email || "u"}`;
+function resolverModo() {
+  const ms = modosDisponibles();
+  let guardado = "";
+  try { guardado = localStorage.getItem(claveModo()) || ""; } catch (_) { /* sin almacenamiento */ }
+  return ms.includes(guardado) ? guardado : (ms[0] || null);
+}
+function pintarModo() {
+  const b = $("#modeBand");
+  b.hidden = !S.modo;
+  if (S.modo) { b.textContent = MODOS[S.modo].band; b.dataset.tone = S.modo; document.body.dataset.modo = S.modo; }
+  const ms = modosDisponibles(), box = $("#menuModos");
+  box.hidden = ms.length < 2;
+  box.innerHTML = ms.length < 2 ? "" : `<span class="menu-sec">VISTA</span>` + ms.map(m =>
+    `<button type="button" class="menu-modo ${m === S.modo ? "on" : ""}" data-modo="${m}" data-tone="${m}"><i></i><span>${MODOS[m].t}</span>${m === S.modo ? "<b>✓</b>" : ""}</button>`).join("");
+}
+async function cambiarModo(m) {
+  cerrarMenu();
+  if (m === S.modo) return;
+  S.modo = m;
+  try { localStorage.setItem(claveModo(), m); } catch (_) { /* sin almacenamiento */ }
+  Object.assign(S, { fase: "ACTIVOS", q: "", tipo: "", det: null });
+  pintarModo();
+  if (location.hash && location.hash !== "#/") history.replaceState({}, "", "#/");
+  $("#view").innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
+  await cargarLista();
+  pintarLista();
+}
+
+// ── Identidad y menú de cuenta ───────────────────────────────
+const nombreMostrar = () => usr().nombreVisible || usr().nombreApp || usr().nombre || "Usuario";
+const iniciales = n => String(n || "U").trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0)).join("").toUpperCase() || "U";
+function urlImagen(v) {
+  if (!v) return "";
+  if (typeof v === "object") return urlImagen(v.url || v.src);
+  const t = String(v).trim();
+  if (t.startsWith("wix:image://v1/")) { const id = t.slice(15).split("/")[0]; return id ? `https://static.wixstatic.com/media/${id}` : ""; }
+  return t;
+}
+function pintarAvatar(el, url, nombre) {
+  el.textContent = url ? "" : iniciales(nombre);
+  el.style.backgroundImage = url ? `url("${url.replace(/"/g, "%22")}")` : "";
+}
+function pintarIdentidad() {
+  const n = nombreMostrar(), foto = urlImagen(usr().avatar || usr().foto);
+  $("#eoName").textContent = S.ctx.eo?.nombreMostrar || S.ctx.eo?.nombre || "";
+  $("#topName").textContent = n;
+  $("#menuName").textContent = n;
+  $("#menuEmail").textContent = usr().email || S.ctx.email || "";
+  pintarAvatar($("#topAvatar"), foto, n);
+  pintarAvatar($("#menuAvatar"), foto, n);
+  $("#btnPanel").hidden = !esAdm();
+}
+function cerrarMenu() { $("#accountMenu").hidden = true; $("#account").setAttribute("aria-expanded", "false"); }
+function abrirPanel() {
+  const u = new URL(PANEL_URL);
+  const eo = S.ctx?.eo?.codigoEO || S.ctx?.eo?.codigo;
+  if (eo) u.searchParams.set("scadEO", eo);
+  window.location.assign(u.toString());
+}
+async function actualizar() {
+  cerrarMenu();
+  const c = await tarea(() => contexto());
+  if (!c) return;
+  S.ctx = c;
+  pintarIdentidad();
+  if (!modosDisponibles().includes(S.modo)) S.modo = resolverModo();
+  pintarModo();
+  $("#driveWarn").hidden = !!S.ctx.drive?.conectado;
+  await cargarLista();
+  ruta();
+  aviso("Información actualizada.");
+}
+
+// ── Instalar app ─────────────────────────────────────────────
+let promptInstalar = null;
+const instalada = () => window.matchMedia?.("(display-mode: standalone)")?.matches === true || navigator.standalone === true;
+const esIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+function pintarInstalar() { $("#installButton").hidden = instalada(); }
+async function instalar() {
+  if (instalada()) return;
+  if (esIOS()) {
+    dialogo(`<h3>Instalar app en iPhone</h3>
+      <video class="tuto" controls playsinline webkit-playsinline preload="metadata" disablepictureinpicture>
+        <source src="./assets/tutorial-instalar-app.mp4" type="video/mp4">Tu navegador no puede reproducir este tutorial.</video>
+      <p class="muted sm">En Safari: Compartir → Agregar a pantalla de inicio.</p>`, null, { textoCerrar: "Cerrar" });
+    return;
+  }
+  promptInstalar = promptInstalar || window.__gestionInstallPrompt;
+  if (!promptInstalar) { aviso("Abre el menú del navegador y elige «Instalar app» o «Agregar a la pantalla de inicio»."); return; }
+  promptInstalar.prompt();
+  await promptInstalar.userChoice.catch(() => null);
+  promptInstalar = window.__gestionInstallPrompt = null;
+  pintarInstalar();
+}
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); promptInstalar = window.__gestionInstallPrompt = e; pintarInstalar(); });
+window.addEventListener("appinstalled", () => { promptInstalar = window.__gestionInstallPrompt = null; pintarInstalar(); });
+
+// ── Editar perfil (sysPwaProfile, igual que en las demás apps SYS) ──
+const leerFoto = f => new Promise((ok, mal) => { const r = new FileReader(); r.onload = () => ok(String(r.result || "")); r.onerror = () => mal(new Error("No fue posible leer la fotografía.")); r.readAsDataURL(f); });
+function dlgPerfil() {
+  cerrarMenu();
+  const u = usr(), n = nombreMostrar();
+  dialogo(`<div class="perfil-head"><span id="pAvatar" class="avatar xl"></span><div><span class="kicker">PERFIL</span><h3>Editar perfil</h3></div></div>
+    <label class="f">Nombre a mostrar<input id="pNombre" maxlength="80" autocomplete="name" value="${esc(n === "Usuario" ? "" : n)}"></label>
+    <label class="f">Teléfono / WhatsApp<input id="pTel" type="tel" maxlength="30" autocomplete="tel" value="${esc(u.telefono || "")}"></label>
+    <div class="f">Avatar<input id="pFoto" type="file" accept="image/*" hidden>
+      <div class="row"><button type="button" class="btn sm" data-foto="elegir">Cargar foto</button><button type="button" class="btn sm" data-foto="camara">Tomar foto</button></div></div>
+    <div class="fijo"><span>Correo</span><b>${esc(u.email || S.ctx.email || "—")}</b></div>`,
+  async () => {
+    const memberId = u.memberId || S.ctx.memberId;
+    if (!memberId) { aviso("No fue posible identificar tu cuenta. Usa Actualizar e intenta de nuevo.", "bad"); return; }
+    const f = $("#pFoto").files?.[0];
+    if (f && f.size > 5 * 1048576) { aviso("La fotografía debe pesar máximo 5 MB.", "bad"); return; }
+    const datos = { memberId, app: "GESTION", nombreApp: $("#pNombre").value.trim(), telefono: $("#pTel").value.trim() };
+    const r = await tarea(async () => {
+      if (f) datos.foto = { base64: await leerFoto(f), mimeType: f.type, fileName: f.name };
+      return sys("sysPwaProfile", datos);
+    }, { mensajeOk: "Perfil actualizado." });
+    if (!r) return;
+    u.nombreVisible = String(r.nombreApp || datos.nombreApp || u.nombreVisible || "").trim();
+    u.telefono = String(r.telefono ?? datos.telefono);
+    if (r.avatar) u.avatar = r.avatar;
+    pintarIdentidad();
+    cerrarDialogo();
+  });
+  pintarAvatar($("#pAvatar"), urlImagen(u.avatar || u.foto), n);
+}
 
 // ── Avisos y ocupado ─────────────────────────────────────────
 let avisoT = null;
@@ -70,12 +217,13 @@ function pantalla(tipo, mensaje = "") {
   $("#view").innerHTML = "";
   const g = $("#gate");
   g.hidden = false;
-  $("#account").hidden = tipo !== "modo";
+  $("#account").hidden = true;
+  $("#modeBand").hidden = true;
   const t = {
     cargando: `<div class="spinner"></div><p>Cargando…</p>`,
     login: `<h1>SCaD Gestión</h1><p>Seguimiento de proyectos y expediente técnico.</p><button class="btn pri lg" id="btnLogin">Iniciar sesión</button>`,
     error: `<h1>No fue posible entrar</h1><p>${esc(mensaje)}</p><button class="btn pri" id="btnRetry">Reintentar</button> <button class="btn" id="btnLogin">Iniciar sesión</button>`,
-    modo: `<h1>Hola, ${esc(S.ctx?.usuario?.nombre || "")}</h1><p>Tu acceso es en <b>Modo ${S.ctx?.usuario?.modo === "CLIENTE" ? "Instancia" : "Ejecutivo"}</b>. Esta vista estará disponible en la siguiente versión de la app.</p>`
+    sinAcceso: `<h1>Hola, ${esc(nombreMostrar())}</h1><p>Tu cuenta no tiene una vista asignada en SCaD Gestión. Pide al administrador que te asigne un rol en el panel.</p><button class="btn" data-menu="logout">Cerrar sesión</button>`
   }[tipo];
   g.innerHTML = `<div class="gate-card">${t}</div>`;
 }
@@ -83,6 +231,7 @@ function pantalla(tipo, mensaje = "") {
 // ── Arranque ─────────────────────────────────────────────────
 async function iniciar() {
   $("#ver").textContent = VERSION;
+  pintarInstalar();
   captureTokenFromHash();
   if (!hasToken()) { pantalla("login"); return; }
   pantalla("cargando");
@@ -93,21 +242,20 @@ async function iniciar() {
     pantalla("error", e.message);
     return;
   }
-  $("#eoName").textContent = S.ctx.eo?.nombre || "";
-  $("#avatar").textContent = (S.ctx.usuario?.nombre || "U").trim().charAt(0).toUpperCase();
-  $("#menuName").textContent = S.ctx.usuario?.nombre || "";
-  $("#menuEmail").textContent = S.ctx.usuario?.email || "";
-  if (!["OPERACION", "ADM"].includes(S.ctx.usuario?.modo)) { pantalla("modo"); return; }
+  pintarIdentidad();
+  S.modo = resolverModo();
+  if (!S.modo) { pantalla("sinAcceso"); return; }
   $("#gate").hidden = true;
   $("#account").hidden = false;
+  pintarModo();
   if (!S.ctx.drive?.conectado) $("#driveWarn").hidden = false;
   await cargarLista();
   ruta();
 }
 
 async function cargarLista() {
-  const r = await tarea(() => api("PROYECTOS"));
-  if (r) S.proyectos = r.proyectos || [];
+  const r = await tarea(() => api("PROYECTOS", { vista: S.modo }));
+  S.proyectos = r ? (r.proyectos || []) : [];
 }
 
 function ruta() {
@@ -117,27 +265,54 @@ function ruta() {
 }
 window.addEventListener("hashchange", () => { if (S.ctx) ruta(); });
 
-// ── Lista: Mis proyectos ─────────────────────────────────────
+// ── Lista de proyectos (según la vista) ──────────────────────
+const enFase = p => S.fase === "ACTIVOS" ? p.fase !== "CERRADO" : p.fase === S.fase;
+const responsable = p => p.responsableNombre || p.responsable?.nombre || "";
+const otorgantesDe = p => (p.otorgantes?.length ? p.otorgantes.map(o => o.instanciaId) : [p.instanciaOtorganteId]).filter(Boolean);
+function coincide(p) {
+  if (S.tipo && p.tipoProyectoClave !== S.tipo) return false;
+  const q = norm(S.q).trim();
+  if (!q) return true;
+  const txt = norm([p.folio, p.nombre, tipoPry(p.tipoProyectoClave), ESTATUS[p.estatus], FASES[p.fase], responsable(p),
+    ...otorgantesDe(p).flatMap(id => [insEtq(id), ins(id)?.nombre])].join(" "));
+  return q.split(/\s+/).every(w => txt.includes(w));
+}
+
 function pintarLista() {
-  const P = S.proyectos;
-  const suma = k => P.filter(p => p.fase !== "CERRADO").reduce((n, p) => n + (p.checklist?.[k] || 0), 0);
+  const P = S.proyectos, M = MODOS[S.modo];
+  const activos = P.filter(p => p.fase !== "CERRADO");
+  const suma = k => activos.reduce((n, p) => n + (p.checklist?.[k] || 0), 0);
   const filtros = [["ACTIVOS", "Activos"], ["PREVISION", "Previsión"], ["INTEGRACION", "Integración"], ["EJECUCION", "Ejecución"], ["CERRADO", "Cerrados"]];
-  const lista = P.filter(p => S.fase === "ACTIVOS" ? p.fase !== "CERRADO" : p.fase === S.fase);
+  const tipos = S.ctx.catalogos?.tiposProyecto || [];
   $("#view").innerHTML = `
     <section class="hero">
-      <h1>Mis proyectos</h1>
-      <p class="muted">Proyectos de los que eres responsable.</p>
-      <div class="kpis">
-        <div class="kpi"><b>${P.filter(p => p.fase !== "CERRADO").length}</b><span>Activos</span></div>
+      <h1>${M.lista}</h1>
+      <p class="muted">${M.sub}</p>
+      ${S.modo === "INSTANCIA" ? "" : `<div class="kpis">
+        <div class="kpi"><b>${activos.length}</b><span>Activos</span></div>
         <div class="kpi warn"><b>${suma("entregados")}</b><span>Por revisar</span></div>
         <div class="kpi bad"><b>${suma("vencidos")}</b><span>Vencidos</span></div>
         <div class="kpi amber"><b>${suma("porVencer")}</b><span>Vencen en ${S.ctx.reglas?.diasRiesgo || 3} días</span></div>
-      </div>
+      </div>`}
     </section>
-    <nav class="seg">${filtros.map(([k, t]) => `<button class="${S.fase === k ? "on" : ""}" data-fase="${k}">${t}</button>`).join("")}</nav>
-    <section class="cards">
-      ${lista.length ? lista.map(tarjetaProyecto).join("") : `<div class="empty">${P.length ? "Sin proyectos en este filtro." : "Aún no tienes proyectos asignados. El administrador te los asigna desde el panel."}</div>`}
-    </section>`;
+    ${P.length ? `<div class="buscar">
+      <input type="search" id="fBuscar" placeholder="Buscar por folio, nombre, instancia${S.modo === "DIRECCION" ? ", responsable" : ""}…" value="${esc(S.q)}" autocomplete="off" enterkeyhint="search">
+      ${tipos.length > 1 ? `<select id="fTipo" aria-label="Tipo de proyecto"><option value="">Todos los tipos</option>${tipos.map(t => `<option value="${esc(t.clave)}" ${S.tipo === t.clave ? "selected" : ""}>${esc(t.etiqueta)}</option>`).join("")}</select>` : ""}
+    </div>
+    <nav class="seg">${filtros.map(([k, t]) => `<button class="${S.fase === k ? "on" : ""}" data-fase="${k}">${t}</button>`).join("")}</nav>` : ""}
+    <p id="conteo" class="muted xs"></p>
+    <section class="cards" id="cards"></section>`;
+  pintarTarjetas();
+}
+
+function pintarTarjetas() {
+  const P = S.proyectos;
+  const enF = P.filter(enFase), lista = enF.filter(coincide);
+  const filtrando = !!(S.q.trim() || S.tipo);
+  $("#conteo").textContent = filtrando ? `${lista.length} de ${enF.length} proyectos` : "";
+  $("#cards").innerHTML = lista.length ? lista.map(tarjetaProyecto).join("")
+    : `<div class="empty">${!P.length ? (S.modo === "OPERACION" ? "Aún no tienes proyectos asignados. El administrador te los asigna desde el panel." : "No hay proyectos para mostrar.")
+      : filtrando ? "Ningún proyecto coincide con la búsqueda." : "Sin proyectos en este filtro."}</div>`;
 }
 
 function tarjetaProyecto(p) {
@@ -146,7 +321,7 @@ function tarjetaProyecto(p) {
   return `<button class="card pry" data-pry="${esc(p.id)}">
     <div class="row"><span class="folio">${esc(p.folio)}</span><span class="dot ${p.semaforo === "ROJO" ? "bad" : p.semaforo === "AMARILLO" ? "amber" : "ok"}" title="Semáforo"></span></div>
     <h3>${esc(p.nombre)}</h3>
-    <div class="row wrap"><span class="chip ${p.estatus === "SUSPENDIDO" ? "bad" : "info"}">${esc(ESTATUS[p.estatus] || p.estatus)}</span><span class="muted sm">${esc(FASES[p.fase] || "")}</span></div>
+    <div class="row wrap"><span class="chip ${p.estatus === "SUSPENDIDO" ? "bad" : "info"}">${esc(ESTATUS[p.estatus] || p.estatus)}</span><span class="muted sm">${esc(FASES[p.fase] || "")}</span>${S.modo === "DIRECCION" && responsable(p) ? `<span class="muted sm">· ${esc(responsable(p))}</span>` : ""}</div>
     ${c.total ? `<div class="bar"><span style="width:${pct}%"></span></div>
       <div class="row sm"><span>${c.validados}/${c.aplicables} validados</span>
       <span class="badges">${c.entregados ? `<span class="chip warn">${c.entregados} por revisar</span>` : ""}${c.vencidos ? `<span class="chip bad">${c.vencidos} vencidos</span>` : ""}${c.observados ? `<span class="chip">${c.observados} observados</span>` : ""}</span></div>` : `<p class="muted sm">${p.fase === "PREVISION" ? "En Previsión: el checklist se genera cuando el ADM valida la viabilidad." : "Sin checklist."}</p>`}
@@ -164,14 +339,15 @@ async function abrirProyecto(id, { silencioso = false } = {}) {
   pintarProyecto();
 }
 
-const editable = () => S.det?.proyecto?.estatus === "EN_INTEGRACION";
+// Sólo en la vista Operación se trabaja el checklist; Dirección e Instancia son de consulta.
+const editable = () => S.modo === "OPERACION" && S.det?.proyecto?.estatus === "EN_INTEGRACION";
 
 function pintarProyecto() {
   const p = S.det.proyecto;
   const tabs = [["checklist", `Checklist${p.checklist?.entregados ? ` <span class="badge">${p.checklist.entregados}</span>` : ""}`], ["seguimiento", "Seguimiento"], ["ficha", "Ficha"]];
   $("#view").innerHTML = `
     <section class="pry-head">
-      <a class="back" href="#/">‹ Mis proyectos</a>
+      <a class="back" href="#/">‹ ${MODOS[S.modo].lista}</a>
       <div class="row"><span class="folio">${esc(p.folio)}</span><span class="chip ${p.estatus === "SUSPENDIDO" ? "bad" : "info"}">${esc(ESTATUS[p.estatus] || p.estatus)}</span></div>
       <h1>${esc(p.nombre)}</h1>
       <p class="muted sm">${esc(FASES[p.fase] || "")} · El momento del proyecto lo valida el administrador en el panel.</p>
@@ -190,7 +366,7 @@ function vistaChecklist() {
     : S.filtroReq === "REVISAR" ? x.estado === "ENTREGADO"
     : S.filtroReq === "VENCIDOS" ? x.semaforo === "VENCIDO"
     : !["VALIDADO", "NO_APLICA"].includes(x.estado));
-  const banner = !editable() ? `<div class="note-box">${p.fase === "PREVISION" ? "El proyecto está en Previsión. El checklist se genera cuando el administrador valida la viabilidad." : `El checklist sólo se trabaja mientras el proyecto está En integración. Momento actual: <b>${esc(ESTATUS[p.estatus] || p.estatus)}</b>.`}</div>`
+  const banner = S.modo !== "OPERACION" ? "" : !editable() ? `<div class="note-box">${p.fase === "PREVISION" ? "El proyecto está en Previsión. El checklist se genera cuando el administrador valida la viabilidad." : `El checklist sólo se trabaja mientras el proyecto está En integración. Momento actual: <b>${esc(ESTATUS[p.estatus] || p.estatus)}</b>.`}</div>`
     : (c.aplicables && c.validados === c.aplicables ? `<div class="note-box ok">Checklist completo. El administrador puede validar el expediente en el panel.</div>` : "");
   return `${banner}
     ${items.length ? `<div class="progress"><div class="row"><b>${pct}%</b><span class="muted sm">${c.validados} de ${c.aplicables} requerimientos aplicables validados</span></div><div class="bar"><span style="width:${pct}%"></span></div></div>
@@ -229,7 +405,7 @@ function tarjetaReq(x) {
 function vistaSeguimiento() {
   const p = S.det.proyecto;
   const h = S.det.seguimiento;
-  const abierto = p.fase !== "CERRADO";
+  const abierto = p.fase !== "CERRADO" && S.modo === "OPERACION";
   return `${abierto ? `<div class="card compose">
       <textarea id="segNota" rows="3" placeholder="Escribe una anotación del proyecto: gestiones, acuerdos, llamadas…"></textarea>
       <div class="row wrap">
@@ -238,7 +414,7 @@ function vistaSeguimiento() {
         <button class="btn pri" data-act="anotarGeneral">Registrar</button>
       </div></div>` : ""}
     <ol class="timeline">${h.map(s => `<li>
-      <div class="row"><span class="muted xs">${fechaHora(s.fechaRegistro)} · ${esc(s.autorNombre)}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}</span>${s.visibleCliente ? `<span class="chip mute xs">Visible para la instancia</span>` : ""}</div>
+      <div class="row"><span class="muted xs">${fechaHora(s.fechaRegistro)} · ${esc(s.autorNombre)}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}</span>${s.visibleCliente && S.modo !== "INSTANCIA" ? `<span class="chip mute xs">Visible para la instancia</span>` : ""}</div>
       ${s.referenciaEtiqueta ? `<div class="ref">${esc(s.referenciaEtiqueta)}</div>` : ""}
       ${s.tipo === "CAMBIO_ESTADO" && s.estadoNuevo ? `<span class="chip ${(ESTADOS[s.estadoNuevo] || {}).c || "info"}">${esc((ESTADOS[s.estadoNuevo] || {}).t || ESTATUS[s.estadoNuevo] || s.estadoNuevo)}</span>` : ""}
       <p>${esc(s.nota)}</p>
@@ -279,8 +455,8 @@ function vistaFicha() {
 
 // ── Diálogos ─────────────────────────────────────────────────
 let alEnviar = null;
-function dialogo(html, enviar, { textoBoton = "Guardar", clase = "pri" } = {}) {
-  $("#dlgBody").innerHTML = `${html}<div class="dlg-acts"><button class="btn" data-dlg="cerrar">Cancelar</button>${enviar ? `<button class="btn ${clase}" data-dlg="ok">${esc(textoBoton)}</button>` : ""}</div>`;
+function dialogo(html, enviar, { textoBoton = "Guardar", clase = "pri", textoCerrar = "Cancelar" } = {}) {
+  $("#dlgBody").innerHTML = `${html}<div class="dlg-acts"><button class="btn" data-dlg="cerrar">${esc(textoCerrar)}</button>${enviar ? `<button class="btn ${clase}" data-dlg="ok">${esc(textoBoton)}</button>` : ""}</div>`;
   alEnviar = enviar;
   $("#dlg").showModal();
 }
@@ -402,19 +578,22 @@ async function verArchivo(id) {
 // ── Eventos ──────────────────────────────────────────────────
 document.addEventListener("click", e => {
   const t = e.target.closest("button, a");
-  if (!t) {
-    if (!e.target.closest("#accountMenu, #account")) $("#accountMenu").hidden = true;
-    return;
-  }
+  if (!t || !t.closest("#accountMenu, #account")) cerrarMenu();
+  if (!t) return;
   const d = t.dataset;
   if (t.id === "btnLogin") { startLogin(); return; }
   if (t.id === "btnRetry") { iniciar(); return; }
-  if (t.id === "account") { $("#accountMenu").hidden = !$("#accountMenu").hidden; return; }
-  if (t.id === "btnLogout") { logout(); return; }
-  if (t.id === "btnRefresh") { $("#accountMenu").hidden = true; cargarLista().then(ruta); return; }
+  if (t.id === "installButton") { instalar(); return; }
+  if (t.id === "account") { const m = $("#accountMenu"); m.hidden = !m.hidden; t.setAttribute("aria-expanded", String(!m.hidden)); return; }
+  if (d.menu === "logout") { logout(); return; }
+  if (d.menu === "refresh") { actualizar(); return; }
+  if (d.menu === "perfil") { dlgPerfil(); return; }
+  if (d.menu === "panel") { abrirPanel(); return; }
+  if (d.modo) { cambiarModo(d.modo); return; }
+  if (d.foto) { const i = $("#pFoto"); if (d.foto === "camara") i.setAttribute("capture", "user"); else i.removeAttribute("capture"); i.click(); return; }
   if (d.dlg === "cerrar") { cerrarDialogo(); return; }
   if (d.dlg === "ok") { alEnviar && alEnviar(); return; }
-  if (d.fase) { S.fase = d.fase; pintarLista(); return; }
+  if (d.fase) { S.fase = d.fase; document.querySelectorAll("[data-fase]").forEach(b => b.classList.toggle("on", b === t)); pintarTarjetas(); return; }
   if (d.pry) { S.tab = "checklist"; S.filtroReq = "TODOS"; location.hash = `#/p/${d.pry}`; return; }
   if (d.tab) { S.tab = d.tab; pintarProyecto(); return; }
   if (d.freq) { S.filtroReq = d.freq; pintarProyecto(); return; }
@@ -430,8 +609,14 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("change", e => {
   if (e.target.id === "dNom") $("#dMedioBox").hidden = !e.target.checked;
+  if (e.target.id === "fTipo") { S.tipo = e.target.value; pintarTarjetas(); }
+  if (e.target.id === "pFoto") { const f = e.target.files?.[0]; if (f) pintarAvatar($("#pAvatar"), URL.createObjectURL(f), ""); }
 });
-$("#dlg").addEventListener("close", () => { alEnviar = null; });
+document.addEventListener("input", e => {
+  if (e.target.id === "fBuscar") { S.q = e.target.value; pintarTarjetas(); }
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape") cerrarMenu(); });
+$("#dlg").addEventListener("close", () => { alEnviar = null; $("#dlgBody video")?.pause(); });
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => { navigator.serviceWorker.register("./sw.js").catch(() => {}); });

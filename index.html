@@ -11,9 +11,18 @@
   <link rel="icon" href="./assets/favicon-32.png" sizes="32x32">
   <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
   <script>window.__gestionInstallPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__gestionInstallPrompt=e;});window.addEventListener("appinstalled",function(){window.__gestionInstallPrompt=null;});</script>
-  <link rel="stylesheet" href="./css/gestion.css?v=0.5.1">
+  <link rel="stylesheet" href="./css/gestion.css?v=0.5.2">
+
+  <style>
+    .app-splash{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;background:#fff;opacity:1;transition:opacity .65s ease;pointer-events:auto}
+    .app-splash img{display:block;width:min(76vw,340px);max-height:70dvh;object-fit:contain;transform:scale(1);transition:transform .65s cubic-bezier(.2,.65,.3,1),opacity .65s ease}
+    .app-splash.is-leaving{opacity:0;pointer-events:none}.app-splash.is-leaving img{transform:scale(1.16);opacity:0}
+    @media(prefers-reduced-motion:reduce){.app-splash,.app-splash img{transition:opacity .15s linear}.app-splash.is-leaving img{transform:none}}
+  </style>
 </head>
 <body>
+  <div id="appSplash" class="app-splash" aria-hidden="true"><img src="./assets/branding/scad-gestion-completo.png" alt="" fetchpriority="high"></div>
+  <script src="./js/inicio.js"></script>
   <header class="topbar">
     <div class="brand">
       <a class="brand-home" href="#/" aria-label="SCaD GESTIÓN · Proyectos"><img src="./assets/branding/scad-gestion-compacto.png" alt="SCaD GESTIÓN" class="logo"></a>
@@ -55,6 +64,6 @@
   <div id="busy" class="busy" hidden><div class="spinner"></div></div>
   <footer class="ver" id="ver"></footer>
 
-  <script type="module" src="./js/app.js?v=0.5.1"></script>
+  <script type="module" src="./js/app.js?v=0.5.2"></script>
 </body>
 </html>

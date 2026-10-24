@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.5.1
+// SCaD Gestión · App · v0.5.2
+// v0.5.2: inicio con logotipo centrado, zoom y disolución.
 // v0.5.1: identidad visual y barra azul de navegación, estilo NEXUS.
 // v0.5.0: Programación sobre el núcleo SYS (gestionCore v0.3.0): tipos de actividad del
 //         catálogo SYS autorizados por rol; el ADM programa requeridas (de un proyecto o
@@ -22,7 +23,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.5.1";
+export const VERSION = "GESTION_APP v0.5.2";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -832,4 +833,4 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => { navigator.serviceWorker.register("./sw.js").catch(() => {}); });
 }
 
-iniciar();
+iniciar().finally(() => window.dispatchEvent(new Event("gestion:ready")));

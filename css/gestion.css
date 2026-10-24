@@ -263,3 +263,11 @@ body.has-nav{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 .gate-card .btn{min-height:44px}.sr-only{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 @media(max-width:480px){.topbar{gap:8px;padding-left:12px;padding-right:12px}.brand{gap:8px}.brand .logo{width:65px;height:60px}.brand-context{padding-left:8px}.brand .brand-label{font-size:8px;letter-spacing:.04em}.brand #eoName{font-size:11px}.brand #eoName:empty::after{content:"Proyectos y resultados";font-size:10px}.account-name{display:none}.top-actions{gap:6px}.account-trigger{padding:3px 6px 3px 3px;gap:4px}.install-button{font-size:11px}.mode-band{margin:10px 12px 0}.gate-card{padding-left:16px;padding-right:16px}}
 @media(max-width:359px){.brand-context{display:none}}
+
+/* v0.5.3 · Indicador de proceso para acciones asíncronas */
+.busy[hidden]{display:none!important}
+.busy{background:rgba(12,34,60,.34);backdrop-filter:blur(2px);z-index:900}
+.busy-card{display:flex;flex-direction:column;align-items:center;gap:12px;min-width:min(86vw,280px);padding:28px 24px;background:#fff;border-radius:16px;box-shadow:0 16px 48px rgba(10,35,60,.22);text-align:center;color:#123f6d;font-size:14px;font-weight:600}
+.busy-card .spinner{width:38px;height:38px;border-width:4px}
+.busy-sub{font-size:12px;font-weight:400;color:#66788b}
+@media(prefers-reduced-motion:reduce){.busy-card .spinner{animation-duration:2s}}

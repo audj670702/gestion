@@ -233,3 +233,33 @@ em.ok{color:var(--ok)} em.bad{color:var(--bad)}
 .grid3{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px}
 @media(max-width:420px){.grid3{grid-template-columns:1fr 1fr}.grid3 label:first-child{grid-column:1/-1}}
 .f input:disabled{opacity:.5}
+
+/* v0.5.1 · Identidad GESTIÓN y navegación azul de la familia NEXUS */
+:root{--navy:#123f6d;--blue:#205985}
+.topbar{background:#fff;color:var(--ink);border-bottom:1px solid var(--line);padding-top:calc(8px + env(safe-area-inset-top));padding-bottom:8px;min-height:86px}
+.brand{gap:14px}.brand-home{display:flex;align-items:center;flex:none;border-radius:6px}
+.brand .logo{width:82px;height:70px;object-fit:contain;border-radius:0}
+.brand-context{border-left:1px solid var(--line);padding-left:14px;min-width:0}
+.brand .brand-label{font-size:9px;letter-spacing:.12em;color:var(--muted);opacity:1}
+.brand #eoName{font-size:13px;font-weight:500;opacity:1;margin-top:4px}
+.brand #eoName:empty::after{content:"Organización · Control · Resultados";font-size:11px;font-weight:400}
+.account-trigger{color:var(--ink);background:#f0f5fa;border:1px solid var(--line);min-height:44px}
+.account-trigger .avatar{background:var(--navy)}
+.install-button{color:var(--blue);animation:none;min-height:44px;font-weight:500}
+.account-menu{top:calc(100% - 2px);box-shadow:0 14px 40px #123f6d24;padding:0 10px 10px;overflow:auto;max-height:calc(100dvh - 120px)}
+.options-heading{display:flex;align-items:center;justify-content:space-between;background:var(--navy);color:#fff;margin:0 -10px 10px;padding:4px 10px 4px 16px;border-radius:13px 13px 0 0}
+.options-heading strong{font-size:14px;font-weight:600}.options-heading button{background:transparent;border:0;color:#fff;font:26px/1 system-ui;width:44px;height:44px;cursor:pointer;border-radius:8px}
+.account-menu.from-nav{position:fixed;right:max(12px,calc((100vw - 520px)/2));top:auto;bottom:calc(90px + env(safe-area-inset-bottom));width:min(340px,calc(100vw - 24px));max-height:calc(100dvh - 120px - env(safe-area-inset-bottom))}
+.menu-acts button,.menu-modo{min-height:44px;font-weight:400}
+.mode-band{max-width:760px;margin:12px auto 0;border:1px solid var(--line);border-left:3px solid var(--mode);border-radius:8px;padding:8px 12px;font-weight:600;letter-spacing:.08em}
+.secciones{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom));z-index:20;width:min(calc(100% - 24px),520px);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:6px;background:var(--navy);border:0;border-radius:20px;box-shadow:0 10px 32px #123f6d40;overflow:visible}
+.secciones a,.secciones button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:56px;min-width:0;padding:5px;border:0;border-radius:14px;background:transparent;color:#edf4fc;text-decoration:none;font:500 11px/1.2 system-ui;cursor:pointer;white-space:nowrap}
+.secciones svg{width:22px;height:22px;flex:none}
+.secciones a.on{background:#fff;color:var(--navy);border:0}
+.secciones button[aria-expanded="true"],.secciones a:hover:not(.on),.secciones button:hover{background:#ffffff20;color:#fff}
+.secciones a:focus-visible,.secciones button:focus-visible,.brand-home:focus-visible,.account-trigger:focus-visible,.options-heading button:focus-visible{outline:3px solid #52b9ef;outline-offset:3px}
+body.has-nav{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
+.gate-card{width:100%;max-width:420px;padding:18px 24px 28px}.gate-logo{display:block;width:220px;max-width:100%;height:auto;margin:0 auto 8px}
+.gate-card .btn{min-height:44px}.sr-only{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@media(max-width:480px){.topbar{gap:8px;padding-left:12px;padding-right:12px}.brand{gap:8px}.brand .logo{width:65px;height:60px}.brand-context{padding-left:8px}.brand .brand-label{font-size:8px;letter-spacing:.04em}.brand #eoName{font-size:11px}.brand #eoName:empty::after{content:"Proyectos y resultados";font-size:10px}.account-name{display:none}.top-actions{gap:6px}.account-trigger{padding:3px 6px 3px 3px;gap:4px}.install-button{font-size:11px}.mode-band{margin:10px 12px 0}.gate-card{padding-left:16px;padding-right:16px}}
+@media(max-width:359px){.brand-context{display:none}}

@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.5.0
+// SCaD Gestión · App · v0.5.1
+// v0.5.1: identidad visual y barra azul de navegación, estilo NEXUS.
 // v0.5.0: Programación sobre el núcleo SYS (gestionCore v0.3.0): tipos de actividad del
 //         catálogo SYS autorizados por rol; el ADM programa requeridas (de un proyecto o
 //         generales de la EO); permisos por actividad desde el backend; vista Instancia.
@@ -21,7 +22,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.5.0";
+export const VERSION = "GESTION_APP v0.5.1";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -95,7 +96,7 @@ async function cambiarModo(m) {
   Object.assign(S, { fase: "ACTIVOS", q: "", tipo: "", det: null });
   pintarModo();
   if (location.hash && location.hash !== "#/") history.replaceState({}, "", "#/");
-  document.querySelectorAll("[data-sec]").forEach(a => a.classList.toggle("on", a.dataset.sec === "proyectos"));
+  marcarSeccion("proyectos");
   $("#view").innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
   await cargarLista();
   pintarLista();
@@ -125,7 +126,29 @@ function pintarIdentidad() {
   pintarAvatar($("#menuAvatar"), foto, n);
   $("#btnPanel").hidden = !esAdm();
 }
-function cerrarMenu() { $("#accountMenu").hidden = true; $("#account").setAttribute("aria-expanded", "false"); }
+let menuOrigen = null;
+function cerrarMenu(devolverFoco = false) {
+  $("#accountMenu").hidden = true;
+  [$("#account"), $("#navOptions")].forEach(b => b.setAttribute("aria-expanded", "false"));
+  if (devolverFoco) menuOrigen?.focus();
+}
+function alternarMenu(origen) {
+  const menu = $("#accountMenu"), abrir = menu.hidden || menuOrigen !== origen;
+  cerrarMenu();
+  if (!abrir) return;
+  menuOrigen = origen;
+  menu.classList.toggle("from-nav", origen.id === "navOptions");
+  menu.hidden = false;
+  [$("#account"), $("#navOptions")].forEach(b => b.setAttribute("aria-expanded", "true"));
+  $("#closeOptions").focus();
+}
+function marcarSeccion(seccion) {
+  document.querySelectorAll("[data-sec]").forEach(a => {
+    const activa = a.dataset.sec === seccion;
+    a.classList.toggle("on", activa);
+    if (activa) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  });
+}
 function abrirPanel() {
   const u = new URL(PANEL_URL);
   const eo = S.ctx?.eo?.codigoEO || S.ctx?.eo?.codigo;
@@ -234,9 +257,11 @@ function pantalla(tipo, mensaje = "") {
   $("#account").hidden = true;
   $("#modeBand").hidden = true;
   $("#secciones").hidden = true;
+  document.body.classList.remove("has-nav");
+  cerrarMenu();
   const t = {
     cargando: `<div class="spinner"></div><p>Cargando…</p>`,
-    login: `<h1>SCaD Gestión</h1><p>Seguimiento de proyectos y expediente técnico.</p><button class="btn pri lg" id="btnLogin">Iniciar sesión</button>`,
+    login: `<img class="gate-logo" src="./assets/branding/scad-gestion-completo.png" alt="SCaD GESTIÓN · Organización, Control, Resultados"><h1 class="sr-only">SCaD GESTIÓN</h1><p>Seguimiento de proyectos y expediente técnico.</p><button class="btn pri lg" id="btnLogin">Iniciar sesión</button>`,
     error: `<h1>No fue posible entrar</h1><p>${esc(mensaje)}</p><button class="btn pri" id="btnRetry">Reintentar</button> <button class="btn" id="btnLogin">Iniciar sesión</button>`,
     sinAcceso: `<h1>Hola, ${esc(nombreMostrar())}</h1><p>Tu cuenta no tiene una vista asignada en SCaD Gestión. Pide al administrador que te asigne un rol en el panel.</p><button class="btn" data-menu="logout">Cerrar sesión</button>`
   }[tipo];
@@ -246,6 +271,7 @@ function pantalla(tipo, mensaje = "") {
 // ── Arranque ─────────────────────────────────────────────────
 async function iniciar() {
   $("#ver").textContent = VERSION;
+  console.info(VERSION);
   pintarInstalar();
   captureTokenFromHash();
   if (!hasToken()) { pantalla("login"); return; }
@@ -264,6 +290,7 @@ async function iniciar() {
   $("#gate").hidden = true;
   $("#account").hidden = false;
   $("#secciones").hidden = false;
+  document.body.classList.add("has-nav");
   pintarModo();
   if (!S.ctx.drive?.conectado) $("#driveWarn").hidden = false;
   await cargarLista();
@@ -278,7 +305,8 @@ async function cargarLista() {
 function ruta() {
   const h = location.hash || "";
   const prg = /^#\/programacion(?:\/([^/]+))?/.exec(h);
-  document.querySelectorAll("[data-sec]").forEach(a => a.classList.toggle("on", a.dataset.sec === (prg ? "programacion" : "proyectos")));
+  cerrarMenu();
+  marcarSeccion(prg ? "programacion" : "proyectos");
   if (prg) {
     S.det = null;
     abrirProgramacion($("#view"), S.ctx, { puedeProgramar: puedeProgramar(), subtitulo: S.modo === "OPERACION" ? "Actividades requeridas y las tuyas, de tus proyectos." : S.modo === "INSTANCIA" ? "Actividades de los proyectos en los que participa tu instancia." : "Actividades de la EO y de los proyectos." });
@@ -752,13 +780,14 @@ async function verArchivo(id) {
 // ── Eventos ──────────────────────────────────────────────────
 document.addEventListener("click", e => {
   const t = e.target.closest("button, a");
-  if (!t || !t.closest("#accountMenu, #account")) cerrarMenu();
+  if (!t || !t.closest("#accountMenu, #account, #navOptions")) cerrarMenu();
   if (!t) return;
   const d = t.dataset;
   if (t.id === "btnLogin") { startLogin(); return; }
   if (t.id === "btnRetry") { iniciar(); return; }
   if (t.id === "installButton") { instalar(); return; }
-  if (t.id === "account") { const m = $("#accountMenu"); m.hidden = !m.hidden; t.setAttribute("aria-expanded", String(!m.hidden)); return; }
+  if (t.id === "account" || t.id === "navOptions") { alternarMenu(t); return; }
+  if (t.id === "closeOptions") { cerrarMenu(true); return; }
   if (d.menu === "logout") { logout(); return; }
   if (d.menu === "refresh") { actualizar(); return; }
   if (d.menu === "perfil") { dlgPerfil(); return; }
@@ -796,7 +825,7 @@ document.addEventListener("change", e => {
 document.addEventListener("input", e => {
   if (e.target.id === "fBuscar") { S.q = e.target.value; pintarTarjetas(); }
 });
-document.addEventListener("keydown", e => { if (e.key === "Escape") cerrarMenu(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") cerrarMenu(true); });
 $("#dlg").addEventListener("close", () => { alEnviar = null; $("#dlgBody video")?.pause(); });
 
 if ("serviceWorker" in navigator) {

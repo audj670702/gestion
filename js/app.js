@@ -23,7 +23,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.5.2";
+export const VERSION = "GESTION_APP v0.5.3";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -236,9 +236,16 @@ function aviso(texto, tipo = "ok") {
   clearTimeout(avisoT);
   avisoT = setTimeout(() => { el.hidden = true; }, tipo === "bad" ? 6000 : 3200);
 }
-function ocupado(on) { $("#busy").hidden = !on; }
-async function tarea(fn, { mensajeOk = "" } = {}) {
-  ocupado(true);
+let tareasPendientes = 0;
+function ocupado(on, mensaje = "Procesando solicitud…") {
+  tareasPendientes = Math.max(0, tareasPendientes + (on ? 1 : -1));
+  const capa = $("#busy");
+  capa.hidden = tareasPendientes === 0;
+  if (on) $("#busyText").textContent = mensaje;
+  document.body.setAttribute("aria-busy", String(tareasPendientes > 0));
+}
+async function tarea(fn, { mensajeOk = "", mensajeCarga = "Procesando solicitud…" } = {}) {
+  ocupado(true, mensajeCarga);
   try {
     const r = await fn();
     if (mensajeOk || r?.mensaje) aviso(mensajeOk || r.mensaje);

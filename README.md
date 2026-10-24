@@ -13,4 +13,6 @@ Menú de cuenta: avatar + nombre a mostrar, correo, Actualizar, Editar perfil (`
 - Documentos: Drive de la Empresa Operadora (carga directa desde el navegador).
 - Panel ADM: Wix (`/panel-gestion`).
 
-**Versión:** v0.2.0
+Programación: mismo modelo que NEXUS. Las actividades llegan en el contexto SYS (`actividades` o `programacion`), las captura el ADM en el panel y en la app son de consulta (calendario, lista, filtro por tipo, búsqueda, detalle y bloque «Actividades de hoy»).
+
+**Versión:** v0.3.0

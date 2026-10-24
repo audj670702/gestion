@@ -1,4 +1,6 @@
-// SCaD Gestión · App · v0.2.0
+// SCaD Gestión · App · v0.3.0
+// v0.3.0: módulo Programación (modelo NEXUS: actividades del contexto SYS, calendario/lista,
+//         filtro por tipo, búsqueda, detalle) y bloque "Actividades de hoy" en los listados.
 // v0.2.0: menú de cuenta normalizado (avatar + nombre a mostrar), Editar perfil (sysPwaProfile),
 //         Instalar app (tutorial en video para iPhone), vistas Dirección / Operación / Instancia
 //         (el ADM las alterna desde el menú), Panel de Control sólo ADM, búsqueda y filtro de proyectos.
@@ -8,8 +10,9 @@
 // Dirección e Instancia son de consulta. Los momentos del proyecto los valida el ADM en el panel.
 import { captureTokenFromHash, hasToken, startLogin, logout } from "./auth.js";
 import { contexto, api, sys, archivo, subirADrive, ApiError } from "./api.js";
+import { abrirProgramacion, actividades, deHoy, hora, titulo, tipoDe, colorTipo } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.2.0";
+export const VERSION = "GESTION_APP v0.3.0";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -83,6 +86,7 @@ async function cambiarModo(m) {
   Object.assign(S, { fase: "ACTIVOS", q: "", tipo: "", det: null });
   pintarModo();
   if (location.hash && location.hash !== "#/") history.replaceState({}, "", "#/");
+  document.querySelectorAll("[data-sec]").forEach(a => a.classList.toggle("on", a.dataset.sec === "proyectos"));
   $("#view").innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
   await cargarLista();
   pintarLista();
@@ -219,6 +223,7 @@ function pantalla(tipo, mensaje = "") {
   g.hidden = false;
   $("#account").hidden = true;
   $("#modeBand").hidden = true;
+  $("#secciones").hidden = true;
   const t = {
     cargando: `<div class="spinner"></div><p>Cargando…</p>`,
     login: `<h1>SCaD Gestión</h1><p>Seguimiento de proyectos y expediente técnico.</p><button class="btn pri lg" id="btnLogin">Iniciar sesión</button>`,
@@ -247,6 +252,7 @@ async function iniciar() {
   if (!S.modo) { pantalla("sinAcceso"); return; }
   $("#gate").hidden = true;
   $("#account").hidden = false;
+  $("#secciones").hidden = false;
   pintarModo();
   if (!S.ctx.drive?.conectado) $("#driveWarn").hidden = false;
   await cargarLista();
@@ -259,7 +265,11 @@ async function cargarLista() {
 }
 
 function ruta() {
-  const m = /^#\/p\/([\w-]+)/.exec(location.hash || "");
+  const h = location.hash || "";
+  const prg = /^#\/programacion(?:\/([^/]+))?/.exec(h);
+  document.querySelectorAll("[data-sec]").forEach(a => a.classList.toggle("on", a.dataset.sec === (prg ? "programacion" : "proyectos")));
+  if (prg) { S.det = null; abrirProgramacion($("#view"), S.ctx, prg[1] ? decodeURIComponent(prg[1]) : ""); return; }
+  const m = /^#\/p\/([\w-]+)/.exec(h);
   if (m) abrirProyecto(m[1]);
   else { S.det = null; pintarLista(); }
 }
@@ -295,6 +305,7 @@ function pintarLista() {
         <div class="kpi amber"><b>${suma("porVencer")}</b><span>Vencen en ${S.ctx.reglas?.diasRiesgo || 3} días</span></div>
       </div>`}
     </section>
+    ${bloqueHoy()}
     ${P.length ? `<div class="buscar">
       <input type="search" id="fBuscar" placeholder="Buscar por folio, nombre, instancia${S.modo === "DIRECCION" ? ", responsable" : ""}…" value="${esc(S.q)}" autocomplete="off" enterkeyhint="search">
       ${tipos.length > 1 ? `<select id="fTipo" aria-label="Tipo de proyecto"><option value="">Todos los tipos</option>${tipos.map(t => `<option value="${esc(t.clave)}" ${S.tipo === t.clave ? "selected" : ""}>${esc(t.etiqueta)}</option>`).join("")}</select>` : ""}
@@ -303,6 +314,15 @@ function pintarLista() {
     <p id="conteo" class="muted xs"></p>
     <section class="cards" id="cards"></section>`;
   pintarTarjetas();
+}
+
+// Actividades de hoy (Programación), como en NEXUS.
+function bloqueHoy() {
+  const hoy = deHoy(S.ctx);
+  if (!hoy.length) return "";
+  return `<section class="hoy"><div class="row"><h3>Actividades de hoy</h3><a href="#/programacion" class="sm">Ver programación ›</a></div>
+    ${hoy.slice(0, 4).map(a => `<a class="hoy-item" href="#/programacion/${encodeURIComponent(a.id || a._id || actividades(S.ctx).indexOf(a))}"><span class="prg-hora">${esc(hora(a))}</span><i style="--c:${colorTipo(tipoDe(a))}"></i><span class="prg-copy"><b>${esc(titulo(a))}</b><span>${esc(tipoDe(a))}</span></span></a>`).join("")}
+    ${hoy.length > 4 ? `<p class="muted xs">y ${hoy.length - 4} más</p>` : ""}</section>`;
 }
 
 function pintarTarjetas() {

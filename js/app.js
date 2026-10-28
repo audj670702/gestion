@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.6.15
+// SCaD Gestión · App · v0.6.16
+// v0.6.16: curva de avance del expediente (planificado vs. real) en el checklist; tooltip y detalle al clic.
 // v0.6.15: sin botón de requerimiento extraordinario (el ADM define los requerimientos); el diálogo de requerimiento sólo ajusta la fecha compromiso, obligatoria.
 // v0.6.12: barra de vistas con íconos; modo de vista bajo la EO en la barra superior.
 // v0.6.10: foto del avatar como imagen en la barra superior, el menú y el perfil.
@@ -30,7 +31,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.6.15";
+export const VERSION = "GESTION_APP v0.6.16";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -456,6 +457,112 @@ function pintarProyecto() {
     <section id="tabBody">${{ checklist: vistaChecklist, seguimiento: vistaSeguimiento, agenda: vistaAgenda, ficha: vistaFicha }[S.tab]()}</section>`;
 }
 
+// ── Curva de avance del expediente ───────────────────────────
+// Planificada: requerimientos aplicables acumulados por fecha compromiso.
+// Real: requerimientos validados acumulados por fecha de validación.
+// Sólo ve el alcance que ya trae S.det.checklist (el servidor filtra por rol).
+const DIA_MS = 86400000;
+const diaDe = v => { const d = new Date(v); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+const CURVA = { d: null, sel: null, pid: null };
+
+function curvaDatos(items, fechaProy) {
+  const aplic = items.filter(x => x.estado !== "NO_APLICA");
+  const N = aplic.length;
+  if (!N) return null;
+  const plan = aplic.filter(x => x.fechaCompromiso).map(x => diaDe(x.fechaCompromiso));
+  const real = aplic.filter(x => x.estado === "VALIDADO" && x.fechaValidacion).map(x => diaDe(x.fechaValidacion));
+  const hoy = diaDe(new Date());
+  const pf = fechaProy ? diaDe(fechaProy) : null;
+  const todas = [...plan, ...real, hoy, ...(pf ? [pf] : [])];
+  const ini = Math.min(...todas), fin = Math.max(...todas);
+  const paso = Math.max(DIA_MS, Math.ceil((fin - ini) / 60 / DIA_MS) * DIA_MS);
+  const ts = [];
+  for (let t = ini; t <= fin; t += paso) ts.push(t);
+  if (ts[ts.length - 1] !== fin) ts.push(fin);
+  const cuenta = (lista, t) => lista.filter(v => v <= t).length;
+  const serie = ts.map(t => ({ t, plan: cuenta(plan, t), real: t <= hoy ? cuenta(real, t) : null }));
+  return { N, ini, fin, hoy, pf, serie, items: aplic, W: 640, H: 210, L: 36, R: 12, T: 14, B: 26 };
+}
+
+function curvaHTML(items, p) {
+  if (CURVA.pid !== p.id) { CURVA.pid = p.id; CURVA.sel = null; }
+  const c = curvaDatos(items, p.fechaCompromiso);
+  if (!c) return "";
+  CURVA.d = c;
+  const X = t => c.L + (t - c.ini) / Math.max(1, c.fin - c.ini) * (c.W - c.L - c.R);
+  const Y = n => c.H - c.B - (n / c.N) * (c.H - c.B - c.T);
+  const ruta = k => {
+    let d = "", abre = false;
+    for (const s of c.serie) {
+      if (s[k] === null) break;
+      d += `${abre ? "L" : "M"}${X(s.t).toFixed(1)},${Y(s[k]).toFixed(1)} `;
+      abre = true;
+    }
+    return d;
+  };
+  const yArriba = c.H - c.B, xDer = c.W - c.R;
+  const banda = c.pf ? (() => {
+    const x0 = X(Math.max(c.ini, c.pf - 15 * DIA_MS)), x1 = X(c.pf);
+    return `<rect x="${x0.toFixed(1)}" y="${c.T}" width="${Math.max(0, x1 - x0).toFixed(1)}" height="${yArriba - c.T}" fill="rgba(201,138,18,.14)"/>`;
+  })() : "";
+  const linea = c.pf ? `<line x1="${X(c.pf).toFixed(1)}" x2="${X(c.pf).toFixed(1)}" y1="${c.T}" y2="${yArriba}" stroke="#15253d" stroke-dasharray="4 3"/>
+    <text x="${(X(c.pf) - 4).toFixed(1)}" y="${c.T + 10}" text-anchor="end" font-size="10" fill="#15253d">Expediente ${esc(fecha(p.fechaCompromiso))}</text>` : "";
+  const hoyX = X(c.hoy).toFixed(1);
+  const ejes = [0, c.N / 2, c.N].map(n => `<line x1="${c.L}" x2="${xDer}" y1="${Y(n).toFixed(1)}" y2="${Y(n).toFixed(1)}" stroke="#e9eef5"/>
+    <text x="${c.L - 6}" y="${(Y(n) + 3).toFixed(1)}" text-anchor="end" font-size="10" fill="#748096">${Math.round(n)}</text>`).join("");
+  const etqX = `<text x="${c.L}" y="${c.H - 8}" font-size="10" fill="#748096">${esc(fecha(c.ini))}</text>
+    <text x="${xDer}" y="${c.H - 8}" text-anchor="end" font-size="10" fill="#748096">${esc(fecha(c.fin))}</text>`;
+  const pct = Math.round(c.serie[c.serie.length - 1].real / c.N * 100);
+  return `<div class="curva-box">
+    <div class="row"><b>Avance del expediente</b><span class="muted sm">Planificado vs. real · ${c.N} requerimientos aplicables</span></div>
+    <div class="curva-wrap" id="curvaWrap">
+      <svg viewBox="0 0 ${c.W} ${c.H}" class="curva" role="img" aria-label="Curva de avance">
+        ${ejes}${banda}${linea}
+        <line x1="${hoyX}" x2="${hoyX}" y1="${c.T}" y2="${yArriba}" stroke="#748096" stroke-width=".8"/>
+        <path d="${ruta("plan")}" fill="none" stroke="#748096" stroke-width="1.6" stroke-dasharray="5 4"/>
+        <path d="${ruta("real")}" fill="none" stroke="#2478d2" stroke-width="2.4"/>
+        ${etqX}
+        <rect x="${c.L}" y="${c.T}" width="${c.W - c.L - c.R}" height="${yArriba - c.T}" fill="transparent" style="cursor:pointer" onpointermove="curvaMover(event)" onpointerdown="curvaClic(event)" onpointerleave="curvaSalir()"/>
+      </svg>
+      <div class="curva-tip" id="curvaTip" hidden></div>
+    </div>
+    <div class="curva-leyenda sm muted"><span><i class="sw sw-plan"></i>Planificado (fecha compromiso)</span><span><i class="sw sw-real"></i>Real (fecha de validación)</span><span><i class="sw sw-exp"></i>Expediente (${esc(fecha(p.fechaCompromiso))})</span><span>${pct}% validado hoy</span></div>
+    <div id="curvaDet">${curvaDetalle()}</div>
+  </div>`;
+}
+
+function curvaPunto(e) {
+  const c = CURVA.d, svg = e.currentTarget.ownerSVGElement, r = svg.getBoundingClientRect();
+  const px = (e.clientX - r.left) / r.width * c.W;
+  const t = c.ini + (px - c.L) / Math.max(1, c.W - c.L - c.R) * Math.max(1, c.fin - c.ini);
+  let s = c.serie[0];
+  for (const q of c.serie) if (Math.abs(q.t - t) < Math.abs(s.t - t)) s = q;
+  return s;
+}
+function curvaMover(e) {
+  const c = CURVA.d, s = curvaPunto(e), tip = $("#curvaTip"), w = $("#curvaWrap").getBoundingClientRect();
+  tip.hidden = false;
+  tip.innerHTML = `<b>${esc(fecha(s.t))}</b><br>Planificado: ${s.plan} de ${c.N}${s.real !== null ? `<br>Validado: ${s.real} de ${c.N}` : ""}`;
+  tip.style.left = `${Math.min(w.width - 170, Math.max(0, e.clientX - w.left + 10))}px`;
+}
+function curvaSalir() { const tip = $("#curvaTip"); if (tip) tip.hidden = true; }
+function curvaClic(e) {
+  const s = curvaPunto(e);
+  curvaMover(e);
+  CURVA.sel = CURVA.sel === s.t ? null : s.t;
+  const el = $("#curvaDet"); if (el) el.innerHTML = curvaDetalle();
+}
+function curvaDetalle() {
+  if (!CURVA.d || CURVA.sel === null) return "";
+  const c = CURVA.d, t = CURVA.sel;
+  const pend = c.items
+    .filter(x => x.estado !== "VALIDADO" && x.fechaCompromiso && diaDe(x.fechaCompromiso) <= t)
+    .sort((a, b) => diaDe(a.fechaCompromiso) - diaDe(b.fechaCompromiso));
+  return `<div class="curva-det"><b>Al ${esc(fecha(t))}: ${pend.length} sin validar</b>
+    ${pend.length ? `<ul>${pend.map(x => `<li><b>${esc(x.etiqueta)}</b> <span class="muted sm">· ${esc(insEtq(x.instanciaId) || "Sin instancia")} · compromiso ${esc(fecha(x.fechaCompromiso))} · ${esc(ESTADOS[x.estado]?.t || x.estado)}</span></li>`).join("")}</ul>` : `<p class="muted sm">Nada pendiente a esa fecha.</p>`}
+  </div>`;
+}
+
 function vistaChecklist() {
   const items = S.det.checklist;
   const p = S.det.proyecto;
@@ -469,6 +576,7 @@ function vistaChecklist() {
   const banner = S.modo !== "OPERACION" ? "" : !editable() ? `<div class="note-box">${p.fase === "PREVISION" ? "El proyecto está en Previsión. El checklist se genera cuando el administrador valida la viabilidad." : `El checklist sólo se trabaja mientras el proyecto está En integración. Momento actual: <b>${esc(ESTATUS[p.estatus] || p.estatus)}</b>.`}</div>`
     : (c.aplicables && c.validados === c.aplicables ? `<div class="note-box ok">Checklist completo. El administrador puede validar el expediente en el panel.</div>` : "");
   return `${banner}
+    ${items.length ? curvaHTML(items, p) : ""}
     ${items.length ? `<div class="progress"><div class="row"><b>${pct}%</b><span class="muted sm">${c.validados} de ${c.aplicables} requerimientos aplicables validados</span></div><div class="bar"><span style="width:${pct}%"></span></div></div>
     <nav class="seg sm">${filtros.map(([k, t]) => `<button class="${S.filtroReq === k ? "on" : ""}" data-freq="${k}">${t}</button>`).join("")}</nav>` : ""}
     <div class="reqs">${lista.map(tarjetaReq).join("") || (items.length ? `<div class="empty">Nada en este filtro.</div>` : "")}</div>`;

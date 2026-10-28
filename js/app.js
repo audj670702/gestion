@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.5.2
+// SCaD Gestión · App · v0.6.0
+// v0.6.0: pantalla de bienvenida (js/bienvenida.js): visitante con planes; usuario con resumen del día según el rol.
 // v0.5.2: inicio con logotipo centrado, zoom y disolución.
 // v0.5.1: identidad visual y barra azul de navegación, estilo NEXUS.
 // v0.5.0: Programación sobre el núcleo SYS (gestionCore v0.3.0): tipos de actividad del
@@ -18,12 +19,13 @@
 // Dirección e Instancia son de consulta. Los momentos del proyecto los valida el ADM en el panel.
 import { captureTokenFromHash, hasToken, startLogin, logout } from "./auth.js";
 import { contexto, api, sys, archivo, subirADrive, ApiError } from "./api.js";
+import { bienvenidaVisitante, bienvenidaUsuario } from "./bienvenida.js";
 import {
   abrirProgramacion, repintarProgramacion, setContexto, actividades, buscarActividad, idDe, listaHtml, deHoy,
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.5.3";
+export const VERSION = "GESTION_APP v0.6.0";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -269,11 +271,11 @@ function pantalla(tipo, mensaje = "") {
   cerrarMenu();
   const t = {
     cargando: `<div class="spinner"></div><p>Cargando…</p>`,
-    login: `<img class="gate-logo" src="./assets/branding/scad-gestion-completo.png" alt="SCaD GESTIÓN · Organización, Control, Resultados"><h1 class="sr-only">SCaD GESTIÓN</h1><p>Seguimiento de proyectos y expediente técnico.</p><button class="btn pri lg" id="btnLogin">Iniciar sesión</button>`,
+    login: `<img class="gate-logo" src="./assets/branding/scad-gestion-completo.png" alt="SCaD GESTIÓN · Organización, Control, Resultados">${bienvenidaVisitante()}`,
     error: `<h1>No fue posible entrar</h1><p>${esc(mensaje)}</p><button class="btn pri" id="btnRetry">Reintentar</button> <button class="btn" id="btnLogin">Iniciar sesión</button>`,
-    sinAcceso: `<h1>Hola, ${esc(nombreMostrar())}</h1><p>Tu cuenta no tiene una vista asignada en SCaD Gestión. Pide al administrador que te asigne un rol en el panel.</p><button class="btn" data-menu="logout">Cerrar sesión</button>`
+    sinAcceso: bienvenidaVisitante({ sesion: true, nombre: nombreMostrar() })
   }[tipo];
-  g.innerHTML = `<div class="gate-card">${t}</div>`;
+  g.innerHTML = `<div class="gate-card ${tipo === "login" || tipo === "sinAcceso" ? "wide" : ""}">${t}</div>`;
 }
 
 // ── Arranque ─────────────────────────────────────────────────
@@ -301,6 +303,7 @@ async function iniciar() {
   document.body.classList.add("has-nav");
   pintarModo();
   if (!S.ctx.drive?.conectado) $("#driveWarn").hidden = false;
+  if (!location.hash || location.hash === "#/") history.replaceState({}, "", "#/inicio");
   await cargarLista();
   ruta();
 }
@@ -321,11 +324,23 @@ function ruta() {
     if (prg[1]) dlgActividad(decodeURIComponent(prg[1]));
     return;
   }
+  if (h === "#/inicio") { S.det = null; marcarSeccion(""); pintarBienvenida(); return; }
   const m = /^#\/p\/([\w-]+)/.exec(h);
   if (m) abrirProyecto(m[1]);
   else { S.det = null; pintarLista(); }
 }
 window.addEventListener("hashchange", () => { if (S.ctx) ruta(); });
+
+// ── Bienvenida (usuario) ─────────────────────────────────────
+function pintarBienvenida() {
+  const n = nombreMostrar();
+  const rol = { DIRECCION: "Dirección", OPERACION: "Operación", INSTANCIA: "Instancia" }[S.modo] || "";
+  $("#view").innerHTML = bienvenidaUsuario({
+    ctx: S.ctx, modo: S.modo, proyectos: S.proyectos, esAdm: esAdm(),
+    nombre: n === "Usuario" ? "" : n.split(/\s+/)[0], eoNombre: S.ctx.eo?.nombreMostrar || S.ctx.eo?.nombre || "",
+    rolEtiqueta: esAdm() ? "Administrador" + (rol ? " · " + rol : "") : rol
+  });
+}
 
 // ── Lista de proyectos (según la vista) ──────────────────────
 const enFase = p => S.fase === "ACTIVOS" ? p.fase !== "CERRADO" : p.fase === S.fase;
@@ -801,6 +816,8 @@ document.addEventListener("click", e => {
   if (d.menu === "perfil") { dlgPerfil(); return; }
   if (d.menu === "panel") { abrirPanel(); return; }
   if (d.modo) { cambiarModo(d.modo); return; }
+  if (d.bien === "panel") { abrirPanel(); return; }
+  if (d.bien) { location.hash = d.bien; return; }
   if (d.actividad) { e.preventDefault(); dlgActividad(d.actividad); return; }
   if ("programar" in d) { cerrarDialogo(); dlgProgramar(null, d.programar || S.det?.proyecto?.id || ""); return; }
   if (d.actAccion) { accionActividad(d.actAccion, d.actId); return; }

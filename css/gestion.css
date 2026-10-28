@@ -342,3 +342,16 @@ dialog{position:relative}
 .vistas-bar button:focus-visible{outline:3px solid #52b9ef;outline-offset:2px}
 .avatar{position:relative;overflow:hidden}
 .avatar img{position:absolute;inset:0;display:block;width:100%;height:100%;max-width:none;max-height:none;border-radius:50%;object-fit:cover}
+/* v0.6.12 · Barra de vistas con el estilo del menú inferior; modo bajo la EO; fecha discreta */
+.brand-modo{display:block;font-size:10px;letter-spacing:.1em;font-weight:700;color:var(--blue);margin-top:3px}
+.vistas-wrap{margin-bottom:12px}
+.vistas-cap{display:block;font:600 10px/1 system-ui;letter-spacing:.12em;color:var(--muted);margin:0 4px 6px}
+.vistas-bar{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:5px;padding:6px;background:var(--navy);border-radius:20px;box-shadow:0 10px 32px #123f6d40}
+.vistas-bar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:56px;min-width:0;padding:5px;border:0;border-radius:14px;background:transparent;color:#edf4fc;font:500 11px/1.2 system-ui;cursor:pointer;white-space:nowrap}
+.vistas-bar button svg{width:22px;height:22px;flex:none}
+.vistas-bar button:hover:not(.on){background:#ffffff20;color:#fff}
+.vistas-bar button.on{background:#fff;color:var(--navy)}
+.vistas-bar button:focus-visible{outline:3px solid #52b9ef;outline-offset:2px}
+.bien-rol{display:block;margin-top:2px;font-size:12px;font-weight:600;color:var(--blue)}
+.bien-resumen{position:relative}
+.bien-fecha{position:absolute;top:10px;right:14px;font-size:11px;color:var(--muted);text-transform:capitalize}

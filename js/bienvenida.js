@@ -119,23 +119,32 @@ export function bienvenidaUsuario({ ctx, modo, proyectos, esAdm, identidad, eoNo
 
   // Barra de vistas (sólo ADM), con el mismo lenguaje visual del menú inferior. La vista activa queda marcada.
   const vistas = [["DIRECCION", "Dirección"], ["OPERACION", "Operación"], ["INSTANCIA", "Instancia"]];
-  const barraVistas = esAdm ? `<nav class="vistas-bar" aria-label="Vistas">
-      ${vistas.map(([m, t]) => `<button type="button" data-modo="${m}" class="${m === modo ? "on" : ""}"${m === modo ? ' aria-current="true"' : ""}>${t}</button>`).join("")}
-      <button type="button" data-bien="panel">Panel de Control</button>
-    </nav>` : "";
+  const ICONOS = {
+    DIRECCION: '<circle cx="12" cy="7.5" r="3.2"/><path d="M5.5 20c.7-3.5 3.3-5.5 6.5-5.5s5.8 2 6.5 5.5"/><path d="M12 13.5l-1.1 2.6L12 20l1.1-3.9z"/>',
+    OPERACION: '<path d="M4 20.5h10"/><path d="M14.5 4.5l4 4L9.5 18.5 5 19.5l1-4.5z"/><path d="M12.5 6.5l4 4"/>',
+    INSTANCIA: '<path d="M3 20.5h18"/><path d="M5 20.5v-9.5l7-5 7 5v9.5"/><path d="M9.5 20.5v-5h5v5"/><path d="M9.5 11.5h5"/>',
+    PANEL: '<path d="M4 7h9M17 7h3M4 12h4M12 12h8M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="17" cy="17" r="2"/>'
+  };
+  const icono = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONOS[k]}</svg>`;
+  const barraVistas = esAdm ? `<div class="vistas-wrap">
+      <span class="vistas-cap">VISTAS</span>
+      <nav class="vistas-bar" aria-label="Vistas">
+        ${vistas.map(([m, t]) => `<button type="button" data-modo="${m}" class="${m === modo ? "on" : ""}"${m === modo ? ' aria-current="true"' : ""}>${icono(m)}<span>${t}</span></button>`).join("")}
+        <button type="button" data-bien="panel">${icono("PANEL")}<span>Panel</span></button>
+      </nav>
+    </div>` : "";
 
   return `
     ${barraVistas}
     <section class="bien-id">
       <span class="bien-avatar"${fotoStyle}>${identidad.foto ? "" : esc(identidad.iniciales)}</span>
-      <div><b>${esc(identidad.nombre)}</b><span>${esc(identidad.email)}</span></div>
+      <div><b>${esc(identidad.nombre)}</b><span>${esc(identidad.email)}</span>${rolEtiqueta ? `<span class="bien-rol">${esc(rolEtiqueta)}</span>` : ""}</div>
     </section>
     <section class="bien-head">
-      <span class="kicker">${esc(eoNombre || "SCaD Gestión")} · ${esc(rolEtiqueta)}</span>
       <h1>Hola${primerNombre && primerNombre !== "Usuario" ? ", " + esc(primerNombre) : ""}</h1>
-      <p class="muted">${esc(fechaLarga())}</p>
     </section>
     <section class="bien-resumen">
+      <span class="bien-fecha">${esc(fechaLarga())}</span>
       <div class="kpis">${resumen}</div>
       ${avisos ? `<div class="row wrap bien-avisos">${avisos}</div>` : ""}
       <h3 class="bien-sub">Hoy</h3>

@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.6.11
+// SCaD Gestión · App · v0.6.12
+// v0.6.12: barra de vistas con íconos; modo de vista bajo la EO en la barra superior.
 // v0.6.10: foto del avatar como imagen en la barra superior, el menú y el perfil.
 // v0.6.8: política de privacidad y condiciones del servicio en modal desde el menú de cuenta.
 // v0.6.0: pantalla de bienvenida (js/bienvenida.js): visitante con planes; usuario con resumen del día según el rol.
@@ -28,7 +29,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.6.11";
+export const VERSION = "GESTION_APP v0.6.12";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -87,8 +88,10 @@ function resolverModo() {
 }
 function pintarModo() {
   const b = $("#modeBand");
-  b.hidden = !S.modo;
-  if (S.modo) { b.textContent = MODOS[S.modo].band; b.dataset.tone = S.modo; document.body.dataset.modo = S.modo; }
+  b.hidden = true; // la vista se indica en la barra superior, bajo la EO
+  const t = $("#modoTxt");
+  t.hidden = !S.modo;
+  if (S.modo) { t.textContent = MODOS[S.modo].band; document.body.dataset.modo = S.modo; }
   const ms = modosDisponibles(), box = $("#menuModos");
   box.hidden = ms.length < 2;
   box.innerHTML = ms.length < 2 ? "" : `<span class="menu-sec">VISTA</span>` + ms.map(m =>

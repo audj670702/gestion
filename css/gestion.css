@@ -312,11 +312,12 @@ body.has-nav{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 .plan-lista{margin:0;padding-left:18px;color:var(--muted);font-size:14px;display:grid;gap:4px}
 .plan-det .btn.block{margin-top:6px}
 /* Invitación a la prueba v0.6.4 */
-.invita{display:grid;gap:2px;justify-items:center;margin:12px auto 4px;padding:10px 18px;max-width:340px;border-radius:14px;background:#ffd23f;color:#3b2a00;text-align:center;box-shadow:0 0 0 0 rgba(255,210,63,.6);animation:invita-pulso 1.8s ease-out infinite}
+.invita{display:grid;gap:2px;justify-items:center;margin:12px auto 4px;padding:10px 18px;max-width:340px;border-radius:14px;background:#ffd23f;color:#3b2a00;text-align:center}
 .invita b{font-size:17px;letter-spacing:.2px}
 .invita span{font-size:13px;font-weight:600}
 @keyframes invita-pulso{0%{box-shadow:0 0 0 0 rgba(255,210,63,.65)}70%{box-shadow:0 0 0 14px rgba(255,210,63,0)}100%{box-shadow:0 0 0 0 rgba(255,210,63,0)}}
-@media(prefers-reduced-motion:reduce){.invita{animation:none}}
+.btn.pri.cta-prueba{background:#ffd23f;border-color:#ffd23f;color:#3b2a00;font-weight:700;animation:invita-pulso 1.8s ease-out infinite}
+@media(prefers-reduced-motion:reduce){.btn.pri.cta-prueba{animation:none}}
 /* Botón de la prueba: que se vea (la clase block tapaba el color) */
-.btn.pri.cta-prueba{color:#fff;border-style:solid;margin-top:6px}
+.btn.pri.cta-prueba{border-style:solid;margin-top:6px}
 .incluye-previo{list-style:none;margin-left:-18px;font-weight:600;color:var(--ink);padding-top:4px}

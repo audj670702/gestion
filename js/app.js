@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.6.4
+// SCaD Gestión · App · v0.6.5
 // v0.6.0: pantalla de bienvenida (js/bienvenida.js): visitante con planes; usuario con resumen del día según el rol.
 // v0.5.2: inicio con logotipo centrado, zoom y disolución.
 // v0.5.1: identidad visual y barra azul de navegación, estilo NEXUS.
@@ -25,7 +25,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.6.4";
+export const VERSION = "GESTION_APP v0.6.5";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };

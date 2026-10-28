@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.6.7
+// SCaD Gestión · App · v0.6.8
+// v0.6.8: política de privacidad y condiciones del servicio en modal desde el menú de cuenta.
 // v0.6.0: pantalla de bienvenida (js/bienvenida.js): visitante con planes; usuario con resumen del día según el rol.
 // v0.5.2: inicio con logotipo centrado, zoom y disolución.
 // v0.5.1: identidad visual y barra azul de navegación, estilo NEXUS.
@@ -20,12 +21,13 @@
 import { captureTokenFromHash, hasToken, startLogin, logout } from "./auth.js";
 import { contexto, api, sys, archivo, subirADrive, ApiError } from "./api.js";
 import { bienvenidaVisitante, bienvenidaUsuario, detallePlan } from "./bienvenida.js";
+import { documentoLegal } from "./legal.js";
 import {
   abrirProgramacion, repintarProgramacion, setContexto, actividades, buscarActividad, idDe, listaHtml, deHoy,
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.6.7";
+export const VERSION = "GESTION_APP v0.6.8";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -817,6 +819,7 @@ document.addEventListener("click", e => {
   if (t.id === "account" || t.id === "navOptions") { alternarMenu(t); return; }
   if (t.id === "closeOptions") { cerrarMenu(true); return; }
   if (d.menu === "logout") { logout(); return; }
+  if (d.menu === "privacidad" || d.menu === "condiciones") { cerrarMenu(); dialogo(documentoLegal(d.menu), null, { textoCerrar: "Cerrar" }); return; }
   if (d.menu === "refresh") { actualizar(); return; }
   if (d.menu === "perfil") { dlgPerfil(); return; }
   if (d.menu === "panel") { abrirPanel(); return; }

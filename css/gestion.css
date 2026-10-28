@@ -324,3 +324,10 @@ body.has-nav{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 .btn.pri.cta-prueba{border-style:solid;margin-top:6px}
 .incluye-previo{list-style:none;margin-left:-18px;font-weight:600;color:var(--ink);padding-top:4px}
 .splash-ver{position:absolute;bottom:calc(18px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;font:500 12px/1 system-ui;color:#6b7a8c;letter-spacing:.04em}
+/* Textos legales v0.6.8 */
+.legal{display:grid;gap:6px;text-align:left}
+.legal h3{margin:0;font-size:18px}
+.legal-sub{font-size:12px;color:var(--muted)}
+.legal-h{margin:12px 0 2px;font-size:14px;color:var(--navy)}
+.legal-p{font-size:14px;line-height:1.5;color:var(--ink)}
+.legal-lista{margin:0;padding-left:20px;display:grid;gap:4px;font-size:14px;line-height:1.5}

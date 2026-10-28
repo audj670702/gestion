@@ -19,7 +19,7 @@
 // Dirección e Instancia son de consulta. Los momentos del proyecto los valida el ADM en el panel.
 import { captureTokenFromHash, hasToken, startLogin, logout } from "./auth.js";
 import { contexto, api, sys, archivo, subirADrive, ApiError } from "./api.js";
-import { bienvenidaVisitante, bienvenidaUsuario } from "./bienvenida.js";
+import { bienvenidaVisitante, bienvenidaUsuario, detallePlan } from "./bienvenida.js";
 import {
   abrirProgramacion, repintarProgramacion, setContexto, actividades, buscarActividad, idDe, listaHtml, deHoy,
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
@@ -276,6 +276,7 @@ function pantalla(tipo, mensaje = "") {
     sinAcceso: bienvenidaVisitante({ sesion: true, nombre: nombreMostrar() })
   }[tipo];
   g.innerHTML = `<div class="gate-card ${tipo === "login" || tipo === "sinAcceso" ? "wide" : ""}">${t}</div>`;
+  $("#btnLoginTop").hidden = tipo !== "login";
 }
 
 // ── Arranque ─────────────────────────────────────────────────
@@ -299,6 +300,7 @@ async function iniciar() {
   if (!S.modo) { pantalla("sinAcceso"); return; }
   $("#gate").hidden = true;
   $("#account").hidden = false;
+  $("#btnLoginTop").hidden = true;
   $("#secciones").hidden = false;
   document.body.classList.add("has-nav");
   pintarModo();
@@ -808,7 +810,8 @@ document.addEventListener("click", e => {
   if (!t || !t.closest("#accountMenu, #account, #navOptions")) cerrarMenu();
   if (!t) return;
   const d = t.dataset;
-  if (t.id === "btnLogin") { startLogin(); return; }
+  if (t.id === "btnLogin" || t.id === "btnLoginTop") { startLogin(); return; }
+  if (d.plan) { dialogo(detallePlan(d.plan), null, { textoCerrar: "Cerrar" }); return; }
   if (t.id === "btnRetry") { iniciar(); return; }
   if (t.id === "installButton") { instalar(); return; }
   if (t.id === "account" || t.id === "navOptions") { alternarMenu(t); return; }

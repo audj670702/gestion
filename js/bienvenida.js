@@ -10,35 +10,57 @@ export const PLANES_URL = "";
 const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 const PLANES = [
-  { clave: "BASICO", nombre: "Básico", proyectos: 5, usuarios: 10, precio: 590, img: "./css/plan_basico_1.png", id: "46323474-9680-40f1-9bbc-c4913d4355f4" },
-  { clave: "ESTANDAR", nombre: "Estándar", proyectos: 15, usuarios: 30, precio: 1299, img: "./css/plan_estandar_1.png", id: "618b8e77-7b16-4513-bc18-44be04c87fca" },
-  { clave: "PRO", nombre: "PRO", proyectos: 30, usuarios: 50, precio: 2690, img: "./css/plan_pro_1.png", id: "e9500305-eeb2-46ee-ac6d-033e085d3b66" }
+  { clave: "BASICO", nombre: "Básico", proyectos: 5, usuarios: 10, precio: 590, img: "./css/plan_basico_1.png", id: "46323474-9680-40f1-9bbc-c4913d4355f4",
+    desc: "Coordina tu primer proyecto: checklist, documentos y actividades para ti y tu equipo." },
+  { clave: "ESTANDAR", nombre: "Estándar", proyectos: 15, usuarios: 30, precio: 1299, img: "./css/plan_estandar_1.png", id: "618b8e77-7b16-4513-bc18-44be04c87fca",
+    desc: "Coordina varios proyectos con tu equipo y las instancias involucradas." },
+  { clave: "PRO", nombre: "PRO", proyectos: 30, usuarios: 50, precio: 2690, img: "./css/plan_pro_1.png", id: "e9500305-eeb2-46ee-ac6d-033e085d3b66",
+    desc: "Gestiona la cartera completa, con más proyectos, usuarios y tipos de actividad." }
 ];
+const money = v => "$" + Number(v).toLocaleString("es-MX") + " MXN";
 
 // ── Visitante (sin sesión, o con sesión sin vista asignada) ──
+// El botón Iniciar sesión vive en la barra superior (app.js). Aquí sólo la oferta.
 export function bienvenidaVisitante({ sesion = false, nombre = "" } = {}) {
-  const planes = PLANES.map(p => `
-    <figure class="plan plan-${p.clave.toLowerCase()}" data-plan="${p.id}">
-      <img src="${p.img}" alt="Plan ${p.nombre} GESTIÓN" loading="lazy">
-      <figcaption>
-        <b>${p.nombre}</b>
-        <span>$${p.precio.toLocaleString("es-MX")} MXN al mes</span>
-        <span>Hasta ${p.proyectos} proyectos · ${p.usuarios} usuarios</span>
-        <span class="prueba">14 días de prueba</span>
-      </figcaption>
-    </figure>`).join("");
-  const compra = PLANES_URL ? `<a class="btn pri lg block" href="${esc(PLANES_URL)}" target="_blank" rel="noopener">Ver planes y comprar</a>` : "";
   const cabecera = sesion
     ? `<h1>Hola, ${esc(nombre)}</h1><p>Tu cuenta no tiene una vista asignada en SCaD Gestión. Si ya compraste un plan, regístrate en la página de tu empresa o pide al administrador que te asigne un rol.</p>`
     : `<h1 class="sr-only">SCaD GESTIÓN</h1><p class="bien-lead">Seguimiento de proyectos y expediente técnico, con el checklist de integración y la programación de cada proyecto.</p>`;
-  const pie = sesion
-    ? `<button class="btn" data-menu="logout">Cerrar sesión</button>`
-    : `<button class="btn" id="btnLogin">Iniciar sesión</button>`;
+  const barras = PLANES.map(p => `
+    <button class="plan-bar plan-${p.clave.toLowerCase()}" type="button" data-plan="${p.id}">
+      <img src="${p.img}" alt="" loading="lazy">
+      <span class="plan-txt"><b>${p.nombre}</b><span>${money(p.precio)} al mes · hasta ${p.proyectos} proyectos</span></span>
+      <span class="plan-ver" aria-hidden="true">›</span>
+    </button>`).join("");
+  const pie = sesion ? `<button class="btn" data-menu="logout">Cerrar sesión</button>` : "";
   return `${cabecera}
-    <div class="bien-planes" aria-label="Planes">${planes}</div>
-    <p class="muted sm">Más de 30 proyectos o 50 usuarios: atención por contacto.</p>
-    ${compra}
-    <div class="bien-pie">${pie}</div>`;
+    <p class="prueba-badge">14 días sin costo · Cancela en cualquier momento</p>
+    <div class="plan-bars" aria-label="Planes">${barras}</div>
+    <p class="muted xs">Más de 30 proyectos o 50 usuarios: atención por contacto.</p>
+    ${pie ? `<div class="bien-pie">${pie}</div>` : ""}`;
+}
+
+// Detalle de un plan (modal). La invitación a suscribirse vive aquí.
+export function detallePlan(id) {
+  const p = PLANES.find(x => x.id === id);
+  if (!p) return "";
+  const compra = PLANES_URL
+    ? `<a class="btn pri lg block" href="${esc(PLANES_URL)}" target="_blank" rel="noopener">Suscribirme al plan ${p.nombre}</a>`
+    : `<button class="btn lg block" type="button" disabled>Suscripción próximamente</button>`;
+  return `
+    <div class="plan-det">
+      <img src="${p.img}" alt="Plan ${p.nombre} GESTIÓN">
+      <h3>Plan ${p.nombre}</h3>
+      <p class="plan-precio"><b>${money(p.precio)}</b> <span>al mes</span></p>
+      <p class="prueba-badge">14 días sin costo · Cancela en cualquier momento</p>
+      <p>${esc(p.desc)}</p>
+      <ul class="plan-lista">
+        <li>Hasta ${p.proyectos} proyectos activos</li>
+        <li>Hasta ${p.usuarios} usuarios</li>
+        <li>Checklist de integración y expediente técnico</li>
+        <li>Programación de actividades por proyecto</li>
+      </ul>
+      ${compra}
+    </div>`;
 }
 
 // ── Usuario (sesión y vista asignada) ──

@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.6.0
+// SCaD Gestión · App · v0.6.1
 // v0.6.0: pantalla de bienvenida (js/bienvenida.js): visitante con planes; usuario con resumen del día según el rol.
 // v0.5.2: inicio con logotipo centrado, zoom y disolución.
 // v0.5.1: identidad visual y barra azul de navegación, estilo NEXUS.
@@ -25,7 +25,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.6.0";
+export const VERSION = "GESTION_APP v0.6.1";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -98,11 +98,11 @@ async function cambiarModo(m) {
   try { localStorage.setItem(claveModo(), m); } catch (_) { /* sin almacenamiento */ }
   Object.assign(S, { fase: "ACTIVOS", q: "", tipo: "", det: null });
   pintarModo();
-  if (location.hash && location.hash !== "#/") history.replaceState({}, "", "#/");
-  marcarSeccion("proyectos");
+  history.replaceState({}, "", "#/inicio");
+  marcarSeccion("");
   $("#view").innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
   await cargarLista();
-  pintarLista();
+  pintarBienvenida();
 }
 
 // ── Identidad y menú de cuenta ───────────────────────────────
@@ -335,9 +335,11 @@ window.addEventListener("hashchange", () => { if (S.ctx) ruta(); });
 function pintarBienvenida() {
   const n = nombreMostrar();
   const rol = { DIRECCION: "Dirección", OPERACION: "Operación", INSTANCIA: "Instancia" }[S.modo] || "";
+  const foto = urlImagen(u.avatar || u.foto);
   $("#view").innerHTML = bienvenidaUsuario({
     ctx: S.ctx, modo: S.modo, proyectos: S.proyectos, esAdm: esAdm(),
-    nombre: n === "Usuario" ? "" : n.split(/\s+/)[0], eoNombre: S.ctx.eo?.nombreMostrar || S.ctx.eo?.nombre || "",
+    identidad: { nombre: n === "Usuario" ? "" : n, email: u.email || S.ctx.email || "", foto, iniciales: iniciales(n) },
+    eoNombre: S.ctx.eo?.nombreMostrar || S.ctx.eo?.nombre || "",
     rolEtiqueta: esAdm() ? "Administrador" + (rol ? " · " + rol : "") : rol
   });
 }

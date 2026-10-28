@@ -42,14 +42,17 @@ export function bienvenidaVisitante({ sesion = false, nombre = "" } = {}) {
 }
 
 // ── Usuario (sesión y vista asignada) ──
-// ctx: contexto SYS/GESTIÓN ya cargado. modo: vista activa. proyectos: lista de la vista activa.
-export function bienvenidaUsuario({ ctx, modo, proyectos, esAdm, nombre, eoNombre, rolEtiqueta }) {
+// ctx: contexto ya cargado. modo: vista activa. proyectos: lista de la vista activa.
+// identidad: { nombre, email, foto, iniciales }. Proyectos y Programación ya están en la barra inferior: no se repiten aquí.
+export function bienvenidaUsuario({ ctx, modo, proyectos, esAdm, identidad, eoNombre, rolEtiqueta }) {
   const activos = (proyectos || []).filter(p => p.fase !== "CERRADO");
   const suma = k => activos.reduce((n, p) => n + (p.checklist?.[k] || 0), 0);
   const hoy = deHoy(ctx);
   const pendientesHoy = hoy.filter(a => !cumplida(a) && !sinCumplir(a));
   const vencidasHoy = hoy.filter(a => sinCumplir(a));
   const mostrarChecklist = modo !== "INSTANCIA";
+  const primerNombre = (identidad.nombre || "").split(/\s+/)[0];
+  const fotoStyle = identidad.foto ? ` style="background-image:url('${esc(identidad.foto).replace(/'/g, "%27")}')"` : "";
 
   const resumen = [
     `<div class="kpi"><b>${activos.length}</b><span>Proyectos activos</span></div>`,
@@ -75,22 +78,21 @@ export function bienvenidaUsuario({ ctx, modo, proyectos, esAdm, nombre, eoNombr
     pendientesHoy.length && !vencidasHoy.length ? `<span class="chip info">${pendientesHoy.length} pendiente${pendientesHoy.length > 1 ? "s" : ""} de hoy</span>` : ""
   ].filter(Boolean).join("");
 
-  // Acciones según el alcance del rol (mismas vistas que el menú de cuenta).
-  const accesos = [];
-  accesos.push(`<button class="bien-acc" data-bien="#/"><b>${modo === "OPERACION" ? "Mis proyectos" : "Proyectos"}</b><span>${esc(rolEtiqueta)}</span></button>`);
-  accesos.push(`<button class="bien-acc" data-bien="#/programacion"><b>Programación</b><span>Actividades y calendario</span></button>`);
-  if (esAdm) {
-    ["DIRECCION", "OPERACION", "INSTANCIA"].filter(m => m !== modo).forEach(m => {
-      const et = { DIRECCION: "Dirección", OPERACION: "Operación", INSTANCIA: "Instancia" }[m];
-      accesos.push(`<button class="bien-acc" data-modo="${m}"><b>Vista ${et}</b><span>Cambiar de vista</span></button>`);
-    });
-    accesos.push(`<button class="bien-acc" data-bien="panel"><b>Panel de Control</b><span>Administración de la EO</span></button>`);
-  }
+  // Sólo acciones que no están en la barra inferior: cambiar de vista (ADM) y Panel de Control (ADM).
+  const cambiar = esAdm ? ["DIRECCION", "OPERACION", "INSTANCIA"].filter(m => m !== modo).map(m => {
+    const et = { DIRECCION: "Dirección", OPERACION: "Operación", INSTANCIA: "Instancia" }[m];
+    return `<button class="bien-acc" data-modo="${m}"><b>Vista ${et}</b><span>Ver su bienvenida</span></button>`;
+  }) : [];
+  if (esAdm) cambiar.push(`<button class="bien-acc" data-bien="panel"><b>Panel de Control</b><span>Administración de la EO</span></button>`);
 
   return `
+    <section class="bien-id">
+      <span class="bien-avatar"${fotoStyle}>${identidad.foto ? "" : esc(identidad.iniciales)}</span>
+      <div><b>${esc(identidad.nombre)}</b><span>${esc(identidad.email)}</span></div>
+    </section>
     <section class="bien-head">
       <span class="kicker">${esc(eoNombre || "SCaD Gestión")} · ${esc(rolEtiqueta)}</span>
-      <h1>Hola, ${esc(nombre)}</h1>
+      <h1>Hola${primerNombre && primerNombre !== "Usuario" ? ", " + esc(primerNombre) : ""}</h1>
       <p class="muted">${esc(fechaLarga())}</p>
     </section>
     <section class="bien-resumen">
@@ -99,10 +101,10 @@ export function bienvenidaUsuario({ ctx, modo, proyectos, esAdm, nombre, eoNombr
       <h3 class="bien-sub">Hoy</h3>
       ${actividades}
     </section>
-    <section class="bien-acciones">
-      <h3 class="bien-sub">Ir a</h3>
-      <div class="bien-grid">${accesos.join("")}</div>
-    </section>`;
+    ${cambiar.length ? `<section class="bien-acciones">
+      <h3 class="bien-sub">Administración</h3>
+      <div class="bien-grid">${cambiar.join("")}</div>
+    </section>` : ""}`;
 }
 
 function fechaLarga() {

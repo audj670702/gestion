@@ -296,9 +296,11 @@ body.has-nav{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 .bien-id{display:flex;gap:10px;align-items:center;margin:0 0 8px}
 .bien-id b{display:block;font-size:14px}.bien-id span{display:block;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 .bien-avatar{flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:var(--blue) center/cover no-repeat;color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px}
-.kpis-line{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:14px;font-size:12px;color:var(--muted)}
-.kpis-line .kl b{font-size:14px;color:inherit;margin-right:3px}
+.kpis-line{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:14px;text-align:center}
+.kpis-line .kl b{display:block;font-size:22px;line-height:1.1}
+.kpis-line .kl span{display:block;font-size:11px;color:var(--muted);white-space:nowrap}
 .kpis-line .kl.warn b{color:var(--warn)}.kpis-line .kl.bad b{color:var(--bad)}
+@media(max-width:360px){.kpis-line .kl span{font-size:10px}}
 /* Visitante v0.6.1: planes como barras compactas y modal de detalle */
 .gate-card.wide .prueba-badge{display:inline-block;margin:8px auto 0;padding:5px 12px;border-radius:999px;background:rgba(31,157,99,.12);color:#13744a;font-size:13px;font-weight:600}
 .plan-bars{display:grid;gap:8px;margin:14px 0 6px;text-align:left}

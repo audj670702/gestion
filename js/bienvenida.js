@@ -93,10 +93,10 @@ export function bienvenidaUsuario({ ctx, modo, proyectos, esAdm, identidad, eoNo
   const fotoStyle = identidad.foto ? ` style="background-image:url('${esc(identidad.foto).replace(/'/g, "%27")}')"` : "";
 
   const resumen = [
-    `<span class="kl"><b>${activos.length}</b> proyectos activos</span>`,
-    mostrarChecklist ? `<span class="kl warn"><b>${suma("entregados")}</b> por revisar</span>` : "",
-    mostrarChecklist ? `<span class="kl bad"><b>${suma("vencidos")}</b> vencidos</span>` : "",
-    `<span class="kl"><b>${hoy.length}</b> actividades hoy</span>`
+    `<div class="kl"><b>${activos.length}</b><span>Proyectos activos</span></div>`,
+    mostrarChecklist ? `<div class="kl warn"><b>${suma("entregados")}</b><span>Por revisar</span></div>` : "",
+    mostrarChecklist ? `<div class="kl bad"><b>${suma("vencidos")}</b><span>Vencidos</span></div>` : "",
+    `<div class="kl"><b>${hoy.length}</b><span>Actividades hoy</span></div>`
   ].join("");
 
   const actividades = hoy.length

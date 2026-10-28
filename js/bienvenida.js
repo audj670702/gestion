@@ -16,6 +16,15 @@ const PLANES = [
   { clave: "PRO", nombre: "PRO", proyectos: 30, usuarios: 50, precio: 2690, img: "./css/plan_pro_1.png", id: "e9500305-eeb2-46ee-ac6d-033e085d3b66",
     desc: "Gestiona la cartera completa, con más proyectos, usuarios y tipos de actividad." }
 ];
+const LIM = [
+  { roles: 3, tipos: 5 },
+  { roles: 6, tipos: 15 },
+  { roles: 10, tipos: 40 }
+];
+const invitacion = () => `<div class="invita" role="note">
+      <b>Prueba GRATIS 14 días</b>
+      <span>Cancela en cualquier momento</span>
+    </div>`;
 const money = v => "$" + Number(v).toLocaleString("es-MX") + " MXN";
 
 // ── Visitante (sin sesión, o con sesión sin vista asignada) ──
@@ -32,7 +41,7 @@ export function bienvenidaVisitante({ sesion = false, nombre = "" } = {}) {
     </button>`).join("");
   const pie = sesion ? `<button class="btn" data-menu="logout">Cerrar sesión</button>` : "";
   return `${cabecera}
-    <p class="prueba-badge">14 días sin costo · Cancela en cualquier momento</p>
+    ${invitacion()}
     <div class="plan-bars" aria-label="Planes">${barras}</div>
     <p class="muted xs">Más de 30 proyectos o 50 usuarios: atención por contacto.</p>
     ${pie ? `<div class="bien-pie">${pie}</div>` : ""}`;
@@ -42,20 +51,31 @@ export function bienvenidaVisitante({ sesion = false, nombre = "" } = {}) {
 export function detallePlan(id) {
   const p = PLANES.find(x => x.id === id);
   if (!p) return "";
-  const compra = `<a class="btn pri lg block" href="${esc(compraUrl(p.id))}" target="_blank" rel="noopener">Empezar mis 14 días gratis</a>`;
+  const compra = `<a class="btn pri lg block cta-prueba" href="${esc(compraUrl(p.id))}" target="_blank" rel="noopener">Iniciar prueba GRATIS</a>`;
+  const idx = PLANES.indexOf(p);
+  const previo = idx > 0 ? PLANES[idx - 1] : null;
+  const cabeza = previo ? `<li class="incluye-previo">Lo que incluye el Plan ${previo.nombre}, más:</li>` : "";
+  const extras = previo ? [
+    `Hasta ${p.proyectos} proyectos activos (antes ${previo.proyectos})`,
+    `Hasta ${p.usuarios} usuarios (antes ${previo.usuarios})`,
+    `Hasta ${LIM[idx].roles} roles (antes ${LIM[idx - 1].roles})`,
+    `Hasta ${LIM[idx].tipos} tipos de actividad (antes ${LIM[idx - 1].tipos})`
+  ] : [
+    `Hasta ${p.proyectos} proyectos activos`,
+    `Hasta ${p.usuarios} usuarios`,
+    `Hasta ${LIM[idx].roles} roles`,
+    `Hasta ${LIM[idx].tipos} tipos de actividad`,
+    "Checklist de integración y expediente técnico",
+    "Programación de actividades por proyecto"
+  ];
   return `
     <div class="plan-det">
       <img src="${p.img}" alt="Plan ${p.nombre} GESTIÓN">
       <h3>Plan ${p.nombre}</h3>
       <p class="plan-precio"><b>${money(p.precio)}</b> <span>al mes</span></p>
-      <p class="prueba-badge">14 días sin costo · Cancela en cualquier momento</p>
+      ${invitacion()}
       <p>${esc(p.desc)}</p>
-      <ul class="plan-lista">
-        <li>Hasta ${p.proyectos} proyectos activos</li>
-        <li>Hasta ${p.usuarios} usuarios</li>
-        <li>Checklist de integración y expediente técnico</li>
-        <li>Programación de actividades por proyecto</li>
-      </ul>
+      <ul class="plan-lista">${cabeza}${extras.map(e => `<li>${esc(e)}</li>`).join("")}</ul>
       ${compra}
     </div>`;
 }

@@ -90,14 +90,13 @@ export function bienvenidaUsuario({ ctx, modo, proyectos, esAdm, identidad, eoNo
   const pendientesHoy = hoy.filter(a => !cumplida(a) && !sinCumplir(a));
   const vencidasHoy = hoy.filter(a => sinCumplir(a));
   const mostrarChecklist = modo !== "INSTANCIA";
-  const primerNombre = (identidad.nombre || "").split(/\s+/)[0];
   const fotoStyle = identidad.foto ? ` style="background-image:url('${esc(identidad.foto).replace(/'/g, "%27")}')"` : "";
 
   const resumen = [
-    `<div class="kpi"><b>${activos.length}</b><span>Proyectos activos</span></div>`,
-    mostrarChecklist ? `<div class="kpi warn"><b>${suma("entregados")}</b><span>Por revisar</span></div>` : "",
-    mostrarChecklist ? `<div class="kpi bad"><b>${suma("vencidos")}</b><span>Vencidos</span></div>` : "",
-    `<div class="kpi"><b>${hoy.length}</b><span>Actividades hoy</span></div>`
+    `<span class="kl"><b>${activos.length}</b> proyectos activos</span>`,
+    mostrarChecklist ? `<span class="kl warn"><b>${suma("entregados")}</b> por revisar</span>` : "",
+    mostrarChecklist ? `<span class="kl bad"><b>${suma("vencidos")}</b> vencidos</span>` : "",
+    `<span class="kl"><b>${hoy.length}</b> actividades hoy</span>`
   ].join("");
 
   const actividades = hoy.length
@@ -140,12 +139,9 @@ export function bienvenidaUsuario({ ctx, modo, proyectos, esAdm, identidad, eoNo
       <span class="bien-avatar"${fotoStyle}>${identidad.foto ? "" : esc(identidad.iniciales)}</span>
       <div><b>${esc(identidad.nombre)}</b><span>${esc(identidad.email)}</span>${rolEtiqueta ? `<span class="bien-rol">${esc(rolEtiqueta)}</span>` : ""}</div>
     </section>
-    <section class="bien-head">
-      <h1>Hola${primerNombre && primerNombre !== "Usuario" ? ", " + esc(primerNombre) : ""}</h1>
-    </section>
     <section class="bien-resumen">
       <span class="bien-fecha">${esc(fechaLarga())}</span>
-      <div class="kpis">${resumen}</div>
+      <div class="kpis-line">${resumen}</div>
       ${avisos ? `<div class="row wrap bien-avisos">${avisos}</div>` : ""}
       <h3 class="bien-sub">Hoy</h3>
       ${actividades}

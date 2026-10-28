@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.6.9
+// SCaD Gestión · App · v0.6.10
+// v0.6.10: foto del avatar como imagen en la barra superior, el menú y el perfil.
 // v0.6.8: política de privacidad y condiciones del servicio en modal desde el menú de cuenta.
 // v0.6.0: pantalla de bienvenida (js/bienvenida.js): visitante con planes; usuario con resumen del día según el rol.
 // v0.5.2: inicio con logotipo centrado, zoom y disolución.
@@ -27,7 +28,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.6.9";
+export const VERSION = "GESTION_APP v0.6.10";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -117,9 +118,11 @@ function urlImagen(v) {
   if (t.startsWith("wix:image://v1/")) { const id = t.slice(15).split("/")[0]; return id ? `https://static.wixstatic.com/media/${id}` : ""; }
   return t;
 }
+// La foto va como <img> (no como fondo CSS), para que no dependa de reglas de fondo del tema.
 function pintarAvatar(el, url, nombre) {
-  el.textContent = url ? "" : iniciales(nombre);
-  el.style.backgroundImage = url ? `url("${url.replace(/"/g, "%22")}")` : "";
+  el.style.backgroundImage = "";
+  if (url) { el.textContent = ""; el.innerHTML = `<img src="${esc(url)}" alt="" referrerpolicy="no-referrer">`; }
+  else { el.innerHTML = ""; el.textContent = iniciales(nombre); }
 }
 function pintarIdentidad() {
   const n = nombreMostrar(), foto = urlImagen(usr().avatar || usr().foto);

@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.6.12
+// SCaD Gestión · App · v0.6.15
+// v0.6.15: sin botón de requerimiento extraordinario (el ADM define los requerimientos); el diálogo de requerimiento sólo ajusta la fecha compromiso, obligatoria.
 // v0.6.12: barra de vistas con íconos; modo de vista bajo la EO en la barra superior.
 // v0.6.10: foto del avatar como imagen en la barra superior, el menú y el perfil.
 // v0.6.8: política de privacidad y condiciones del servicio en modal desde el menú de cuenta.
@@ -470,8 +471,7 @@ function vistaChecklist() {
   return `${banner}
     ${items.length ? `<div class="progress"><div class="row"><b>${pct}%</b><span class="muted sm">${c.validados} de ${c.aplicables} requerimientos aplicables validados</span></div><div class="bar"><span style="width:${pct}%"></span></div></div>
     <nav class="seg sm">${filtros.map(([k, t]) => `<button class="${S.filtroReq === k ? "on" : ""}" data-freq="${k}">${t}</button>`).join("")}</nav>` : ""}
-    <div class="reqs">${lista.map(tarjetaReq).join("") || (items.length ? `<div class="empty">Nada en este filtro.</div>` : "")}</div>
-    ${editable() ? `<button class="btn block" data-act="agregar">+ Agregar requerimiento extraordinario</button>` : ""}`;
+    <div class="reqs">${lista.map(tarjetaReq).join("") || (items.length ? `<div class="empty">Nada en este filtro.</div>` : "")}</div>`;
 }
 
 function tarjetaReq(x) {
@@ -699,7 +699,6 @@ function dialogo(html, enviar, { textoBoton = "Guardar", clase = "pri", textoCer
 }
 function cerrarDialogo() { if ($("#dlg").open) $("#dlg").close(); alEnviar = null; }
 const reqPorId = id => S.det.checklist.find(x => x.id === id);
-const opcionesIntegra = sel => `<option value="">Sin instancia</option>` + (S.ctx.instancias || []).filter(i => i.activo && i.integra).map(i => `<option value="${esc(i.id)}" ${i.id === sel ? "selected" : ""}>${esc(i.siglas || i.nombre)}</option>`).join("");
 
 async function trasCambio(r) {
   if (!r) return;
@@ -726,29 +725,14 @@ function dlgEstado(id, estado) {
 
 function dlgEditar(id) {
   const x = reqPorId(id);
-  dialogo(`<h3>Editar requerimiento</h3><p class="muted">${esc(x.etiqueta)}</p>
-    <label class="f">Fecha compromiso<input type="date" id="dFecha" value="${isoDia(x.fechaCompromiso)}"></label>
-    <label class="f">Instancia<select id="dIns">${opcionesIntegra(x.instanciaId)}</select></label>`,
+  dialogo(`<h3>Fecha compromiso</h3><p class="muted">${esc(x.etiqueta)}</p>
+    <label class="f">Fecha compromiso (obligatoria)<input type="date" id="dFecha" required value="${isoDia(x.fechaCompromiso)}"></label>
+    <p class="sm t-bad" id="dErr"></p>`,
   () => {
-    const datos = { prqId: id };
-    if ($("#dFecha").value !== isoDia(x.fechaCompromiso)) datos.fechaCompromiso = $("#dFecha").value;
-    if ($("#dIns").value !== x.instanciaId) datos.instanciaId = $("#dIns").value;
-    return tarea(() => api("REQ_EDITAR", datos)).then(trasCambio);
+    const f = $("#dFecha").value;
+    if (!f) { $("#dErr").textContent = "La fecha compromiso es obligatoria."; return Promise.resolve(); }
+    return tarea(() => api("REQ_EDITAR", { prqId: id, fechaCompromiso: f })).then(trasCambio);
   });
-}
-
-function dlgAgregar() {
-  dialogo(`<h3>Requerimiento extraordinario</h3>
-    <label class="f">Nombre<input id="dEt" maxlength="160"></label>
-    <label class="f">Descripción (opcional)<textarea id="dDes" rows="2"></textarea></label>
-    <label class="f">Instancia<select id="dIns">${opcionesIntegra("")}</select></label>
-    <label class="f">Tipo de documento<select id="dTd"><option value="">—</option>${(S.ctx.catalogos?.tiposDocumento || []).map(t => `<option value="${esc(t.clave)}">${esc(t.etiqueta)}</option>`).join("")}</select></label>
-    <label class="f">Fecha compromiso<input type="date" id="dFecha"></label>
-    <label class="f">Motivo (opcional)<textarea id="dNota" rows="2"></textarea></label>`,
-  () => tarea(() => api("REQ_AGREGAR", {
-    proyectoId: S.det.proyecto.id, etiqueta: $("#dEt").value, descripcion: $("#dDes").value, instanciaId: $("#dIns").value,
-    tipoDocumentoClave: $("#dTd").value, fechaCompromiso: $("#dFecha").value, nota: $("#dNota").value
-  })).then(trasCambio), { textoBoton: "Agregar" });
 }
 
 function dlgAnotar(id) {
@@ -847,7 +831,6 @@ document.addEventListener("click", e => {
   if (d.anotar) { dlgAnotar(d.anotar); return; }
   if (d.subir) { dlgSubir(d.subir); return; }
   if (d.ver) { verArchivo(d.ver); return; }
-  if (d.act === "agregar") { dlgAgregar(); return; }
   if (d.act === "anotarGeneral") {
     const actividadId = $("#segAct")?.value || "", cumpleActividad = !!actividadId && $("#segCumple").checked;
     tarea(() => api("ANOTAR", { proyectoId: S.det.proyecto.id, prqId: $("#segReq").value, nota: $("#segNota").value, visibleCliente: $("#segVis").checked, actividadId, cumpleActividad }))

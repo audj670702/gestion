@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.6.6
+// SCaD Gestión · App · v0.6.7
 // v0.6.0: pantalla de bienvenida (js/bienvenida.js): visitante con planes; usuario con resumen del día según el rol.
 // v0.5.2: inicio con logotipo centrado, zoom y disolución.
 // v0.5.1: identidad visual y barra azul de navegación, estilo NEXUS.
@@ -25,7 +25,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.6.6";
+export const VERSION = "GESTION_APP v0.6.7";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -167,7 +167,6 @@ async function actualizar() {
   pintarIdentidad();
   if (!modosDisponibles().includes(S.modo)) S.modo = resolverModo();
   pintarModo();
-  $("#driveWarn").hidden = !!S.ctx.drive?.conectado;
   await cargarLista();
   ruta();
   aviso("Información actualizada.");
@@ -282,6 +281,8 @@ function pantalla(tipo, mensaje = "") {
 // ── Arranque ─────────────────────────────────────────────────
 async function iniciar() {
   $("#ver").textContent = VERSION;
+  const splashVer = $("#splashVer");
+  if (splashVer) splashVer.textContent = VERSION;
   console.info(VERSION);
   pintarInstalar();
   captureTokenFromHash();
@@ -304,7 +305,6 @@ async function iniciar() {
   $("#secciones").hidden = false;
   document.body.classList.add("has-nav");
   pintarModo();
-  if (!S.ctx.drive?.conectado) $("#driveWarn").hidden = false;
   if (!location.hash || location.hash === "#/") history.replaceState({}, "", "#/inicio");
   await cargarLista();
   ruta();
@@ -377,12 +377,12 @@ function pintarLista() {
       </div>`}
     </section>
     ${bloqueHoy()}
-    ${P.length ? `<div class="buscar">
-      <input type="search" id="fBuscar" placeholder="Buscar por folio, nombre, instancia${S.modo === "DIRECCION" ? ", responsable" : ""}…" value="${esc(S.q)}" autocomplete="off" enterkeyhint="search">
-      ${tipos.length > 1 ? `<select id="fTipo" aria-label="Tipo de proyecto"><option value="">Todos los tipos</option>${tipos.map(t => `<option value="${esc(t.clave)}" ${S.tipo === t.clave ? "selected" : ""}>${esc(t.etiqueta)}</option>`).join("")}</select>` : ""}
+    <div class="buscar">
+      ${P.length ? `<input type="search" id="fBuscar" placeholder="Buscar folio, nombre, instancia${S.modo === "DIRECCION" ? ", responsable" : ""}…" value="${esc(S.q)}" autocomplete="off" enterkeyhint="search" aria-label="Buscar proyectos">
+      ${tipos.length > 1 ? `<select id="fTipo" aria-label="Tipo de proyecto"><option value="">Todos los tipos</option>${tipos.map(t => `<option value="${esc(t.clave)}" ${S.tipo === t.clave ? "selected" : ""}>${esc(t.etiqueta)}</option>`).join("")}</select>` : ""}` : ""}
+      <span id="conteo" class="conteo" aria-live="polite"></span>
     </div>
-    <nav class="seg">${filtros.map(([k, t]) => `<button class="${S.fase === k ? "on" : ""}" data-fase="${k}">${t}</button>`).join("")}</nav>` : ""}
-    <p id="conteo" class="muted xs"></p>
+    ${P.length ? `<nav class="seg">${filtros.map(([k, t]) => `<button class="${S.fase === k ? "on" : ""}" data-fase="${k}">${t}</button>`).join("")}</nav>` : ""}
     <section class="cards" id="cards"></section>`;
   pintarTarjetas();
 }
@@ -400,7 +400,7 @@ function pintarTarjetas() {
   const P = S.proyectos;
   const enF = P.filter(enFase), lista = enF.filter(coincide);
   const filtrando = !!(S.q.trim() || S.tipo);
-  $("#conteo").textContent = filtrando ? `${lista.length} de ${enF.length} proyectos` : "";
+  $("#conteo").textContent = filtrando ? `${lista.length} de ${enF.length} proyectos` : `${enF.length} proyecto${enF.length === 1 ? "" : "s"}`;
   $("#cards").innerHTML = lista.length ? lista.map(tarjetaProyecto).join("")
     : `<div class="empty">${!P.length ? (S.modo === "OPERACION" ? "Aún no tienes proyectos asignados. El administrador te los asigna desde el panel." : "No hay proyectos para mostrar.")
       : filtrando ? "Ningún proyecto coincide con la búsqueda." : "Sin proyectos en este filtro."}</div>`;

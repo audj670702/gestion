@@ -90,11 +90,12 @@ main{max-width:760px;margin:0 auto;padding:16px}
 .seg button.on{border-color:var(--blue);color:var(--blue);background:rgba(36,120,210,.06)}
 .seg.sm button{padding:5px 11px;font-size:12px}
 
-.cards{display:grid;gap:10px}
+.cards{display:grid;gap:8px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px}
 button.card{text-align:left;font:inherit;color:inherit;cursor:pointer;width:100%}
 button.card:hover{border-color:var(--blue)}
-.pry h3{font-size:16px;margin:6px 0}
+.pry{padding:10px 12px}
+.pry h3{font-size:15px;margin:4px 0}
 .folio{font-weight:700;color:var(--muted);font-size:12px;letter-spacing:.04em}
 .bar{height:6px;background:#e9eef5;border-radius:99px;overflow:hidden;margin:10px 0 6px}
 .bar span{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--violet))}
@@ -156,11 +157,12 @@ dialog::backdrop{background:rgba(21,37,61,.45)}
 .otgs{display:grid;gap:8px}
 .otg{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:3px}
 
-.buscar{display:flex;gap:8px;margin:4px 0 10px}
+.buscar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:4px 0 10px}
 .buscar input,.buscar select{border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:inherit;background:#fff;color:var(--ink);min-width:0}
-.buscar input{flex:1}
-.buscar select{flex:0 1 190px}
-@media(max-width:480px){.buscar{flex-direction:column}.buscar select{flex:auto}}
+.buscar input{flex:0 1 230px}
+.buscar select{flex:0 1 170px}
+.conteo{margin-left:auto;white-space:nowrap;font-size:13px;color:var(--muted)}
+@media(max-width:480px){.buscar input{flex:1 1 150px}.buscar select{flex:1 1 130px}.conteo{width:100%;margin-left:0}}
 #conteo{margin:0 0 8px}
 #conteo:empty{display:none}
 .tuto{display:block;width:100%;max-height:62vh;object-fit:contain;background:#000;border-radius:12px}
@@ -321,3 +323,4 @@ body.has-nav{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 /* Botón de la prueba: que se vea (la clase block tapaba el color) */
 .btn.pri.cta-prueba{border-style:solid;margin-top:6px}
 .incluye-previo{list-style:none;margin-left:-18px;font-weight:600;color:var(--ink);padding-top:4px}
+.splash-ver{position:absolute;bottom:calc(18px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;font:500 12px/1 system-ui;color:#6b7a8c;letter-spacing:.04em}

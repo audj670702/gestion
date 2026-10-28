@@ -3,9 +3,8 @@
 // no hace consultas nuevas. Visitante: presentación y planes. Usuario: resumen del día según el rol.
 import { deHoy, cumplida, sinCumplir, titulo, hora, tipoDe, origenDe, colorDe, idDe } from "./programacion.js";
 
-// Liga de compra de planes (Wix Pricing Plans). Pendiente: definir la URL pública de la página de planes.
-// Mientras esté vacía, el botón de compra no se muestra.
-export const PLANES_URL = "";
+// Compra de cada plan: página de Wix Pricing Plans filtrada a ese plan (mismo patrón que LOTERÍA).
+const compraUrl = id => "https://www.scad.mx/pricing-plans/list?planIds=" + encodeURIComponent(id);
 
 const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -43,9 +42,7 @@ export function bienvenidaVisitante({ sesion = false, nombre = "" } = {}) {
 export function detallePlan(id) {
   const p = PLANES.find(x => x.id === id);
   if (!p) return "";
-  const compra = PLANES_URL
-    ? `<a class="btn pri lg block" href="${esc(PLANES_URL)}" target="_blank" rel="noopener">Suscribirme al plan ${p.nombre}</a>`
-    : `<button class="btn lg block" type="button" disabled>Suscripción próximamente</button>`;
+  const compra = `<a class="btn pri lg block" href="${esc(compraUrl(p.id))}" target="_blank" rel="noopener">Empezar mis 14 días gratis</a>`;
   return `
     <div class="plan-det">
       <img src="${p.img}" alt="Plan ${p.nombre} GESTIÓN">

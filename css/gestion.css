@@ -331,3 +331,12 @@ body.has-nav{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 .legal-h{margin:12px 0 2px;font-size:14px;color:var(--navy)}
 .legal-p{font-size:14px;line-height:1.5;color:var(--ink)}
 .legal-lista{margin:0;padding-left:20px;display:grid;gap:4px;font-size:14px;line-height:1.5}
+/* Modales v0.6.9: X de cierre y barra de vistas */
+dialog{position:relative}
+.dlg-x{position:absolute;top:8px;right:10px;z-index:2;width:36px;height:36px;border:0;border-radius:10px;background:#f0f5fa;color:var(--ink);font:24px/1 system-ui;cursor:pointer}
+.dlg-x:hover{background:#e3ebf5}
+.vistas-bar{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:5px;padding:6px;background:var(--navy);border-radius:20px;margin-bottom:12px;box-shadow:0 10px 32px #123f6d40}
+.vistas-bar button{height:44px;min-width:0;border:0;border-radius:14px;background:transparent;color:#edf4fc;font:600 13px/1.1 system-ui;cursor:pointer;white-space:nowrap;padding:0 6px}
+.vistas-bar button:hover:not(.on){background:#ffffff20}
+.vistas-bar button.on{background:#fff;color:var(--navy)}
+.vistas-bar button:focus-visible{outline:3px solid #52b9ef;outline-offset:2px}

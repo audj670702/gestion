@@ -117,14 +117,15 @@ export function bienvenidaUsuario({ ctx, modo, proyectos, esAdm, identidad, eoNo
     pendientesHoy.length && !vencidasHoy.length ? `<span class="chip info">${pendientesHoy.length} pendiente${pendientesHoy.length > 1 ? "s" : ""} de hoy</span>` : ""
   ].filter(Boolean).join("");
 
-  // Sólo acciones que no están en la barra inferior: cambiar de vista (ADM) y Panel de Control (ADM).
-  const cambiar = esAdm ? ["DIRECCION", "OPERACION", "INSTANCIA"].filter(m => m !== modo).map(m => {
-    const et = { DIRECCION: "Dirección", OPERACION: "Operación", INSTANCIA: "Instancia" }[m];
-    return `<button class="bien-acc" data-modo="${m}"><b>Vista ${et}</b><span>Ver su bienvenida</span></button>`;
-  }) : [];
-  if (esAdm) cambiar.push(`<button class="bien-acc" data-bien="panel"><b>Panel de Control</b><span>Administración de la EO</span></button>`);
+  // Barra de vistas (sólo ADM), con el mismo lenguaje visual del menú inferior. La vista activa queda marcada.
+  const vistas = [["DIRECCION", "Dirección"], ["OPERACION", "Operación"], ["INSTANCIA", "Instancia"]];
+  const barraVistas = esAdm ? `<nav class="vistas-bar" aria-label="Vistas">
+      ${vistas.map(([m, t]) => `<button type="button" data-modo="${m}" class="${m === modo ? "on" : ""}"${m === modo ? ' aria-current="true"' : ""}>${t}</button>`).join("")}
+      <button type="button" data-bien="panel">Panel de Control</button>
+    </nav>` : "";
 
   return `
+    ${barraVistas}
     <section class="bien-id">
       <span class="bien-avatar"${fotoStyle}>${identidad.foto ? "" : esc(identidad.iniciales)}</span>
       <div><b>${esc(identidad.nombre)}</b><span>${esc(identidad.email)}</span></div>
@@ -139,11 +140,7 @@ export function bienvenidaUsuario({ ctx, modo, proyectos, esAdm, identidad, eoNo
       ${avisos ? `<div class="row wrap bien-avisos">${avisos}</div>` : ""}
       <h3 class="bien-sub">Hoy</h3>
       ${actividades}
-    </section>
-    ${cambiar.length ? `<section class="bien-acciones">
-      <h3 class="bien-sub">Administración</h3>
-      <div class="bien-grid">${cambiar.join("")}</div>
-    </section>` : ""}`;
+    </section>`;
 }
 
 function fechaLarga() {

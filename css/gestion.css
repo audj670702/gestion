@@ -360,3 +360,17 @@ dialog{position:relative}
 .bien-rol{display:block;margin-top:2px;font-size:12px;font-weight:600;color:var(--blue)}
 .bien-resumen{position:relative}
 .bien-fecha{position:absolute;top:10px;right:14px;font-size:11px;color:var(--muted);text-transform:capitalize}
+
+/* Curva de avance del expediente */
+.curva-box{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+.curva-wrap{position:relative;margin-top:6px}
+.curva{width:100%;height:auto;display:block}
+.curva-tip{position:absolute;top:2px;background:#15253d;color:#fff;font-size:12px;line-height:1.4;padding:6px 8px;border-radius:8px;pointer-events:none;white-space:nowrap}
+.curva-leyenda{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px}
+.curva-leyenda .sw{display:inline-block;width:14px;height:0;border-top:2px solid #748096;margin-right:5px;vertical-align:middle}
+.curva-leyenda .sw-plan{border-top-style:dashed}
+.curva-leyenda .sw-real{border-top-color:#2478d2;border-top-width:3px}
+.curva-leyenda .sw-exp{border-top:2px dashed #15253d}
+.curva-det{margin-top:8px;border-top:1px solid var(--line);padding-top:8px;font-size:13px}
+.curva-det ul{margin:6px 0 0;padding-left:18px}
+.curva-det li{margin:3px 0}

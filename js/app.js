@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.7.9
+// SCaD Gestión · App · v0.7.10
+// v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
 // v0.7.8: tarjeta de identidad compacta visible en todas las vistas (avatar, nombre, correo, rol y vista activa).
 // v0.7.7: seguimiento en tabla (No., columnas elegibles, búsqueda con limpiar, exportación Excel y PDF).
@@ -41,7 +42,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.7.9";
+export const VERSION = "GESTION_APP v0.7.10";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -698,6 +699,7 @@ function vistaChecklist() {
         <select data-rf="venc" class="rt-sel" aria-label="Plazo"><option value="">Cualquier plazo</option><option value="VENCIDO" ${f.venc === "VENCIDO" ? "selected" : ""}>Vencidos</option><option value="POR_VENCER" ${f.venc === "POR_VENCER" ? "selected" : ""}>Por vencer</option></select>
       </div>
       <div class="rt-acc">
+        ${editable() ? `<button class="rt-btn" data-nuevoreq>Agregar requerimiento</button>` : ""}
         <button class="rt-btn" data-rcols>Columnas</button>
         <button class="rt-btn" data-rexp="xls">Excel</button>
         <button class="rt-btn rt-pri" data-rexp="pdf">PDF</button>
@@ -720,7 +722,7 @@ function detalleReqHTML(x) {
       ${puedeSubir ? `<button class="btn sm pri" data-subir="${esc(x.id)}">Subir documento</button>` : ""}
       ${trans.map(t => `<button class="btn sm ${ACCION[t]?.c || ""}" data-estado="${t}" data-req="${esc(x.id)}">${esc(ACCION[t]?.t || t)}</button>`).join("")}
       <button class="btn sm ${x.esperaDocumento ? "" : "ghost"}" data-espera="${x.esperaDocumento ? "0" : "1"}" data-req="${esc(x.id)}">${x.esperaDocumento ? "Quitar espera de documento" : "Espera documento"}</button>
-      <button class="btn sm ghost" data-editar="${esc(x.id)}">Fecha compromiso</button>
+      <button class="btn sm ghost" data-editar="${esc(x.id)}">Editar</button>
     </div>` : `<p class="muted sm">Consulta. Las acciones se hacen desde Operación, con el proyecto En integración.</p>`;
   const anotar = puedeAnotar() ? `<div class="req-nota">
       <textarea id="rqNota" rows="2" placeholder="Anotación sobre este requerimiento…"></textarea>
@@ -1134,16 +1136,60 @@ function dlgEstado(id, estado) {
   { textoBoton: ACCION[estado]?.t || "Guardar", clase: ACCION[estado]?.c === "bad" ? "bad" : "pri" });
 }
 
+const instanciasActivas = () => (S.ctx?.instancias || []).filter(i => i.activo !== false);
+const etiquetaIns = i => i.siglas ? `${i.siglas} · ${i.nombre}` : (i.nombre || "");
+const opcionesIns = (sel, vacio) => (vacio ? `<option value="">${esc(vacio)}</option>` : "") +
+  instanciasActivas().map(i => `<option value="${esc(i.id)}" ${i.id === sel ? "selected" : ""}>${esc(etiquetaIns(i))}</option>`).join("");
+
 function dlgEditar(id) {
   const x = reqPorId(id);
-  dialogo(`<h3>Fecha compromiso</h3><p class="muted">${esc(x.etiqueta)}</p>
-    <label class="f">Fecha compromiso (obligatoria)<input type="date" id="dFecha" required value="${isoDia(x.fechaCompromiso)}"></label>
+  const cat1 = x.categoria === 1;
+  const validado = x.estado === "VALIDADO";
+  const bloqueado = cat1 || validado;
+  const aviso = cat1 ? "Los requerimientos de categoría 1 los administra el administrador." : validado ? "El requerimiento ya está validado. Márcalo como Observado para corregirlo." : "";
+  const dis = bloqueado ? "disabled" : "";
+  dialogo(`<h3>Editar requerimiento</h3><p class="muted">${esc(x.etiqueta)}</p>
+    ${aviso ? `<p class="sm t-bad">${esc(aviso)}</p>` : ""}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <label class="f">Resp. de cumplimiento<select id="dResp" ${dis}>${opcionesIns(x.instanciaId)}</select></label>
+      <label class="f">Instancia solicitante<select id="dSol" ${dis}>${opcionesIns(x.instanciaSolicitanteId)}</select></label>
+      <label class="f">Fecha compromiso (obligatoria)<input type="date" id="dFecha" ${dis} value="${isoDia(x.fechaCompromiso)}"></label>
+      <label class="f">Categoría<select id="dCat" ${dis}><option value="2" ${x.categoria === 2 ? "selected" : ""}>2 · Instancia intermedia</option><option value="3" ${x.categoria === 3 ? "selected" : ""}>3 · Instancia gestora</option></select></label>
+    </div>
     <p class="sm t-bad" id="dErr"></p>`,
-  () => {
+  bloqueado ? null : () => {
     const f = $("#dFecha").value;
     if (!f) { $("#dErr").textContent = "La fecha compromiso es obligatoria."; return Promise.resolve(); }
-    return tarea(() => api("REQ_EDITAR", { prqId: id, fechaCompromiso: f })).then(trasCambio);
+    const cambios = {};
+    if (f !== isoDia(x.fechaCompromiso)) cambios.fechaCompromiso = f;
+    if ($("#dResp").value !== x.instanciaId) cambios.instanciaId = $("#dResp").value;
+    if ($("#dSol").value !== x.instanciaSolicitanteId) cambios.instanciaSolicitanteId = $("#dSol").value;
+    if (Number($("#dCat").value) !== x.categoria) cambios.categoria = Number($("#dCat").value);
+    if (!Object.keys(cambios).length) return Promise.resolve();
+    return tarea(() => api("REQ_EDITAR", { prqId: id, ...cambios })).then(trasCambio);
   });
+}
+
+function dlgNuevoReq() {
+  const tipos = (S.ctx?.catalogos?.tiposDocumento || []).filter(x => x.activo !== false);
+  dialogo(`<h3>Agregar requerimiento</h3>
+    <p class="muted sm">Se agrega como extraordinario a la parrilla de este proyecto. Solo categoría 2 o 3.</p>
+    <label class="f">Nombre<input id="nNom" maxlength="160"></label>
+    <label class="f">Descripción<textarea id="nDes" rows="2" maxlength="1000"></textarea></label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <label class="f">Tipo de acreditación<select id="nTipo"><option value="">— Sin especificar —</option>${tipos.map(t => `<option value="${esc(t.clave)}">${esc(t.etiqueta)}</option>`).join("")}</select></label>
+      <label class="f">Categoría<select id="nCat"><option value="2">2 · Instancia intermedia</option><option value="3" selected>3 · Instancia gestora</option></select></label>
+      <label class="f">Resp. de cumplimiento<select id="nResp">${opcionesIns("", "— Elige —")}</select></label>
+      <label class="f">Instancia solicitante<select id="nSol">${opcionesIns("", "— Elige —")}</select></label>
+      <label class="f">Fecha compromiso<input type="date" id="nFecha"></label>
+    </div>
+    <p class="sm t-bad" id="dErr"></p>`,
+  () => {
+    const v = { etiqueta: $("#nNom").value.trim(), descripcion: $("#nDes").value, tipoDocumentoClave: $("#nTipo").value, categoria: Number($("#nCat").value), instanciaId: $("#nResp").value, instanciaSolicitanteId: $("#nSol").value, fechaCompromiso: $("#nFecha").value };
+    if (!v.etiqueta) { $("#dErr").textContent = "Escribe el nombre del requerimiento."; return Promise.resolve(); }
+    if (!v.instanciaId || !v.instanciaSolicitanteId || !v.fechaCompromiso) { $("#dErr").textContent = "Elige las dos instancias y la fecha compromiso."; return Promise.resolve(); }
+    return tarea(() => api("REQ_NUEVO", { proyectoId: S.det.proyecto.id, ...v })).then(trasCambio);
+  }, { textoBoton: "Agregar" });
 }
 
 function dlgAnotar(id) {
@@ -1249,6 +1295,7 @@ document.addEventListener("click", e => {
   if (d.estado) { dlgEstado(d.req, d.estado); return; }
   if (d.espera !== undefined) { tarea(() => api("REQ_ESPERA_DOC", { prqId: d.req, espera: d.espera === "1" })).then(trasCambio); return; }
   if (d.editar) { dlgEditar(d.editar); return; }
+  if ("nuevoreq" in d) { dlgNuevoReq(); return; }
   if (d.anotar) { dlgAnotar(d.anotar); return; }
   if (d.subir) { dlgSubir(d.subir); return; }
   if (d.ver) { verArchivo(d.ver); return; }

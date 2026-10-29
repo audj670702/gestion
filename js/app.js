@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.6.16
+// SCaD Gestión · App · v0.7.0
+// v0.7.0: checklist en tabla (No., folio de registro, columnas elegibles), búsqueda y filtros (estado, instancia, categoría, plazo), detalle del requerimiento en diálogo con sus acciones, y exportación a Excel y PDF.
 // v0.6.16: curva de avance del expediente (planificado vs. real) en el checklist; tooltip y detalle al clic.
 // v0.6.15: sin botón de requerimiento extraordinario (el ADM define los requerimientos); el diálogo de requerimiento sólo ajusta la fecha compromiso, obligatoria.
 // v0.6.12: barra de vistas con íconos; modo de vista bajo la EO en la barra superior.
@@ -31,7 +32,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.6.16";
+export const VERSION = "GESTION_APP v0.7.0";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -60,7 +61,7 @@ const isoDia = v => { if (!v) return ""; const d = new Date(v); if (isNaN(d)) re
 const pesos = v => (v === null || v === undefined) ? "—" : "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const tamano = b => b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
 
-const S = { ctx: null, modo: null, proyectos: [], fase: "ACTIVOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS" };
+const S = { ctx: null, modo: null, proyectos: [], fase: "ACTIVOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "" }, reqCols: ["no", "folio", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
 
 const ins = id => (S.ctx?.instancias || []).find(i => i.id === id) || null;
 const insEtq = id => { const i = ins(id); return i ? (i.siglas || i.nombre) : ""; };
@@ -563,50 +564,183 @@ function curvaDetalle() {
   </div>`;
 }
 
+// ── Checklist · tabla con detalle (v0.7.0) ───────────────────
+// Folio de registro: sólo la parte R-001 (el folio del proyecto ya identifica el expediente).
+const folioRegistro = (f, i) => { const m = /R(\d+)$/.exec(String(f || "")); return m ? `R-${m[1]}` : `R-${String(i + 1).padStart(3, "0")}`; };
+const COLS_REQ = [
+  { id: "no", t: "No.", v: (x, i) => i + 1, n: true },
+  { id: "folio", t: "Folio", v: (x, i) => folioRegistro(x.folio, i) },
+  { id: "etiqueta", t: "Requerimiento", v: x => x.etiqueta },
+  { id: "instancia", t: "Instancia", v: x => insEtq(x.instanciaId) || "Sin instancia" },
+  { id: "categoria", t: "Cat.", v: x => x.categoria ? `Cat. ${x.categoria}` : "—" },
+  { id: "documento", t: "Documento", v: x => x.tipoDocumentoClave ? tipoDoc(x.tipoDocumentoClave) : "—" },
+  { id: "compromiso", t: "Compromiso", v: x => fecha(x.fechaCompromiso) },
+  { id: "estado", t: "Estado", v: x => (ESTADOS[x.estado] || { t: x.estado }).t },
+  { id: "semaforo", t: "Plazo", v: x => x.semaforo === "VENCIDO" ? "Vencido" : x.semaforo === "POR_VENCER" ? "Por vencer" : "En tiempo" },
+  { id: "obs", t: "Obs.", v: x => String(x.observaciones || 0), n: true },
+  { id: "actualiza", t: "Última actualización", v: x => fechaHora(x.ultimaActualizacion) }
+];
+
+function reqFiltrados(items) {
+  const q = norm(S.reqQ || "").trim();
+  const f = S.reqF || {};
+  return items.filter(x => {
+    if (S.filtroReq === "REVISAR" && x.estado !== "ENTREGADO") return false;
+    if (S.filtroReq === "VENCIDOS" && x.semaforo !== "VENCIDO") return false;
+    if (S.filtroReq === "ABIERTOS" && ["VALIDADO", "NO_APLICA"].includes(x.estado)) return false;
+    if (f.estado && x.estado !== f.estado) return false;
+    if (f.inst && x.instanciaId !== f.inst) return false;
+    if (f.cat && String(x.categoria || "") !== f.cat) return false;
+    if (f.venc && x.semaforo !== f.venc) return false;
+    if (q && !norm(COLS_REQ.map(c => c.v(x, 0)).join(" ")).includes(q)) return false;
+    return true;
+  });
+}
+const textoFiltroReq = () => {
+  const f = S.reqF || {}, p = [];
+  if (S.reqQ) p.push(`Búsqueda: ${S.reqQ}`);
+  if (f.estado) p.push(`Estado: ${ESTADOS[f.estado]?.t || f.estado}`);
+  if (f.inst) p.push(`Instancia: ${insEtq(f.inst)}`);
+  if (f.cat) p.push(`Categoría ${f.cat}`);
+  if (f.venc) p.push(f.venc === "VENCIDO" ? "Vencidos" : "Por vencer");
+  return p.join(" · ");
+};
+
+function tablaReq() {
+  const items = S.det.checklist;
+  const lista = reqFiltrados(items);
+  const cols = COLS_REQ.filter(c => S.reqCols.includes(c.id));
+  if (!lista.length) return `<div class="empty">Nada con este filtro.</div>`;
+  const filas = lista.map((x, i) => `<tr data-rq="${esc(x.id)}" class="${x.semaforo === "VENCIDO" ? "vencido" : ""}${S.reqSel === x.id ? " sel" : ""}">
+    ${cols.map(c => c.id === "estado"
+      ? `<td><span class="chip ${(ESTADOS[x.estado] || {}).c || ""}">${esc(c.v(x, i))}</span></td>`
+      : `<td class="${c.n ? "num" : ""}">${esc(c.v(x, i))}</td>`).join("")}
+  </tr>`).join("");
+  return `<div class="rtable"><table><thead><tr>${cols.map(c => `<th class="${c.n ? "num" : ""}">${esc(c.t)}</th>`).join("")}</tr></thead><tbody>${filas}</tbody></table></div>
+    <p class="muted xs">${lista.length} de ${items.length} requerimientos · clic en una fila para ver el detalle y las acciones</p>`;
+}
+function pintarReqTabla() { const el = $("#reqTabla"); if (el) el.innerHTML = tablaReq(); }
+
 function vistaChecklist() {
   const items = S.det.checklist;
   const p = S.det.proyecto;
   const c = p.checklist || {};
   const pct = c.aplicables ? Math.round((c.validados / c.aplicables) * 100) : 0;
   const filtros = [["TODOS", "Todos"], ["REVISAR", "Por revisar"], ["VENCIDOS", "Vencidos"], ["ABIERTOS", "Sin validar"]];
-  const lista = items.filter(x => S.filtroReq === "TODOS" ? true
-    : S.filtroReq === "REVISAR" ? x.estado === "ENTREGADO"
-    : S.filtroReq === "VENCIDOS" ? x.semaforo === "VENCIDO"
-    : !["VALIDADO", "NO_APLICA"].includes(x.estado));
   const banner = S.modo !== "OPERACION" ? "" : !editable() ? `<div class="note-box">${p.fase === "PREVISION" ? "El proyecto está en Previsión. El checklist se genera cuando el administrador valida la viabilidad." : `El checklist sólo se trabaja mientras el proyecto está En integración. Momento actual: <b>${esc(ESTATUS[p.estatus] || p.estatus)}</b>.`}</div>`
     : (c.aplicables && c.validados === c.aplicables ? `<div class="note-box ok">Checklist completo. El administrador puede validar el expediente en el panel.</div>` : "");
+  if (!items.length) return `${banner}<div class="empty">Sin requerimientos en la parrilla.</div>`;
+  const f = S.reqF;
+  const instancias = [...new Set(items.map(x => x.instanciaId).filter(Boolean))];
+  const cols = COLS_REQ.map(c => `<label class="check"><input type="checkbox" data-rcol="${c.id}" ${S.reqCols.includes(c.id) ? "checked" : ""}> ${esc(c.t)}</label>`).join("");
   return `${banner}
-    ${items.length ? curvaHTML(items, p) : ""}
-    ${items.length ? `<div class="progress"><div class="row"><b>${pct}%</b><span class="muted sm">${c.validados} de ${c.aplicables} requerimientos aplicables validados</span></div><div class="bar"><span style="width:${pct}%"></span></div></div>
-    <nav class="seg sm">${filtros.map(([k, t]) => `<button class="${S.filtroReq === k ? "on" : ""}" data-freq="${k}">${t}</button>`).join("")}</nav>` : ""}
-    <div class="reqs">${lista.map(tarjetaReq).join("") || (items.length ? `<div class="empty">Nada en este filtro.</div>` : "")}</div>`;
+    ${curvaHTML(items, p)}
+    <div class="progress"><div class="row"><b>${pct}%</b><span class="muted sm">${c.validados} de ${c.aplicables} requerimientos aplicables validados</span></div><div class="bar"><span style="width:${pct}%"></span></div></div>
+    <nav class="seg sm">${filtros.map(([k, t]) => `<button class="${S.filtroReq === k ? "on" : ""}" data-freq="${k}">${t}</button>`).join("")}</nav>
+    <div class="reqbar">
+      <input type="search" id="reqQ" placeholder="Buscar folio, requerimiento, instancia…" value="${esc(S.reqQ || "")}">
+      <select data-rf="estado"><option value="">Todos los estados</option>${Object.entries(ESTADOS).map(([k, v]) => `<option value="${k}" ${f.estado === k ? "selected" : ""}>${esc(v.t)}</option>`).join("")}</select>
+      <select data-rf="inst"><option value="">Todas las instancias</option>${instancias.map(id => `<option value="${esc(id)}" ${f.inst === id ? "selected" : ""}>${esc(insEtq(id))}</option>`).join("")}</select>
+      <select data-rf="cat"><option value="">Todas las categorías</option>${[1, 2, 3].map(n => `<option value="${n}" ${f.cat === String(n) ? "selected" : ""}>Cat. ${n}</option>`).join("")}</select>
+      <select data-rf="venc"><option value="">Cualquier plazo</option><option value="VENCIDO" ${f.venc === "VENCIDO" ? "selected" : ""}>Vencidos</option><option value="POR_VENCER" ${f.venc === "POR_VENCER" ? "selected" : ""}>Por vencer</option></select>
+      <button class="btn sm" data-rcols>Columnas</button>
+      <button class="btn sm" data-rexp="xls">Excel</button>
+      <button class="btn sm pri" data-rexp="pdf">PDF</button>
+    </div>
+    <div class="rcols" id="rcols" hidden>${cols}</div>
+    <div id="reqTabla">${tablaReq()}</div>`;
 }
 
-function tarjetaReq(x) {
+function detalleReqHTML(x) {
   const e = ESTADOS[x.estado] || { t: x.estado, c: "" };
   const vig = x.archivos.find(a => a.vigente);
   const trans = editable() ? (S.ctx.reglas?.transiciones?.[x.estado] || []) : [];
   const puedeSubir = editable() && !["VALIDADO", "NO_APLICA"].includes(x.estado);
-  return `<article class="req ${x.semaforo === "VENCIDO" ? "vencido" : ""}">
-    <div class="row"><h3>${esc(x.etiqueta)}${x.extraordinario ? ` <span class="chip mute">Extra</span>` : ""}</h3><span class="chip ${e.c}">${esc(e.t)}</span></div>
-    ${x.descripcion ? `<p class="muted sm">${esc(x.descripcion)}</p>` : ""}
-    <div class="meta">
-      <span>${esc(insEtq(x.instanciaId) || "Sin instancia")}</span>
-      ${x.tipoDocumentoClave ? `<span>${esc(tipoDoc(x.tipoDocumentoClave))}</span>` : ""}
-      <span class="${x.semaforo === "VENCIDO" ? "t-bad" : x.semaforo === "POR_VENCER" ? "t-amber" : ""}">Compromiso: ${fecha(x.fechaCompromiso)}${x.semaforo === "VENCIDO" ? " · vencido" : x.semaforo === "POR_VENCER" ? " · por vencer" : ""}</span>
-      ${x.observaciones ? `<span>${x.observaciones} ${x.observaciones === 1 ? "observación" : "observaciones"}</span>` : ""}
-    </div>
+  const i = S.det.checklist.indexOf(x);
+  const folio = folioRegistro(x.folio, i);
+  const plazo = x.semaforo === "VENCIDO" ? " · vencido" : x.semaforo === "POR_VENCER" ? " · por vencer" : "";
+  return `<h3>${esc(x.etiqueta)}</h3>
+    <p class="muted sm">${esc(folio)} · ${esc(insEtq(x.instanciaId) || "Sin instancia")}${x.categoria ? ` · Cat. ${x.categoria}` : ""}</p>
+    <dl class="kv">
+      <dt>Estado</dt><dd><span class="chip ${e.c}">${esc(e.t)}</span></dd>
+      <dt>Compromiso</dt><dd>${fecha(x.fechaCompromiso)}${esc(plazo)}</dd>
+      <dt>Documento</dt><dd>${esc(x.tipoDocumentoClave ? tipoDoc(x.tipoDocumentoClave) : "—")}</dd>
+      <dt>Observaciones</dt><dd>${x.observaciones || 0}</dd>
+      <dt>Última actualización</dt><dd>${x.ultimaActualizacion ? `${esc(fechaHora(x.ultimaActualizacion))}${x.ultimaActualizacionPorNombre ? ` · ${esc(x.ultimaActualizacionPorNombre)}` : ""}` : "—"}</dd>
+    </dl>
+    ${x.descripcion ? `<p class="sm">${esc(x.descripcion)}</p>` : ""}
     ${x.estado === "NO_APLICA" && x.justificacionNoAplica ? `<p class="sm"><b>No aplica:</b> ${esc(x.justificacionNoAplica)}</p>` : ""}
     ${vig ? `<div class="file"><span class="ico">📄</span><div><b>${esc(vig.nombre)}</b><span class="muted sm">v${vig.version} · ${tamano(vig.tamano)} · ${fecha(vig.fechaCarga)}${vig.cargadoEnNombreDe ? ` · en nombre de ${esc(vig.cargadoEnNombreDe)}` : ""}</span></div><button class="btn sm" data-ver="${esc(vig.id)}">Ver</button></div>` : ""}
     ${x.archivos.length > 1 ? `<details class="sm"><summary>${x.archivos.length - 1} versión(es) anterior(es)</summary>${x.archivos.filter(a => !a.vigente).map(a => `<div class="row"><span>v${a.version} · ${esc(a.nombre)} · ${fecha(a.fechaCarga)}</span><button class="btn xs" data-ver="${esc(a.id)}">Ver</button></div>`).join("")}</details>` : ""}
-    ${x.ultimaActualizacion ? `<p class="muted xs">Última actualización: ${fechaHora(x.ultimaActualizacion)}${x.ultimaActualizacionPorNombre ? ` · ${esc(x.ultimaActualizacionPorNombre)}` : ""}</p>` : ""}
     ${editable() ? `<div class="acts">
       ${puedeSubir ? `<button class="btn sm pri" data-subir="${esc(x.id)}">Subir documento</button>` : ""}
       ${trans.map(t => `<button class="btn sm ${ACCION[t]?.c || ""}" data-estado="${t}" data-req="${esc(x.id)}">${esc(ACCION[t]?.t || t)}</button>`).join("")}
-      <button class="btn sm ghost" data-editar="${esc(x.id)}">Editar</button>
+      <button class="btn sm ghost" data-editar="${esc(x.id)}">Fecha compromiso</button>
       <button class="btn sm ghost" data-anotar="${esc(x.id)}">Anotar</button>
-    </div>` : ""}
-  </article>`;
+    </div>` : ""}`;
+}
+function dlgDetalleReq(id) {
+  const x = reqPorId(id);
+  if (!x) return;
+  S.reqSel = id;
+  pintarReqTabla();
+  dialogo(detalleReqHTML(x), null, { textoCerrar: "Cerrar" });
+}
+
+// ── Exportar requerimientos (Excel y PDF) ────────────────────
+function descargarArchivo(blob, nombre) {
+  const u = URL.createObjectURL(blob), a = document.createElement("a");
+  a.href = u; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(u), 2000);
+}
+const hoyYmd = () => { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`; };
+function matrizReq() {
+  const cols = COLS_REQ.filter(c => S.reqCols.includes(c.id));
+  const lista = reqFiltrados(S.det.checklist);
+  return { cols, headers: cols.map(c => c.t), rows: lista.map((x, i) => cols.map(c => String(c.v(x, i)))) };
+}
+async function cargarJsPdfApp() {
+  if (window.jspdf?.jsPDF?.API?.autoTable) return window.jspdf.jsPDF;
+  const js = src => new Promise((ok, mal) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = () => mal(new Error("No fue posible cargar el generador PDF.")); document.head.appendChild(s); });
+  if (!window.jspdf?.jsPDF) await js("https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js");
+  await js("https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js");
+  return window.jspdf.jsPDF;
+}
+async function exportarReq(tipo) {
+  const m = matrizReq();
+  if (!m.rows.length) { aviso("No hay requerimientos para exportar.", "bad"); return; }
+  const p = S.det.proyecto;
+  const titulo = `Requerimientos · ${p.folio} · ${p.nombre}`;
+  const filtros = textoFiltroReq();
+  const base = `Requerimientos_${p.folio}_${hoyYmd()}`;
+  if (tipo === "xls") {
+    const n = m.headers.length;
+    const tr = r => `<tr>${r.map((v, k) => `<td${m.cols[k].n ? ' style="text-align:right"' : ""}>${esc(v)}</td>`).join("")}</tr>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table>
+      <tr><th colspan="${n}" style="font-size:14pt;text-align:left">${esc(titulo)}</th></tr>
+      <tr><td colspan="${n}">Generado por ${esc(usr().nombreVisible || usr().nombre || "")} · ${esc(new Date().toLocaleString("es-MX"))}</td></tr>
+      <tr><td colspan="${n}">${esc(filtros || "Sin filtros")}</td></tr>
+      <tr>${m.headers.map(h => `<th style="background:#15253d;color:#fff">${esc(h)}</th>`).join("")}</tr>${m.rows.map(tr).join("")}</table></body></html>`;
+    descargarArchivo(new Blob(["", html], { type: "application/vnd.ms-excel;charset=utf-8" }), `${base}.xls`);
+    return;
+  }
+  try {
+    const JsPDF = await cargarJsPdfApp();
+    const doc = new JsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
+    const W = doc.internal.pageSize.getWidth();
+    doc.setTextColor(21, 37, 61); doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.text(titulo, 14, 15);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(100);
+    doc.text(`Generado por ${usr().nombreVisible || usr().nombre || ""} · ${new Date().toLocaleString("es-MX")}`, 14, 21);
+    if (filtros) doc.text(filtros, 14, 25);
+    doc.autoTable({
+      head: [m.headers], body: m.rows, startY: filtros ? 29 : 25, margin: { left: 14, right: 14 }, theme: "grid",
+      styles: { fontSize: 7.5, cellPadding: 1.6, overflow: "linebreak", lineColor: [226, 232, 240] },
+      headStyles: { fillColor: [21, 37, 61], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [247, 249, 252] },
+      didDrawPage: () => { doc.setFontSize(7); doc.setTextColor(150); doc.text(`SCaD Gestión · Página ${doc.internal.getNumberOfPages()}`, W - 14, doc.internal.pageSize.getHeight() - 7, { align: "right" }); }
+    });
+    doc.save(`${base}.pdf`);
+  } catch (e) { aviso(e.message || "No fue posible generar el PDF.", "bad"); }
 }
 
 function vistaSeguimiento() {
@@ -906,6 +1040,10 @@ async function verArchivo(id) {
 
 // ── Eventos ──────────────────────────────────────────────────
 document.addEventListener("click", e => {
+  const fila = e.target.closest("tr[data-rq]");
+  if (fila && !e.target.closest("button, select, input, label, a")) { dlgDetalleReq(fila.dataset.rq); return; }
+  if (e.target.closest("[data-rcols]")) { const r = $("#rcols"); if (r) r.hidden = !r.hidden; return; }
+  const rx = e.target.closest("[data-rexp]"); if (rx) { exportarReq(rx.dataset.rexp); return; }
   const t = e.target.closest("button, a");
   if (!t || !t.closest("#accountMenu, #account, #navOptions")) cerrarMenu();
   if (!t) return;
@@ -946,6 +1084,13 @@ document.addEventListener("click", e => {
   }
 });
 document.addEventListener("change", e => {
+  if (e.target.dataset.rf) { S.reqF[e.target.dataset.rf] = e.target.value; pintarReqTabla(); return; }
+  if (e.target.dataset.rcol) {
+    const on = new Set(S.reqCols), id = e.target.dataset.rcol;
+    e.target.checked ? on.add(id) : on.delete(id);
+    S.reqCols = COLS_REQ.map(c => c.id).filter(x => on.has(x));
+    pintarReqTabla(); return;
+  }
   if (e.target.id === "dNom") $("#dMedioBox").hidden = !e.target.checked;
   if (e.target.id === "segAct") $("#segCumpleBox").hidden = !e.target.selectedOptions[0]?.dataset.cumplible;
   if (e.target.id === "aTodo") { $("#aHoraIni").disabled = $("#aHoraFin").disabled = e.target.checked; }
@@ -953,6 +1098,7 @@ document.addEventListener("change", e => {
   if (e.target.id === "pFoto") { const f = e.target.files?.[0]; if (f) pintarAvatar($("#pAvatar"), URL.createObjectURL(f), ""); }
 });
 document.addEventListener("input", e => {
+  if (e.target.id === "reqQ") { S.reqQ = e.target.value; pintarReqTabla(); }
   if (e.target.id === "fBuscar") { S.q = e.target.value; pintarTarjetas(); }
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape") cerrarMenu(true); });

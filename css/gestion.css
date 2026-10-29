@@ -374,3 +374,21 @@ dialog{position:relative}
 .curva-det{margin-top:8px;border-top:1px solid var(--line);padding-top:8px;font-size:13px}
 .curva-det ul{margin:6px 0 0;padding-left:18px}
 .curva-det li{margin:3px 0}
+
+/* ── Checklist · tabla con detalle (v0.7.0) ── */
+.reqbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0 10px}
+.reqbar input[type=search]{flex:1 1 220px;min-width:200px;border:1px solid var(--line);border-radius:10px;padding:8px 11px;font:inherit;font-size:14px;background:#fff}
+.reqbar select{border:1px solid var(--line);border-radius:10px;padding:7px 9px;font:inherit;font-size:13px;background:#fff;color:var(--ink)}
+.rcols{display:flex;flex-wrap:wrap;gap:6px 16px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fbfcfe;margin-bottom:10px}
+.rtable{overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fff;max-height:62vh}
+.rtable table{width:100%;border-collapse:collapse;font-size:13px}
+.rtable th,.rtable td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;vertical-align:middle}
+.rtable th{position:sticky;top:0;z-index:1;background:#f7f9fc;font-size:12px;color:var(--muted);font-weight:600}
+.rtable td.num,.rtable th.num{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.rtable tbody tr{cursor:pointer}
+.rtable tbody tr:hover{background:#f7f9fc}
+.rtable tbody tr.sel{background:rgba(36,120,210,.07)}
+.rtable tbody tr.vencido td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:7px 14px;margin:12px 0;font-size:13px}
+.kv dt{color:var(--muted);font-weight:600}
+.kv dd{margin:0}

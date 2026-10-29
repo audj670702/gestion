@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.7.3
+// SCaD Gestión · App · v0.7.4
+// v0.7.4: detalle del requerimiento con barra azul y sólo la X para cerrar; la casilla de visibilidad indica la categoría de la instancia.
 // v0.7.3: el registro de seguimiento lo integra el ADM y el responsable, desde la pestaña Seguimiento o desde el requerimiento (misma acción).
 // v0.7.2: vista de proyecto a todo el ancho; tabla sin número de fila y categoría como número; detalle del requerimiento con acciones y su seguimiento (anotar desde el requerimiento).
 // v0.7.1: folio sólo con el número de registro (001); categoría tomada del requerimiento cuando el renglón no la trae; barra de búsqueda y filtros con diseño de herramienta; tabla con encabezado y columnas ajustadas.
@@ -35,7 +36,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.7.3";
+export const VERSION = "GESTION_APP v0.7.4";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -684,15 +685,16 @@ function detalleReqHTML(x) {
     </div>` : `<p class="muted sm">Consulta. Las acciones se hacen desde Operación, con el proyecto En integración.</p>`;
   const anotar = puedeAnotar() ? `<div class="req-nota">
       <textarea id="rqNota" rows="2" placeholder="Anotación sobre este requerimiento…"></textarea>
-      <div class="req-nota-pie"><label class="check"><input type="checkbox" id="rqVis"> Visible para la instancia</label>
+      <div class="req-nota-pie"><label class="check"><input type="checkbox" id="rqVis"> ${esc(etiquetaVisible(x.id))}</label>
       <button class="btn sm pri" data-regnota="${esc(x.id)}">Registrar</button></div>
     </div>` : "";
   const hist = seg.map(s => `<li><span class="muted xs">${fechaHora(s.fechaRegistro)} · ${esc(s.autorNombre)}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}${s.registradoEnNombreDe ? ` · en nombre de ${esc(s.registradoEnNombreDe)}` : ""}</span>${s.estadoNuevo ? ` <span class="chip ${(ESTADOS[s.estadoNuevo] || {}).c || "info"}">${esc((ESTADOS[s.estadoNuevo] || {}).t || s.estadoNuevo)}</span>` : ""}<p>${esc(s.nota)}</p></li>`).join("");
-  return `<div class="req-head">
-      <div><span class="muted xs">${esc(folio)} · ${esc(insEtq(x.instanciaId) || "Sin instancia")}${x.categoria ? ` · Cat. ${x.categoria}` : ""}</span>
-      <h3>${esc(x.etiqueta)}</h3></div>
-      <span class="chip ${e.c}">${esc(e.t)}</span>
-    </div>
+  return `<header class="req-top">
+      <span class="req-top-meta">${esc(folio)} · ${esc(insEtq(x.instanciaId) || "Sin instancia")}${x.categoria ? ` · Cat. ${x.categoria}` : ""}</span>
+      <h3>${esc(x.etiqueta)}</h3>
+      <span class="chip">${esc(e.t)}</span>
+    </header>
+    <div class="req-body">
     ${acciones}
     <div class="req-cols">
       <dl class="kv">
@@ -712,7 +714,15 @@ function detalleReqHTML(x) {
       <h4>Seguimiento del requerimiento</h4>
       ${anotar}
       <ul class="pro-hist">${hist || `<li class="muted sm">Sin anotaciones todavía.</li>`}</ul>
+    </div>
     </div>`;
+}
+const TIPO_INS_CAT = { 1: "que otorga", 2: "intermedia", 3: "gestora" };
+function etiquetaVisible(prqId) {
+  const x = prqId ? reqPorId(prqId) : null;
+  const i = x ? ins(x.instanciaId) : null;
+  const c = Number(i?.categoria);
+  return TIPO_INS_CAT[c] ? `Visible para la instancia ${TIPO_INS_CAT[c]} (Cat. ${c})` : "Visible para la instancia";
 }
 function dlgDetalleReq(id) {
   const x = reqPorId(id);
@@ -720,7 +730,7 @@ function dlgDetalleReq(id) {
   S.reqSel = id;
   pintarReqTabla();
   $("#dlg").classList.add("req");
-  dialogo(detalleReqHTML(x), null, { textoCerrar: "Cerrar" });
+  dialogo(detalleReqHTML(x), null, { sinPie: true });
 }
 async function anotarReq(id) {
   const nota = ($("#rqNota")?.value || "").trim();
@@ -800,7 +810,7 @@ function vistaSeguimiento() {
       </div>
       <div class="row wrap">
         <label class="check" id="segCumpleBox" hidden><input type="checkbox" id="segCumple"> Da por cumplida la actividad</label>
-        <label class="check"><input type="checkbox" id="segVis"> Visible para la instancia</label>
+        <label class="check"><input type="checkbox" id="segVis"> <span id="segVisTxt">${esc(etiquetaVisible(""))}</span></label>
         <button class="btn pri" data-act="anotarGeneral">Registrar</button>
       </div></div>` : ""}
     <ol class="timeline">${h.map(s => `<li>
@@ -978,8 +988,8 @@ function dlgProgramar(a = null, proyectoId = "") {
 
 // ── Diálogos ─────────────────────────────────────────────────
 let alEnviar = null;
-function dialogo(html, enviar, { textoBoton = "Guardar", clase = "pri", textoCerrar = "Cancelar" } = {}) {
-  $("#dlgBody").innerHTML = `${html}<div class="dlg-acts"><button class="btn" data-dlg="cerrar">${esc(textoCerrar)}</button>${enviar ? `<button class="btn ${clase}" data-dlg="ok">${esc(textoBoton)}</button>` : ""}</div>`;
+function dialogo(html, enviar, { textoBoton = "Guardar", clase = "pri", textoCerrar = "Cancelar", sinPie = false } = {}) {
+  $("#dlgBody").innerHTML = sinPie ? html : `${html}<div class="dlg-acts"><button class="btn" data-dlg="cerrar">${esc(textoCerrar)}</button>${enviar ? `<button class="btn ${clase}" data-dlg="ok">${esc(textoBoton)}</button>` : ""}</div>`;
   alEnviar = enviar;
   if (!$("#dlg").open) $("#dlg").showModal();
   $("#dlgBody").scrollTop = 0;
@@ -1138,6 +1148,7 @@ document.addEventListener("change", e => {
     pintarReqTabla(); return;
   }
   if (e.target.id === "dNom") $("#dMedioBox").hidden = !e.target.checked;
+  if (e.target.id === "segReq") $("#segVisTxt").textContent = etiquetaVisible(e.target.value);
   if (e.target.id === "segAct") $("#segCumpleBox").hidden = !e.target.selectedOptions[0]?.dataset.cumplible;
   if (e.target.id === "aTodo") { $("#aHoraIni").disabled = $("#aHoraFin").disabled = e.target.checked; }
   if (e.target.id === "fTipo") { S.tipo = e.target.value; pintarTarjetas(); }

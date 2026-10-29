@@ -427,3 +427,13 @@ dialog.req{width:min(1080px,96vw);max-width:96vw}
 .req-nota textarea{width:100%;border:1px solid #d9e0ea;border-radius:12px;padding:10px 12px;font:inherit;font-size:14px;resize:vertical}
 .req-nota-pie{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .rtable{max-height:none}
+
+/* ── Requerimiento · barra azul y sólo la X (v0.7.4) ── */
+dialog.req #dlgBody{padding:0}
+dialog.req .dlg-x{top:12px;right:12px;width:34px;height:34px;background:rgba(255,255,255,.16);color:#fff;font-size:22px}
+dialog.req .dlg-x:hover{background:rgba(255,255,255,.28)}
+.req-top{background:var(--blue);color:#fff;padding:16px 62px 16px 22px;display:grid;gap:4px;justify-items:start}
+.req-top-meta{font-size:12px;opacity:.85;letter-spacing:.02em}
+.req-top h3{margin:0;font-size:18px;color:#fff;line-height:1.25}
+.req-top .chip{background:#fff;color:var(--blue);margin-top:4px}
+.req-body{padding:16px 22px 20px}

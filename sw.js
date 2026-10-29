@@ -1,7 +1,7 @@
 // SCaD Gestión · Service worker · v0.5.4
 // Red primero para la app; las llamadas al backend nunca se guardan.
-const CACHE_NAME = "gestion-v0.7.3";
-const APP_SHELL = ["./", "./index.html", "./css/gestion.css?v=0.7.3", "./js/app.js?v=0.7.3", "./js/inicio.js", "./js/auth.js", "./js/api.js", "./js/programacion.js", "./js/bienvenida.js", "./manifest.json", "./assets/icon-192.png", "./assets/icon-512.png", "./assets/branding/scad-gestion-compacto.png", "./assets/branding/scad-gestion-completo.png", "./assets/branding/scad-gestion-icono.png"];
+const CACHE_NAME = "gestion-v0.7.4";
+const APP_SHELL = ["./", "./index.html", "./css/gestion.css?v=0.7.4", "./js/app.js?v=0.7.4", "./js/inicio.js", "./js/auth.js", "./js/api.js", "./js/programacion.js", "./js/bienvenida.js", "./manifest.json", "./assets/icon-192.png", "./assets/icon-512.png", "./assets/branding/scad-gestion-compacto.png", "./assets/branding/scad-gestion-completo.png", "./assets/branding/scad-gestion-icono.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(APP_SHELL)).then(() => self.skipWaiting()));

@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.7.6
+// SCaD Gestión · App · v0.7.7
+// v0.7.7: seguimiento en tabla (No., columnas elegibles, búsqueda con limpiar, exportación Excel y PDF).
 // v0.7.6: Validar (cumplido) sin documento; marca de espera de documento para el responsable.
 // v0.7.5: toggle para minimizar los indicadores de avance en la vista del proyecto; se quita el aviso de Previsión sobre el checklist.
 // v0.7.4: detalle del requerimiento con barra azul y sólo la X para cerrar; la casilla de visibilidad indica la categoría de la instancia.
@@ -38,7 +39,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.7.6";
+export const VERSION = "GESTION_APP v0.7.7";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -67,7 +68,7 @@ const isoDia = v => { if (!v) return ""; const d = new Date(v); if (isNaN(d)) re
 const pesos = v => (v === null || v === undefined) ? "—" : "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const tamano = b => b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
 
-const S = { indMin: false, ctx: null, modo: null, proyectos: [], fase: "ACTIVOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "" }, reqCols: ["folio", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
+const S = { indMin: false, segQ: "", segCols: ["fecha", "autor", "tipo", "ref", "nota"], ctx: null, modo: null, proyectos: [], fase: "ACTIVOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "" }, reqCols: ["folio", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
 
 const ins = id => (S.ctx?.instancias || []).find(i => i.id === id) || null;
 const insEtq = id => { const i = ins(id); return i ? (i.siglas || i.nombre) : ""; };
@@ -806,6 +807,86 @@ async function exportarReq(tipo) {
   } catch (e) { aviso(e.message || "No fue posible generar el PDF.", "bad"); }
 }
 
+const SEG_TIPO = { ANOTACION: "Anotación", CAMBIO_ESTADO: "Cambio de estado", ACTIVIDAD_CUMPLIDA: "Actividad cumplida", RESULTADO_OTORGANTE: "Resultado" };
+const SEG_COLS = [
+  { id: "fecha", t: "Fecha", v: s => fechaHora(s.fechaRegistro) },
+  { id: "autor", t: "Autor", v: s => `${s.autorNombre || ""}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}` },
+  { id: "tipo", t: "Tipo", v: s => s.tipo === "CAMBIO_ESTADO" && s.estadoNuevo ? `Cambio de estado: ${(ESTADOS[s.estadoNuevo] || {}).t || s.estadoNuevo}` : (SEG_TIPO[s.tipo] || s.tipo || "") },
+  { id: "ref", t: "Referencia", v: s => s.referenciaEtiqueta || "Proyecto en general" },
+  { id: "actividad", t: "Actividad", v: s => s.actividadEtiqueta || "" },
+  { id: "visible", t: "Visible para instancia", v: s => s.visibleCliente ? "Sí" : "No" },
+  { id: "nota", t: "Anotación", v: s => s.nota || "" }
+];
+function segFiltrados(lista) {
+  const q = norm(S.segQ || "").trim();
+  return q ? lista.filter(s => norm(SEG_COLS.map(c => c.v(s)).join(" ")).includes(q)) : lista;
+}
+function tablaSeg() {
+  const h = S.det.seguimiento || [];
+  if (!h.length) return `<div class="empty">Sin anotaciones.</div>`;
+  const lista = segFiltrados(h);
+  if (!lista.length) return `<div class="empty">Ninguna anotación coincide con la búsqueda.</div>`;
+  const cols = SEG_COLS.filter(c => S.segCols.includes(c.id));
+  const filas = lista.map((s, i) => `<tr><td style="width:40px;text-align:center;color:#9aa6b6;font-size:11px;font-weight:400;font-variant-numeric:tabular-nums">${i + 1}</td>${cols.map(c => `<td class="${c.id === "fecha" ? "t-nw" : ""}${c.id === "nota" ? " t-req" : ""}">${esc(c.v(s))}</td>`).join("")}</tr>`).join("");
+  return `<div class="rtable"><table><thead><tr><th style="width:40px;text-align:center;color:#9aa6b6;font-weight:400;font-size:11px">No.</th>${cols.map(c => `<th>${esc(c.t)}</th>`).join("")}</tr></thead><tbody>${filas}</tbody></table></div>
+    <p class="rt-pie">${lista.length} de ${h.length} anotaciones</p>`;
+}
+function pintarSegTabla() { const el = $("#segTabla"); if (el) el.innerHTML = tablaSeg(); }
+function barraSeg() {
+  const cols = SEG_COLS.map(c => `<label class="check"><input type="checkbox" data-scol="${c.id}" ${S.segCols.includes(c.id) ? "checked" : ""}> ${esc(c.t)}</label>`).join("");
+  return `<div class="rt-bar">
+      <label class="rt-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 14l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input type="search" id="segQ" placeholder="Buscar en el seguimiento" value="${esc(S.segQ || "")}"><button type="button" data-segx aria-label="Limpiar búsqueda" title="Limpiar" ${S.segQ ? "" : "hidden"} style="flex:0 0 auto;width:22px;height:22px;padding:0;border:0;border-radius:50%;background:#eef2f7;color:#5b6b80;font-size:15px;line-height:22px;cursor:pointer">×</button></label>
+      <div class="rt-acc">
+        <button class="rt-btn" data-scols>Columnas</button>
+        <button class="rt-btn" data-sexp="xls">Excel</button>
+        <button class="rt-btn rt-pri" data-sexp="pdf">PDF</button>
+      </div>
+    </div>
+    <div class="rcols" id="scols" hidden>${cols}</div>`;
+}
+function matrizSeg() {
+  const lista = segFiltrados(S.det.seguimiento || []);
+  const cols = SEG_COLS.filter(c => S.segCols.includes(c.id));
+  return { cols, headers: ["No.", ...cols.map(c => c.t)], rows: lista.map((s, i) => [String(i + 1), ...cols.map(c => String(c.v(s)))]) };
+}
+async function exportarSeg(tipo) {
+  const m = matrizSeg();
+  if (!m.rows.length) { aviso("No hay anotaciones para exportar.", "bad"); return; }
+  const p = S.det.proyecto;
+  const titulo = `Seguimiento · ${p.folio} · ${p.nombre}`;
+  const filtros = S.segQ ? `Búsqueda: ${S.segQ}` : "";
+  const base = `Seguimiento_${p.folio}_${hoyYmd()}`;
+  if (tipo === "xls") {
+    const n = m.headers.length;
+    const tr = r => `<tr>${r.map(v => `<td>${esc(v)}</td>`).join("")}</tr>`;
+    const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table>
+      <tr><th colspan="${n}" style="font-size:14pt;text-align:left">${esc(titulo)}</th></tr>
+      <tr><td colspan="${n}">Generado por ${esc(usr().nombreVisible || usr().nombre || "")} · ${esc(new Date().toLocaleString("es-MX"))}</td></tr>
+      <tr><td colspan="${n}">${esc(filtros || "Sin filtros")}</td></tr>
+      <tr>${m.headers.map(h => `<th style="background:#15253d;color:#fff">${esc(h)}</th>`).join("")}</tr>${m.rows.map(tr).join("")}</table></body></html>`;
+    descargarArchivo(new Blob(["", html], { type: "application/vnd.ms-excel;charset=utf-8" }), `${base}.xls`);
+    return;
+  }
+  try {
+    const JsPDF = await cargarJsPdfApp();
+    const doc = new JsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
+    const W = doc.internal.pageSize.getWidth();
+    doc.setTextColor(21, 37, 61); doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.text(titulo, 14, 15);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(100);
+    doc.text(`Generado por ${usr().nombreVisible || usr().nombre || ""} · ${new Date().toLocaleString("es-MX")}`, 14, 21);
+    if (filtros) doc.text(filtros, 14, 25);
+    doc.autoTable({
+      head: [m.headers], body: m.rows, startY: filtros ? 29 : 25, margin: { left: 14, right: 14 }, theme: "grid",
+      styles: { fontSize: 7.5, cellPadding: 1.6, overflow: "linebreak", lineColor: [226, 232, 240] },
+      headStyles: { fillColor: [21, 37, 61], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [247, 249, 252] },
+      columnStyles: { 0: { halign: "center", cellWidth: 12, textColor: [150, 160, 175] } },
+      didDrawPage: () => { doc.setFontSize(7); doc.setTextColor(150); doc.text(`SCaD Gestión · Página ${doc.internal.getNumberOfPages()}`, W - 14, doc.internal.pageSize.getHeight() - 7, { align: "right" }); }
+    });
+    doc.save(`${base}.pdf`);
+  } catch (e) { aviso(e.message || "No fue posible generar el PDF.", "bad"); }
+}
+
 function vistaSeguimiento() {
   const p = S.det.proyecto;
   const h = S.det.seguimiento;
@@ -821,14 +902,8 @@ function vistaSeguimiento() {
         <label class="check"><input type="checkbox" id="segVis"> <span id="segVisTxt">${esc(etiquetaVisible(""))}</span></label>
         <button class="btn pri" data-act="anotarGeneral">Registrar</button>
       </div></div>` : ""}
-    <ol class="timeline">${h.map(s => `<li>
-      <div class="row"><span class="muted xs">${fechaHora(s.fechaRegistro)} · ${esc(s.autorNombre)}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}</span>${s.visibleCliente && S.modo !== "INSTANCIA" ? `<span class="chip mute xs">Visible para la instancia</span>` : ""}</div>
-      ${s.referenciaEtiqueta ? `<div class="ref">${esc(s.referenciaEtiqueta)}</div>` : ""}
-      ${s.actividadEtiqueta ? `<div class="ref act">▦ ${esc(s.actividadEtiqueta)}</div>` : ""}
-      ${s.tipo === "ACTIVIDAD_CUMPLIDA" ? `<span class="chip ok">Actividad cumplida</span>` : ""}
-      ${s.tipo === "CAMBIO_ESTADO" && s.estadoNuevo ? `<span class="chip ${(ESTADOS[s.estadoNuevo] || {}).c || "info"}">${esc((ESTADOS[s.estadoNuevo] || {}).t || ESTATUS[s.estadoNuevo] || s.estadoNuevo)}</span>` : ""}
-      <p>${esc(s.nota)}</p>
-    </li>`).join("") || `<li class="empty">Sin anotaciones.</li>`}</ol>`;
+    ${barraSeg()}
+    <div id="segTabla">${tablaSeg()}</div>`;
 }
 
 function vistaFicha() {
@@ -1106,6 +1181,9 @@ document.addEventListener("click", e => {
   const fila = e.target.closest("tr[data-rq]");
   if (fila && !e.target.closest("button, select, input, label, a")) { dlgDetalleReq(fila.dataset.rq); return; }
   if (e.target.closest("[data-rcols]")) { const r = $("#rcols"); if (r) r.hidden = !r.hidden; return; }
+  if (e.target.closest("[data-segx]")) { S.segQ = ""; const q = $("#segQ"); if (q) { q.value = ""; q.focus(); } const x = document.querySelector("[data-segx]"); if (x) x.hidden = true; pintarSegTabla(); return; }
+  if (e.target.closest("[data-scols]")) { const r = $("#scols"); if (r) r.hidden = !r.hidden; return; }
+  const sx = e.target.closest("[data-sexp]"); if (sx) { exportarSeg(sx.dataset.sexp); return; }
   const rx = e.target.closest("[data-rexp]"); if (rx) { exportarReq(rx.dataset.rexp); return; }
   const t = e.target.closest("button, a");
   if (!t || !t.closest("#accountMenu, #account, #navOptions")) cerrarMenu();
@@ -1150,6 +1228,12 @@ document.addEventListener("click", e => {
   }
 });
 document.addEventListener("change", e => {
+  if (e.target.dataset && e.target.dataset.scol) {
+    const on = new Set(S.segCols), id = e.target.dataset.scol;
+    e.target.checked ? on.add(id) : on.delete(id);
+    S.segCols = SEG_COLS.map(c => c.id).filter(x => on.has(x));
+    pintarSegTabla(); return;
+  }
   if (e.target.dataset.rf) { S.reqF[e.target.dataset.rf] = e.target.value; pintarReqTabla(); return; }
   if (e.target.dataset.rcol) {
     const on = new Set(S.reqCols), id = e.target.dataset.rcol;
@@ -1166,6 +1250,7 @@ document.addEventListener("change", e => {
 });
 document.addEventListener("input", e => {
   if (e.target.id === "reqQ") { S.reqQ = e.target.value; pintarReqTabla(); }
+  if (e.target.id === "segQ") { S.segQ = e.target.value; const x = document.querySelector("[data-segx]"); if (x) x.hidden = !S.segQ; pintarSegTabla(); }
   if (e.target.id === "fBuscar") { S.q = e.target.value; pintarTarjetas(); }
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape") cerrarMenu(true); });

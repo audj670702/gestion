@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.7.4
+// SCaD Gestión · App · v0.7.5
+// v0.7.5: toggle para minimizar los indicadores de avance en la vista del proyecto; se quita el aviso de Previsión sobre el checklist.
 // v0.7.4: detalle del requerimiento con barra azul y sólo la X para cerrar; la casilla de visibilidad indica la categoría de la instancia.
 // v0.7.3: el registro de seguimiento lo integra el ADM y el responsable, desde la pestaña Seguimiento o desde el requerimiento (misma acción).
 // v0.7.2: vista de proyecto a todo el ancho; tabla sin número de fila y categoría como número; detalle del requerimiento con acciones y su seguimiento (anotar desde el requerimiento).
@@ -36,7 +37,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.7.4";
+export const VERSION = "GESTION_APP v0.7.5";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -65,7 +66,7 @@ const isoDia = v => { if (!v) return ""; const d = new Date(v); if (isNaN(d)) re
 const pesos = v => (v === null || v === undefined) ? "—" : "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const tamano = b => b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
 
-const S = { ctx: null, modo: null, proyectos: [], fase: "ACTIVOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "" }, reqCols: ["folio", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
+const S = { indMin: false, ctx: null, modo: null, proyectos: [], fase: "ACTIVOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "" }, reqCols: ["folio", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
 
 const ins = id => (S.ctx?.instancias || []).find(i => i.id === id) || null;
 const insEtq = id => { const i = ins(id); return i ? (i.siglas || i.nombre) : ""; };
@@ -641,15 +642,19 @@ function vistaChecklist() {
   const c = p.checklist || {};
   const pct = c.aplicables ? Math.round((c.validados / c.aplicables) * 100) : 0;
   const filtros = [["TODOS", "Todos"], ["REVISAR", "Por revisar"], ["VENCIDOS", "Vencidos"], ["ABIERTOS", "Sin validar"]];
-  const banner = S.modo !== "OPERACION" ? "" : !editable() ? `<div class="note-box">${p.fase === "PREVISION" ? "El proyecto está en Previsión. El checklist se genera cuando el administrador valida la viabilidad." : `El checklist sólo se trabaja mientras el proyecto está En integración. Momento actual: <b>${esc(ESTATUS[p.estatus] || p.estatus)}</b>.`}</div>`
+  const banner = S.modo !== "OPERACION" ? "" : !editable() ? (p.fase === "PREVISION" ? "" : `<div class="note-box">El checklist sólo se trabaja mientras el proyecto está En integración. Momento actual: <b>${esc(ESTATUS[p.estatus] || p.estatus)}</b>.</div>`)
     : (c.aplicables && c.validados === c.aplicables ? `<div class="note-box ok">Checklist completo. El administrador puede validar el expediente en el panel.</div>` : "");
   if (!items.length) return `${banner}<div class="empty">Sin requerimientos en la parrilla.</div>`;
   const f = S.reqF;
   const instancias = [...new Set(items.map(x => x.instanciaId).filter(Boolean))];
   const cols = COLS_REQ.map(c => `<label class="check"><input type="checkbox" data-rcol="${c.id}" ${S.reqCols.includes(c.id) ? "checked" : ""}> ${esc(c.t)}</label>`).join("");
-  return `${banner}
+  const indicadores = S.indMin
+    ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin-bottom:10px"><span class="sm"><b>${pct}%</b> <span class="muted">· ${c.validados} de ${c.aplicables} validados</span></span><div class="bar" style="flex:1;min-width:140px;margin:0"><span style="width:${pct}%"></span></div><button class="btn sm ghost" data-indmin="0">Mostrar indicadores</button></div>`
+    : `<div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="btn sm ghost" data-indmin="1">Ocultar indicadores</button></div>
     ${curvaHTML(items, p)}
-    <div class="progress"><div class="row"><b>${pct}%</b><span class="muted sm">${c.validados} de ${c.aplicables} requerimientos aplicables validados</span></div><div class="bar"><span style="width:${pct}%"></span></div></div>
+    <div class="progress"><div class="row"><b>${pct}%</b><span class="muted sm">${c.validados} de ${c.aplicables} requerimientos aplicables validados</span></div><div class="bar"><span style="width:${pct}%"></span></div></div>`;
+  return `${banner}
+    ${indicadores}
     <nav class="seg sm">${filtros.map(([k, t]) => `<button class="${S.filtroReq === k ? "on" : ""}" data-freq="${k}">${t}</button>`).join("")}</nav>
     <div class="rt-bar">
       <label class="rt-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 14l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input type="search" id="reqQ" placeholder="Buscar folio, requerimiento o instancia" value="${esc(S.reqQ || "")}"></label>
@@ -1128,6 +1133,7 @@ document.addEventListener("click", e => {
   if (d.pry) { S.tab = "checklist"; S.filtroReq = "TODOS"; location.hash = `#/p/${d.pry}`; return; }
   if (d.tab) { S.tab = d.tab; pintarProyecto(); return; }
   if (d.freq) { S.filtroReq = d.freq; pintarProyecto(); return; }
+  if (d.indmin !== undefined) { S.indMin = d.indmin === "1"; pintarProyecto(); return; }
   if (d.estado) { dlgEstado(d.req, d.estado); return; }
   if (d.editar) { dlgEditar(d.editar); return; }
   if (d.anotar) { dlgAnotar(d.anotar); return; }

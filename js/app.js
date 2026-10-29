@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.7.0
+// SCaD Gestión · App · v0.7.1
+// v0.7.1: folio sólo con el número de registro (001); categoría tomada del requerimiento cuando el renglón no la trae; barra de búsqueda y filtros con diseño de herramienta; tabla con encabezado y columnas ajustadas.
 // v0.7.0: checklist en tabla (No., folio de registro, columnas elegibles), búsqueda y filtros (estado, instancia, categoría, plazo), detalle del requerimiento en diálogo con sus acciones, y exportación a Excel y PDF.
 // v0.6.16: curva de avance del expediente (planificado vs. real) en el checklist; tooltip y detalle al clic.
 // v0.6.15: sin botón de requerimiento extraordinario (el ADM define los requerimientos); el diálogo de requerimiento sólo ajusta la fecha compromiso, obligatoria.
@@ -32,7 +33,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.7.0";
+export const VERSION = "GESTION_APP v0.7.1";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -565,14 +566,14 @@ function curvaDetalle() {
 }
 
 // ── Checklist · tabla con detalle (v0.7.0) ───────────────────
-// Folio de registro: sólo la parte R-001 (el folio del proyecto ya identifica el expediente).
-const folioRegistro = (f, i) => { const m = /R(\d+)$/.exec(String(f || "")); return m ? `R-${m[1]}` : `R-${String(i + 1).padStart(3, "0")}`; };
+// Folio de registro: sólo el número (001); el folio del proyecto ya identifica el expediente.
+const folioRegistro = (f, i) => { const m = /(\d+)$/.exec(String(f || "")); return (m ? m[1] : String(i + 1)).padStart(3, "0"); };
 const COLS_REQ = [
   { id: "no", t: "No.", v: (x, i) => i + 1, n: true },
   { id: "folio", t: "Folio", v: (x, i) => folioRegistro(x.folio, i) },
   { id: "etiqueta", t: "Requerimiento", v: x => x.etiqueta },
   { id: "instancia", t: "Instancia", v: x => insEtq(x.instanciaId) || "Sin instancia" },
-  { id: "categoria", t: "Cat.", v: x => x.categoria ? `Cat. ${x.categoria}` : "—" },
+  { id: "categoria", t: "Categoría", v: x => x.categoria ? `Cat. ${x.categoria}` : "—" },
   { id: "documento", t: "Documento", v: x => x.tipoDocumentoClave ? tipoDoc(x.tipoDocumentoClave) : "—" },
   { id: "compromiso", t: "Compromiso", v: x => fecha(x.fechaCompromiso) },
   { id: "estado", t: "Estado", v: x => (ESTADOS[x.estado] || { t: x.estado }).t },
@@ -611,13 +612,21 @@ function tablaReq() {
   const lista = reqFiltrados(items);
   const cols = COLS_REQ.filter(c => S.reqCols.includes(c.id));
   if (!lista.length) return `<div class="empty">Nada con este filtro.</div>`;
+  const clasesCelda = (c, x) => [
+    c.n ? "num" : "",
+    c.id === "folio" ? "t-folio" : "",
+    c.id === "etiqueta" ? "t-req" : "",
+    ["compromiso", "actualiza", "folio", "categoria", "obs"].includes(c.id) ? "t-nw" : "",
+    c.id === "semaforo" && x.semaforo === "VENCIDO" ? "t-bad" : "",
+    c.id === "semaforo" && x.semaforo === "POR_VENCER" ? "t-amber" : ""
+  ].filter(Boolean).join(" ");
   const filas = lista.map((x, i) => `<tr data-rq="${esc(x.id)}" class="${x.semaforo === "VENCIDO" ? "vencido" : ""}${S.reqSel === x.id ? " sel" : ""}">
     ${cols.map(c => c.id === "estado"
-      ? `<td><span class="chip ${(ESTADOS[x.estado] || {}).c || ""}">${esc(c.v(x, i))}</span></td>`
-      : `<td class="${c.n ? "num" : ""}">${esc(c.v(x, i))}</td>`).join("")}
+      ? `<td class="t-nw"><span class="chip ${(ESTADOS[x.estado] || {}).c || ""}">${esc(c.v(x, i))}</span></td>`
+      : `<td class="${clasesCelda(c, x)}">${esc(c.v(x, i))}</td>`).join("")}
   </tr>`).join("");
-  return `<div class="rtable"><table><thead><tr>${cols.map(c => `<th class="${c.n ? "num" : ""}">${esc(c.t)}</th>`).join("")}</tr></thead><tbody>${filas}</tbody></table></div>
-    <p class="muted xs">${lista.length} de ${items.length} requerimientos · clic en una fila para ver el detalle y las acciones</p>`;
+  return `<div class="rtable"><table><thead><tr>${cols.map(c => `<th class="${c.n ? "num" : ""}${c.id === "folio" ? " t-folio" : ""}">${esc(c.t)}</th>`).join("")}</tr></thead><tbody>${filas}</tbody></table></div>
+    <p class="rt-pie">${lista.length} de ${items.length} requerimientos · clic en una fila para ver el detalle y las acciones</p>`;
 }
 function pintarReqTabla() { const el = $("#reqTabla"); if (el) el.innerHTML = tablaReq(); }
 
@@ -637,15 +646,19 @@ function vistaChecklist() {
     ${curvaHTML(items, p)}
     <div class="progress"><div class="row"><b>${pct}%</b><span class="muted sm">${c.validados} de ${c.aplicables} requerimientos aplicables validados</span></div><div class="bar"><span style="width:${pct}%"></span></div></div>
     <nav class="seg sm">${filtros.map(([k, t]) => `<button class="${S.filtroReq === k ? "on" : ""}" data-freq="${k}">${t}</button>`).join("")}</nav>
-    <div class="reqbar">
-      <input type="search" id="reqQ" placeholder="Buscar folio, requerimiento, instancia…" value="${esc(S.reqQ || "")}">
-      <select data-rf="estado"><option value="">Todos los estados</option>${Object.entries(ESTADOS).map(([k, v]) => `<option value="${k}" ${f.estado === k ? "selected" : ""}>${esc(v.t)}</option>`).join("")}</select>
-      <select data-rf="inst"><option value="">Todas las instancias</option>${instancias.map(id => `<option value="${esc(id)}" ${f.inst === id ? "selected" : ""}>${esc(insEtq(id))}</option>`).join("")}</select>
-      <select data-rf="cat"><option value="">Todas las categorías</option>${[1, 2, 3].map(n => `<option value="${n}" ${f.cat === String(n) ? "selected" : ""}>Cat. ${n}</option>`).join("")}</select>
-      <select data-rf="venc"><option value="">Cualquier plazo</option><option value="VENCIDO" ${f.venc === "VENCIDO" ? "selected" : ""}>Vencidos</option><option value="POR_VENCER" ${f.venc === "POR_VENCER" ? "selected" : ""}>Por vencer</option></select>
-      <button class="btn sm" data-rcols>Columnas</button>
-      <button class="btn sm" data-rexp="xls">Excel</button>
-      <button class="btn sm pri" data-rexp="pdf">PDF</button>
+    <div class="rt-bar">
+      <label class="rt-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 14l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input type="search" id="reqQ" placeholder="Buscar folio, requerimiento o instancia" value="${esc(S.reqQ || "")}"></label>
+      <div class="rt-filtros">
+        <select data-rf="estado" class="rt-sel" aria-label="Estado"><option value="">Todos los estados</option>${Object.entries(ESTADOS).map(([k, v]) => `<option value="${k}" ${f.estado === k ? "selected" : ""}>${esc(v.t)}</option>`).join("")}</select>
+        <select data-rf="inst" class="rt-sel" aria-label="Instancia"><option value="">Todas las instancias</option>${instancias.map(id => `<option value="${esc(id)}" ${f.inst === id ? "selected" : ""}>${esc(insEtq(id))}</option>`).join("")}</select>
+        <select data-rf="cat" class="rt-sel" aria-label="Categoría"><option value="">Todas las categorías</option>${[1, 2, 3].map(n => `<option value="${n}" ${f.cat === String(n) ? "selected" : ""}>Categoría ${n}</option>`).join("")}</select>
+        <select data-rf="venc" class="rt-sel" aria-label="Plazo"><option value="">Cualquier plazo</option><option value="VENCIDO" ${f.venc === "VENCIDO" ? "selected" : ""}>Vencidos</option><option value="POR_VENCER" ${f.venc === "POR_VENCER" ? "selected" : ""}>Por vencer</option></select>
+      </div>
+      <div class="rt-acc">
+        <button class="rt-btn" data-rcols>Columnas</button>
+        <button class="rt-btn" data-rexp="xls">Excel</button>
+        <button class="rt-btn rt-pri" data-rexp="pdf">PDF</button>
+      </div>
     </div>
     <div class="rcols" id="rcols" hidden>${cols}</div>
     <div id="reqTabla">${tablaReq()}</div>`;

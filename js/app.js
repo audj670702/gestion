@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.7.1
+// SCaD Gestión · App · v0.7.2
+// v0.7.2: vista de proyecto a todo el ancho; tabla sin número de fila y categoría como número; detalle del requerimiento con acciones y su seguimiento (anotar desde el requerimiento).
 // v0.7.1: folio sólo con el número de registro (001); categoría tomada del requerimiento cuando el renglón no la trae; barra de búsqueda y filtros con diseño de herramienta; tabla con encabezado y columnas ajustadas.
 // v0.7.0: checklist en tabla (No., folio de registro, columnas elegibles), búsqueda y filtros (estado, instancia, categoría, plazo), detalle del requerimiento en diálogo con sus acciones, y exportación a Excel y PDF.
 // v0.6.16: curva de avance del expediente (planificado vs. real) en el checklist; tooltip y detalle al clic.
@@ -33,7 +34,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.7.1";
+export const VERSION = "GESTION_APP v0.7.2";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -62,7 +63,7 @@ const isoDia = v => { if (!v) return ""; const d = new Date(v); if (isNaN(d)) re
 const pesos = v => (v === null || v === undefined) ? "—" : "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const tamano = b => b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
 
-const S = { ctx: null, modo: null, proyectos: [], fase: "ACTIVOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "" }, reqCols: ["no", "folio", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
+const S = { ctx: null, modo: null, proyectos: [], fase: "ACTIVOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "" }, reqCols: ["folio", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
 
 const ins = id => (S.ctx?.instancias || []).find(i => i.id === id) || null;
 const insEtq = id => { const i = ins(id); return i ? (i.siglas || i.nombre) : ""; };
@@ -328,6 +329,7 @@ async function cargarLista() {
 }
 
 function ruta() {
+  document.querySelector("main")?.classList.toggle("ancho", /^#\/p\//.test(location.hash));
   const h = location.hash || "";
   const prg = /^#\/programacion(?:\/([^/]+))?/.exec(h);
   cerrarMenu();
@@ -569,11 +571,10 @@ function curvaDetalle() {
 // Folio de registro: sólo el número (001); el folio del proyecto ya identifica el expediente.
 const folioRegistro = (f, i) => { const m = /(\d+)$/.exec(String(f || "")); return (m ? m[1] : String(i + 1)).padStart(3, "0"); };
 const COLS_REQ = [
-  { id: "no", t: "No.", v: (x, i) => i + 1, n: true },
   { id: "folio", t: "Folio", v: (x, i) => folioRegistro(x.folio, i) },
   { id: "etiqueta", t: "Requerimiento", v: x => x.etiqueta },
   { id: "instancia", t: "Instancia", v: x => insEtq(x.instanciaId) || "Sin instancia" },
-  { id: "categoria", t: "Categoría", v: x => x.categoria ? `Cat. ${x.categoria}` : "—" },
+  { id: "categoria", t: "Cat.", v: x => x.categoria ? String(x.categoria) : "—", n: true },
   { id: "documento", t: "Documento", v: x => x.tipoDocumentoClave ? tipoDoc(x.tipoDocumentoClave) : "—" },
   { id: "compromiso", t: "Compromiso", v: x => fecha(x.fechaCompromiso) },
   { id: "estado", t: "Estado", v: x => (ESTADOS[x.estado] || { t: x.estado }).t },
@@ -671,33 +672,61 @@ function detalleReqHTML(x) {
   const puedeSubir = editable() && !["VALIDADO", "NO_APLICA"].includes(x.estado);
   const i = S.det.checklist.indexOf(x);
   const folio = folioRegistro(x.folio, i);
-  const plazo = x.semaforo === "VENCIDO" ? " · vencido" : x.semaforo === "POR_VENCER" ? " · por vencer" : "";
-  return `<h3>${esc(x.etiqueta)}</h3>
-    <p class="muted sm">${esc(folio)} · ${esc(insEtq(x.instanciaId) || "Sin instancia")}${x.categoria ? ` · Cat. ${x.categoria}` : ""}</p>
-    <dl class="kv">
-      <dt>Estado</dt><dd><span class="chip ${e.c}">${esc(e.t)}</span></dd>
-      <dt>Compromiso</dt><dd>${fecha(x.fechaCompromiso)}${esc(plazo)}</dd>
-      <dt>Documento</dt><dd>${esc(x.tipoDocumentoClave ? tipoDoc(x.tipoDocumentoClave) : "—")}</dd>
-      <dt>Observaciones</dt><dd>${x.observaciones || 0}</dd>
-      <dt>Última actualización</dt><dd>${x.ultimaActualizacion ? `${esc(fechaHora(x.ultimaActualizacion))}${x.ultimaActualizacionPorNombre ? ` · ${esc(x.ultimaActualizacionPorNombre)}` : ""}` : "—"}</dd>
-    </dl>
-    ${x.descripcion ? `<p class="sm">${esc(x.descripcion)}</p>` : ""}
-    ${x.estado === "NO_APLICA" && x.justificacionNoAplica ? `<p class="sm"><b>No aplica:</b> ${esc(x.justificacionNoAplica)}</p>` : ""}
-    ${vig ? `<div class="file"><span class="ico">📄</span><div><b>${esc(vig.nombre)}</b><span class="muted sm">v${vig.version} · ${tamano(vig.tamano)} · ${fecha(vig.fechaCarga)}${vig.cargadoEnNombreDe ? ` · en nombre de ${esc(vig.cargadoEnNombreDe)}` : ""}</span></div><button class="btn sm" data-ver="${esc(vig.id)}">Ver</button></div>` : ""}
-    ${x.archivos.length > 1 ? `<details class="sm"><summary>${x.archivos.length - 1} versión(es) anterior(es)</summary>${x.archivos.filter(a => !a.vigente).map(a => `<div class="row"><span>v${a.version} · ${esc(a.nombre)} · ${fecha(a.fechaCarga)}</span><button class="btn xs" data-ver="${esc(a.id)}">Ver</button></div>`).join("")}</details>` : ""}
-    ${editable() ? `<div class="acts">
+  const plazo = x.semaforo === "VENCIDO" ? "Vencido" : x.semaforo === "POR_VENCER" ? "Por vencer" : "En tiempo";
+  const seg = (S.det.seguimiento || []).filter(s => s.referenciaId === x.id);
+  const acciones = editable() ? `<div class="req-acc">
       ${puedeSubir ? `<button class="btn sm pri" data-subir="${esc(x.id)}">Subir documento</button>` : ""}
       ${trans.map(t => `<button class="btn sm ${ACCION[t]?.c || ""}" data-estado="${t}" data-req="${esc(x.id)}">${esc(ACCION[t]?.t || t)}</button>`).join("")}
       <button class="btn sm ghost" data-editar="${esc(x.id)}">Fecha compromiso</button>
-      <button class="btn sm ghost" data-anotar="${esc(x.id)}">Anotar</button>
-    </div>` : ""}`;
+    </div>` : `<p class="muted sm">Consulta. Las acciones se hacen desde Operación, con el proyecto En integración.</p>`;
+  const anotar = editable() ? `<div class="req-nota">
+      <textarea id="rqNota" rows="2" placeholder="Anotación sobre este requerimiento…"></textarea>
+      <div class="req-nota-pie"><label class="check"><input type="checkbox" id="rqVis"> Visible para la instancia</label>
+      <button class="btn sm pri" data-regnota="${esc(x.id)}">Registrar</button></div>
+    </div>` : "";
+  const hist = seg.map(s => `<li><span class="muted xs">${fechaHora(s.fechaRegistro)} · ${esc(s.autorNombre)}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}${s.registradoEnNombreDe ? ` · en nombre de ${esc(s.registradoEnNombreDe)}` : ""}</span>${s.estadoNuevo ? ` <span class="chip ${(ESTADOS[s.estadoNuevo] || {}).c || "info"}">${esc((ESTADOS[s.estadoNuevo] || {}).t || s.estadoNuevo)}</span>` : ""}<p>${esc(s.nota)}</p></li>`).join("");
+  return `<div class="req-head">
+      <div><span class="muted xs">${esc(folio)} · ${esc(insEtq(x.instanciaId) || "Sin instancia")}${x.categoria ? ` · Cat. ${x.categoria}` : ""}</span>
+      <h3>${esc(x.etiqueta)}</h3></div>
+      <span class="chip ${e.c}">${esc(e.t)}</span>
+    </div>
+    ${acciones}
+    <div class="req-cols">
+      <dl class="kv">
+        <dt>Compromiso</dt><dd>${fecha(x.fechaCompromiso)} · ${esc(plazo)}</dd>
+        <dt>Documento</dt><dd>${esc(x.tipoDocumentoClave ? tipoDoc(x.tipoDocumentoClave) : "—")}</dd>
+        <dt>Observaciones</dt><dd>${x.observaciones || 0}</dd>
+        <dt>Última actualización</dt><dd>${x.ultimaActualizacion ? `${esc(fechaHora(x.ultimaActualizacion))}${x.ultimaActualizacionPorNombre ? ` · ${esc(x.ultimaActualizacionPorNombre)}` : ""}` : "—"}</dd>
+        ${x.descripcion ? `<dt>Descripción</dt><dd>${esc(x.descripcion)}</dd>` : ""}
+        ${x.estado === "NO_APLICA" && x.justificacionNoAplica ? `<dt>No aplica</dt><dd>${esc(x.justificacionNoAplica)}</dd>` : ""}
+      </dl>
+      <div class="req-doc">
+        ${vig ? `<div class="file"><span class="ico">📄</span><div><b>${esc(vig.nombre)}</b><span class="muted sm">v${vig.version} · ${tamano(vig.tamano)} · ${fecha(vig.fechaCarga)}${vig.cargadoEnNombreDe ? ` · en nombre de ${esc(vig.cargadoEnNombreDe)}` : ""}</span></div><button class="btn sm" data-ver="${esc(vig.id)}">Ver</button></div>` : `<p class="muted sm">Sin documento cargado.</p>`}
+        ${x.archivos.length > 1 ? `<details class="sm"><summary>${x.archivos.length - 1} versión(es) anterior(es)</summary>${x.archivos.filter(a => !a.vigente).map(a => `<div class="row"><span>v${a.version} · ${esc(a.nombre)} · ${fecha(a.fechaCarga)}</span><button class="btn xs" data-ver="${esc(a.id)}">Ver</button></div>`).join("")}</details>` : ""}
+      </div>
+    </div>
+    <div class="req-seg">
+      <h4>Seguimiento del requerimiento</h4>
+      ${anotar}
+      <ul class="pro-hist">${hist || `<li class="muted sm">Sin anotaciones todavía.</li>`}</ul>
+    </div>`;
 }
 function dlgDetalleReq(id) {
   const x = reqPorId(id);
   if (!x) return;
   S.reqSel = id;
   pintarReqTabla();
+  $("#dlg").classList.add("req");
   dialogo(detalleReqHTML(x), null, { textoCerrar: "Cerrar" });
+}
+async function anotarReq(id) {
+  const nota = ($("#rqNota")?.value || "").trim();
+  if (!nota) { aviso("Escribe la anotación.", "bad"); return; }
+  const r = await tarea(() => api("ANOTAR", { proyectoId: S.det.proyecto.id, prqId: id, nota, visibleCliente: $("#rqVis")?.checked === true }));
+  if (!r) return;
+  aviso(r.mensaje || "Anotación registrada.");
+  await abrirProyecto(S.det.proyecto.id, { silencioso: true });
+  dlgDetalleReq(id);
 }
 
 // ── Exportar requerimientos (Excel y PDF) ────────────────────
@@ -952,7 +981,7 @@ function dialogo(html, enviar, { textoBoton = "Guardar", clase = "pri", textoCer
   if (!$("#dlg").open) $("#dlg").showModal();
   $("#dlgBody").scrollTop = 0;
 }
-function cerrarDialogo() { if ($("#dlg").open) $("#dlg").close(); alEnviar = null; }
+function cerrarDialogo() { if ($("#dlg").open) $("#dlg").close(); $("#dlg").classList.remove("req"); alEnviar = null; }
 const reqPorId = id => S.det.checklist.find(x => x.id === id);
 
 async function trasCambio(r) {
@@ -1079,6 +1108,7 @@ document.addEventListener("click", e => {
   if ("programar" in d) { cerrarDialogo(); dlgProgramar(null, d.programar || S.det?.proyecto?.id || ""); return; }
   if (d.actAccion) { accionActividad(d.actAccion, d.actId); return; }
   if (d.foto) { const i = $("#pFoto"); if (d.foto === "camara") i.setAttribute("capture", "user"); else i.removeAttribute("capture"); i.click(); return; }
+  if (d.regnota) { anotarReq(d.regnota); return; }
   if (d.dlg === "cerrar") { cerrarDialogo(); return; }
   if (d.dlg === "ok") { alEnviar && alEnviar(); return; }
   if (d.fase) { S.fase = d.fase; document.querySelectorAll("[data-fase]").forEach(b => b.classList.toggle("on", b === t)); pintarTarjetas(); return; }

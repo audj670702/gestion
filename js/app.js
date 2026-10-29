@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.7.7
+// SCaD Gestión · App · v0.7.8
+// v0.7.8: tarjeta de identidad compacta visible en todas las vistas (avatar, nombre, correo, rol y vista activa).
 // v0.7.7: seguimiento en tabla (No., columnas elegibles, búsqueda con limpiar, exportación Excel y PDF).
 // v0.7.6: Validar (cumplido) sin documento; marca de espera de documento para el responsable.
 // v0.7.5: toggle para minimizar los indicadores de avance en la vista del proyecto; se quita el aviso de Previsión sobre el checklist.
@@ -39,7 +40,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.7.7";
+export const VERSION = "GESTION_APP v0.7.8";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -111,6 +112,7 @@ async function cambiarModo(m) {
   cerrarMenu();
   if (m === S.modo) return;
   S.modo = m;
+  pintarTarjetaIdentidad();
   try { localStorage.setItem(claveModo(), m); } catch (_) { /* sin almacenamiento */ }
   Object.assign(S, { fase: "ACTIVOS", q: "", tipo: "", det: null });
   pintarModo();
@@ -137,6 +139,33 @@ function pintarAvatar(el, url, nombre) {
   if (url) { el.textContent = ""; el.innerHTML = `<img src="${esc(url)}" alt="" referrerpolicy="no-referrer">`; }
   else { el.innerHTML = ""; el.textContent = iniciales(nombre); }
 }
+// Tarjeta de identidad compacta: se ve en cualquier vista (avatar, nombre, correo, rol y vista activa).
+const ROL_T = { ADM: "Administrador", OPERACION: "Operación", EJECUTIVO: "Dirección", CLIENTE: "Instancia" };
+function asegurarEstiloIdentidad() {
+  if (document.getElementById("idBarCss")) return;
+  const st = document.createElement("style");
+  st.id = "idBarCss";
+  st.textContent = `.id-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin:0 0 10px}
+.id-bar .avatar{flex:0 0 auto;width:36px;height:36px;font-size:13px}
+.id-txt{display:flex;flex-direction:column;min-width:0;flex:1 1 200px}
+.id-txt b{font-size:14px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.id-txt span{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.id-chips{display:flex;gap:6px;flex-wrap:wrap}
+.id-chips .chip{font-size:11px}`;
+  document.head.appendChild(st);
+}
+function pintarTarjetaIdentidad() {
+  if (!S.ctx) return;
+  asegurarEstiloIdentidad();
+  let el = document.getElementById("idBar");
+  if (!el) { el = document.createElement("div"); el.id = "idBar"; el.className = "id-bar"; $("#view").before(el); }
+  const n = nombreMostrar(), foto = urlImagen(usr().avatar || usr().foto);
+  const roles = [ROL_T[rolApp()] || rolApp() || "Usuario", usr().admPrincipal ? "Principal" : ""].filter(Boolean);
+  el.innerHTML = `<span class="avatar" id="idAvatar"></span>
+    <div class="id-txt"><b>${esc(n)}</b><span>${esc(usr().email || S.ctx.email || "")}</span></div>
+    <div class="id-chips">${roles.map(r => `<span class="chip">${esc(r)}</span>`).join("")}${S.modo && MODOS[S.modo] ? `<span class="chip info">Vista: ${esc(MODOS[S.modo].t)}</span>` : ""}</div>`;
+  pintarAvatar(el.querySelector("#idAvatar"), foto, n);
+}
 function pintarIdentidad() {
   const n = nombreMostrar(), foto = urlImagen(usr().avatar || usr().foto);
   $("#eoName").textContent = S.ctx.eo?.nombreMostrar || S.ctx.eo?.nombre || "";
@@ -146,6 +175,7 @@ function pintarIdentidad() {
   pintarAvatar($("#topAvatar"), foto, n);
   pintarAvatar($("#menuAvatar"), foto, n);
   $("#btnPanel").hidden = !esAdm();
+  pintarTarjetaIdentidad();
 }
 let menuOrigen = null;
 function cerrarMenu(devolverFoco = false) {

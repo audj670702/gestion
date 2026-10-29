@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.7.2
+// SCaD Gestión · App · v0.7.3
+// v0.7.3: el registro de seguimiento lo integra el ADM y el responsable, desde la pestaña Seguimiento o desde el requerimiento (misma acción).
 // v0.7.2: vista de proyecto a todo el ancho; tabla sin número de fila y categoría como número; detalle del requerimiento con acciones y su seguimiento (anotar desde el requerimiento).
 // v0.7.1: folio sólo con el número de registro (001); categoría tomada del requerimiento cuando el renglón no la trae; barra de búsqueda y filtros con diseño de herramienta; tabla con encabezado y columnas ajustadas.
 // v0.7.0: checklist en tabla (No., folio de registro, columnas elegibles), búsqueda y filtros (estado, instancia, categoría, plazo), detalle del requerimiento en diálogo con sus acciones, y exportación a Excel y PDF.
@@ -34,7 +35,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.7.2";
+export const VERSION = "GESTION_APP v0.7.3";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -446,6 +447,8 @@ async function abrirProyecto(id, { silencioso = false } = {}) {
 
 // Sólo en la vista Operación se trabaja el checklist; Dirección e Instancia son de consulta.
 const editable = () => S.modo === "OPERACION" && S.det?.proyecto?.estatus === "EN_INTEGRACION";
+// Registrar seguimiento: el responsable (Operación) y el ADM, en cualquier momento salvo proyecto cerrado.
+const puedeAnotar = () => (S.modo === "OPERACION" || esAdm()) && S.det?.proyecto?.fase !== "CERRADO";
 
 function pintarProyecto() {
   const p = S.det.proyecto;
@@ -679,7 +682,7 @@ function detalleReqHTML(x) {
       ${trans.map(t => `<button class="btn sm ${ACCION[t]?.c || ""}" data-estado="${t}" data-req="${esc(x.id)}">${esc(ACCION[t]?.t || t)}</button>`).join("")}
       <button class="btn sm ghost" data-editar="${esc(x.id)}">Fecha compromiso</button>
     </div>` : `<p class="muted sm">Consulta. Las acciones se hacen desde Operación, con el proyecto En integración.</p>`;
-  const anotar = editable() ? `<div class="req-nota">
+  const anotar = puedeAnotar() ? `<div class="req-nota">
       <textarea id="rqNota" rows="2" placeholder="Anotación sobre este requerimiento…"></textarea>
       <div class="req-nota-pie"><label class="check"><input type="checkbox" id="rqVis"> Visible para la instancia</label>
       <button class="btn sm pri" data-regnota="${esc(x.id)}">Registrar</button></div>
@@ -788,7 +791,7 @@ async function exportarReq(tipo) {
 function vistaSeguimiento() {
   const p = S.det.proyecto;
   const h = S.det.seguimiento;
-  const abierto = p.fase !== "CERRADO" && S.modo === "OPERACION";
+  const abierto = puedeAnotar();
   return `${abierto ? `<div class="card compose">
       <textarea id="segNota" rows="3" placeholder="Escribe una anotación del proyecto: gestiones, acuerdos, llamadas…"></textarea>
       <div class="row wrap">

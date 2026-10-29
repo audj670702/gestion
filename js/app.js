@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.7.8
+// SCaD Gestión · App · v0.7.9
+// v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
 // v0.7.8: tarjeta de identidad compacta visible en todas las vistas (avatar, nombre, correo, rol y vista activa).
 // v0.7.7: seguimiento en tabla (No., columnas elegibles, búsqueda con limpiar, exportación Excel y PDF).
 // v0.7.6: Validar (cumplido) sin documento; marca de espera de documento para el responsable.
@@ -40,7 +41,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.7.8";
+export const VERSION = "GESTION_APP v0.7.9";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -612,7 +613,7 @@ const COLS_REQ = [
   { id: "etiqueta", t: "Requerimiento", v: x => x.etiqueta },
   { id: "instancia", t: "Instancia", v: x => insEtq(x.instanciaId) || "Sin instancia" },
   { id: "categoria", t: "Cat.", v: x => x.categoria ? String(x.categoria) : "—", n: true },
-  { id: "documento", t: "Documento", v: x => x.tipoDocumentoClave ? tipoDoc(x.tipoDocumentoClave) : "—" },
+  { id: "documento", t: "Tipo de acreditación", v: x => x.tipoDocumentoClave ? tipoDoc(x.tipoDocumentoClave) : "—" },
   { id: "compromiso", t: "Compromiso", v: x => fecha(x.fechaCompromiso) },
   { id: "estado", t: "Estado", v: x => (ESTADOS[x.estado] || { t: x.estado }).t },
   { id: "semaforo", t: "Plazo", v: x => x.semaforo === "VENCIDO" ? "Vencido" : x.semaforo === "POR_VENCER" ? "Por vencer" : "En tiempo" },
@@ -738,7 +739,7 @@ function detalleReqHTML(x) {
       <dl class="kv">
         <dt>Compromiso</dt><dd>${fecha(x.fechaCompromiso)} · ${esc(plazo)}</dd>
         ${x.esperaDocumento ? `<dt>Carga</dt><dd><span class="chip warn">Espera carga de documento</span></dd>` : ""}
-        <dt>Documento</dt><dd>${esc(x.tipoDocumentoClave ? tipoDoc(x.tipoDocumentoClave) : "—")}</dd>
+        <dt>Tipo de acreditación</dt><dd>${esc(x.tipoDocumentoClave ? tipoDoc(x.tipoDocumentoClave) : "—")}</dd>
         <dt>Observaciones</dt><dd>${x.observaciones || 0}</dd>
         <dt>Última actualización</dt><dd>${x.ultimaActualizacion ? `${esc(fechaHora(x.ultimaActualizacion))}${x.ultimaActualizacionPorNombre ? ` · ${esc(x.ultimaActualizacionPorNombre)}` : ""}` : "—"}</dd>
         ${x.descripcion ? `<dt>Descripción</dt><dd>${esc(x.descripcion)}</dd>` : ""}

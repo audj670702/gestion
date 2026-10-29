@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.7.5
+// SCaD Gestión · App · v0.7.6
+// v0.7.6: Validar (cumplido) sin documento; marca de espera de documento para el responsable.
 // v0.7.5: toggle para minimizar los indicadores de avance en la vista del proyecto; se quita el aviso de Previsión sobre el checklist.
 // v0.7.4: detalle del requerimiento con barra azul y sólo la X para cerrar; la casilla de visibilidad indica la categoría de la instancia.
 // v0.7.3: el registro de seguimiento lo integra el ADM y el responsable, desde la pestaña Seguimiento o desde el requerimiento (misma acción).
@@ -37,7 +38,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.7.5";
+export const VERSION = "GESTION_APP v0.7.6";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -686,6 +687,7 @@ function detalleReqHTML(x) {
   const acciones = editable() ? `<div class="req-acc">
       ${puedeSubir ? `<button class="btn sm pri" data-subir="${esc(x.id)}">Subir documento</button>` : ""}
       ${trans.map(t => `<button class="btn sm ${ACCION[t]?.c || ""}" data-estado="${t}" data-req="${esc(x.id)}">${esc(ACCION[t]?.t || t)}</button>`).join("")}
+      <button class="btn sm ${x.esperaDocumento ? "" : "ghost"}" data-espera="${x.esperaDocumento ? "0" : "1"}" data-req="${esc(x.id)}">${x.esperaDocumento ? "Quitar espera de documento" : "Espera documento"}</button>
       <button class="btn sm ghost" data-editar="${esc(x.id)}">Fecha compromiso</button>
     </div>` : `<p class="muted sm">Consulta. Las acciones se hacen desde Operación, con el proyecto En integración.</p>`;
   const anotar = puedeAnotar() ? `<div class="req-nota">
@@ -704,6 +706,7 @@ function detalleReqHTML(x) {
     <div class="req-cols">
       <dl class="kv">
         <dt>Compromiso</dt><dd>${fecha(x.fechaCompromiso)} · ${esc(plazo)}</dd>
+        ${x.esperaDocumento ? `<dt>Carga</dt><dd><span class="chip warn">Espera carga de documento</span></dd>` : ""}
         <dt>Documento</dt><dd>${esc(x.tipoDocumentoClave ? tipoDoc(x.tipoDocumentoClave) : "—")}</dd>
         <dt>Observaciones</dt><dd>${x.observaciones || 0}</dd>
         <dt>Última actualización</dt><dd>${x.ultimaActualizacion ? `${esc(fechaHora(x.ultimaActualizacion))}${x.ultimaActualizacionPorNombre ? ` · ${esc(x.ultimaActualizacionPorNombre)}` : ""}` : "—"}</dd>
@@ -1013,7 +1016,7 @@ function dlgEstado(id, estado) {
   const obligatoria = ["OBSERVADO", "NO_APLICA"].includes(estado);
   const textos = {
     SOLICITADO: "Confirma que ya solicitaste este requerimiento a la instancia.",
-    VALIDADO: "El documento cumple y queda integrado al expediente.",
+    VALIDADO: "Marca el requisito como cumplido. No requiere documento; si no hay documento, conviene dejar la razón en el seguimiento.",
     OBSERVADO: "Describe lo que falta o se debe corregir. La observación será visible para la instancia.",
     NO_APLICA: "Justifica por qué no aplica. Deja de contar para el avance.",
     PENDIENTE: "El requerimiento vuelve a contar para el avance."
@@ -1135,6 +1138,7 @@ document.addEventListener("click", e => {
   if (d.freq) { S.filtroReq = d.freq; pintarProyecto(); return; }
   if (d.indmin !== undefined) { S.indMin = d.indmin === "1"; pintarProyecto(); return; }
   if (d.estado) { dlgEstado(d.req, d.estado); return; }
+  if (d.espera !== undefined) { tarea(() => api("REQ_ESPERA_DOC", { prqId: d.req, espera: d.espera === "1" })).then(trasCambio); return; }
   if (d.editar) { dlgEditar(d.editar); return; }
   if (d.anotar) { dlgAnotar(d.anotar); return; }
   if (d.subir) { dlgSubir(d.subir); return; }

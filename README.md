@@ -15,7 +15,7 @@ Menú de cuenta: avatar + nombre a mostrar, correo, Actualizar, Editar perfil (`
 
 Programación: modelo NEXUS extendido. Las actividades llegan en el contexto SYS (`actividades`). **Requeridas** (origen ADM): las programa el administrador, generales de la EO o de un proyecto. **Propias** (origen USUARIO): las programa el colaborador, siempre ligadas a un proyecto suyo. Las de proyecto se marcan cumplidas desde la actividad o desde Seguimiento (siempre dejan anotación); el ADM puede convertir una propia en requerida. Calendario, lista, filtros por origen y tipo, búsqueda, agenda por proyecto y bloque «Actividades de hoy».
 
-**Versión:** v0.10.3
+**Versión:** v0.11.0
 
 Documentos por requerimiento: todos los archivos se conservan y se muestran en su detalle, con nombre original, autor y fecha. El backend asigna un nombre `<folio-proyecto>-R<requerimiento>-<consecutivo>.<extensión>` y reserva el consecutivo antes de abrir la carga directa a Drive. Los reintentos de confirmación no crean documentos duplicados.
 
@@ -35,3 +35,5 @@ Visualizar y Descargar usan los permisos de GESTIÓN y la conexión de Drive de 
 La vista previa usa los visores nativos para PDF, imágenes, audio y video compatibles. Los otros formatos se descargan para abrirse con su aplicación. Para archivos de hasta 16 MiB la descarga usa una copia temporal en memoria compatible con el navegador; los mayores usan navegación de descarga por flujo en un iframe. Los documentos privados nunca se guardan en caché. La compatibilidad de descarga por flujo en navegadores móviles debe verificarse. Las cargas aceptan cualquier formato hasta 1 GiB y usan bloques de 8 MiB con reconsulta del avance ante un corte. No se promete recuperación tras cerrar la app.
 
 Backend: gestionCore v0.7.0 y sysDriveLeerBloque en sysGoogleDrive, con transporte binario HTTPS. La ruta anterior permanece para clientes antiguos y conserva su límite de consulta de 8 MiB; la nueva interfaz usa lectura por bloques.
+
+Programación v0.11.0: modos Calendario/Lista con iconos, búsqueda ampliada con limpieza y filtros de origen simétricos. Navegación de mes con Hoy y Siguiente actividad futura según filtros, sin limitarse al mes visible. El resumen cuenta ocurrencias: total filtrado, mes visible, hoy y futuras no cumplidas.

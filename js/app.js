@@ -1,5 +1,5 @@
-// SCaD Gestión · App · v0.10.3
-// v0.10.3: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
+// SCaD Gestión · App · v0.11.0
+// v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
 // v0.7.8: tarjeta de identidad compacta visible en todas las vistas (avatar, nombre, correo, rol y vista activa).
@@ -35,16 +35,16 @@
 // staff → Operación · CLIENTE → Instancia. Sólo en Operación se trabaja el checklist;
 // Dirección e Instancia son de consulta. Los momentos del proyecto los valida el ADM en el panel.
 import { captureTokenFromHash, hasToken, startLogin, logout } from "./auth.js";
-import { contexto, api, sys, subirADrive, ApiError } from "./api.js?v=0.10.3";
+import { contexto, api, sys, subirADrive, ApiError } from "./api.js?v=0.11.0";
 import { bienvenidaVisitante, bienvenidaUsuario, detallePlan } from "./bienvenida.js";
-import { prepararDocumento } from "./documentos.js?v=0.10.3";
+import { prepararDocumento } from "./documentos.js?v=0.11.0";
 import { documentoLegal } from "./legal.js";
 import {
   abrirProgramacion, repintarProgramacion, setContexto, actividades, buscarActividad, idDe, listaHtml, deHoy,
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
-} from "./programacion.js";
+} from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.10.3";
+export const VERSION = "GESTION_APP v0.11.0";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -375,7 +375,7 @@ function ruta() {
   marcarSeccion(prg ? "programacion" : "proyectos");
   if (prg) {
     S.det = null;
-    abrirProgramacion($("#view"), S.ctx, { puedeProgramar: puedeProgramar(), subtitulo: S.modo === "OPERACION" ? "Actividades requeridas y las tuyas, de tus proyectos." : S.modo === "INSTANCIA" ? "Actividades de los proyectos en los que participa tu instancia." : "Actividades de la EO y de los proyectos." });
+    abrirProgramacion($("#view"), S.ctx, { puedeProgramar: puedeProgramar() });
     if (prg[1]) dlgActividad(decodeURIComponent(prg[1]));
     return;
   }

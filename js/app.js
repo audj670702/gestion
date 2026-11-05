@@ -1,5 +1,5 @@
-// SCaD Gestión · App · v0.9.2
-// v0.9.2: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
+// SCaD Gestión · App · v0.10.0
+// v0.10.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
 // v0.7.8: tarjeta de identidad compacta visible en todas las vistas (avatar, nombre, correo, rol y vista activa).
@@ -35,16 +35,16 @@
 // staff → Operación · CLIENTE → Instancia. Sólo en Operación se trabaja el checklist;
 // Dirección e Instancia son de consulta. Los momentos del proyecto los valida el ADM en el panel.
 import { captureTokenFromHash, hasToken, startLogin, logout } from "./auth.js";
-import { contexto, api, sys, subirADrive, ApiError } from "./api.js?v=0.9.2";
+import { contexto, api, sys, subirADrive, ApiError } from "./api.js?v=0.10.0";
 import { bienvenidaVisitante, bienvenidaUsuario, detallePlan } from "./bienvenida.js";
-import { prepararDocumento } from "./documentos.js?v=0.9.2";
+import { prepararDocumento } from "./documentos.js?v=0.10.0";
 import { documentoLegal } from "./legal.js";
 import {
   abrirProgramacion, repintarProgramacion, setContexto, actividades, buscarActividad, idDe, listaHtml, deHoy,
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.9.2";
+export const VERSION = "GESTION_APP v0.10.0";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -718,17 +718,16 @@ function detalleReqHTML(x) {
   const e = ESTADOS[x.estado] || { t: x.estado, c: "" };
   const documentos = x.archivos || [];
   const trans = editable() ? (S.ctx.reglas?.transiciones?.[x.estado] || []) : [];
-  const puedeSubir = editable() && !["VALIDADO", "NO_APLICA"].includes(x.estado);
+  const puedeSubir = (editable() || (esAdm() && S.det?.proyecto?.estatus === "EN_INTEGRACION")) && !["VALIDADO", "NO_APLICA"].includes(x.estado);
   const i = S.det.checklist.indexOf(x);
   const folio = folioRegistro(x.folio, i);
   const plazo = x.semaforo === "VENCIDO" ? "Vencido" : x.semaforo === "POR_VENCER" ? "Por vencer" : "En tiempo";
   const seg = (S.det.seguimiento || []).filter(s => s.referenciaId === x.id);
   const acciones = editable() ? `<div class="req-acc">
-      ${puedeSubir ? `<button class="btn sm pri" data-subir="${esc(x.id)}">Subir documento</button>` : ""}
       ${trans.map(t => `<button class="btn sm ${ACCION[t]?.c || ""}" data-estado="${t}" data-req="${esc(x.id)}">${esc(ACCION[t]?.t || t)}</button>`).join("")}
       <button class="btn sm ${x.esperaDocumento ? "" : "ghost"}" data-espera="${x.esperaDocumento ? "0" : "1"}" data-req="${esc(x.id)}">${x.esperaDocumento ? "Quitar espera de documento" : "Espera documento"}</button>
       <button class="btn sm ghost" data-editar="${esc(x.id)}">Editar</button>
-    </div>` : `<p class="muted sm">Consulta. Las acciones se hacen desde Operación, con el proyecto En integración.</p>`;
+    </div>` : (esAdm() ? "" : `<p class="muted sm">Vista de consulta.</p>`);
   const anotar = puedeAnotar() ? `<div class="req-nota">
       <textarea id="rqNota" rows="2" placeholder="Anotación sobre este requerimiento…"></textarea>
       <div class="req-nota-pie"><label class="check"><input type="checkbox" id="rqVis"> ${esc(etiquetaVisible(x.id))}</label>
@@ -754,7 +753,7 @@ function detalleReqHTML(x) {
         ${x.estado === "NO_APLICA" && x.justificacionNoAplica ? `<dt>No aplica</dt><dd>${esc(x.justificacionNoAplica)}</dd>` : ""}
       </dl>
       <div class="req-doc">
-        <h4>Documentos del requerimiento (${documentos.length})</h4>
+        <div class="row wrap"><h4>Documentos del requerimiento (${documentos.length})</h4>${puedeSubir ? `<button class="btn sm pri" data-subir="${esc(x.id)}">Subir documento</button>` : ""}</div>
         ${documentos.length ? `<p class="muted xs">Algunos formatos requieren una aplicación compatible.</p>` : ""}
         ${documentos.length ? documentos.map(a => `<div class="file"><span class="ico">📄</span><div><b>${esc(a.nombre)}</b><span class="muted sm">${tamano(a.tamano)} · ${fecha(a.fechaCarga)}${a.cargadoPorNombre ? ` · ${esc(a.cargadoPorNombre)}` : ""}</span>${a.nombreOriginal && a.nombreOriginal !== a.nombre ? `<span class="muted xs">Original: ${esc(a.nombreOriginal)}</span>` : ""}</div><div class="row wrap"><button class="btn sm" data-ver="${esc(a.id)}">Visualizar</button><button class="btn sm" data-descargar="${esc(a.id)}">Descargar</button></div></div>`).join("") : `<p class="muted sm">Sin documentos cargados.</p>`}
       </div>

@@ -438,7 +438,7 @@ dialog.req .dlg-x:hover{background:rgba(255,255,255,.28)}
 .req-top .chip{background:#fff;color:var(--blue);margin-top:4px}
 .req-body{padding:16px 22px 20px}
 
-/* v0.10.1 · Paleta del panel GESTIÓN. Sólo color; se conserva toda la geometría. */
+/* v0.10.2 · Paleta del panel GESTIÓN. Sólo color; se conserva toda la geometría. */
 :root{
   --ink:#15253d;--muted:#748096;--line:rgba(21,37,61,.10);--bg:#f6f8fb;--card:#fff;
   --cyan:#18a7bf;--blue:#2478d2;--navy:#2478d2;--violet:#2478d2;
@@ -448,7 +448,7 @@ dialog.req .dlg-x:hover{background:rgba(255,255,255,.28)}
 .brand-home{background-color:#fff}
 .brand-context{border-color:rgba(255,255,255,.35)}
 .brand .brand-label{color:rgba(255,255,255,.88)}
-.brand #eoName,.brand #eoName:empty::after,.install-button{color:#fff}
+.brand #eoName,.brand #eoName:empty::after,.brand .brand-modo,.install-button{color:#fff}
 .account-trigger{color:#fff;background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.5)}
 .account-trigger .avatar{background-color:#fff;color:var(--blue)}
 .options-heading,.req-top{background:linear-gradient(90deg,var(--cyan),var(--blue));color:#fff}

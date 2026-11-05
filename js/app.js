@@ -1,5 +1,5 @@
-// SCaD Gestión · App · v0.9.0
-// v0.9.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
+// SCaD Gestión · App · v0.9.1
+// v0.9.1: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
 // v0.7.8: tarjeta de identidad compacta visible en todas las vistas (avatar, nombre, correo, rol y vista activa).
@@ -35,16 +35,16 @@
 // staff → Operación · CLIENTE → Instancia. Sólo en Operación se trabaja el checklist;
 // Dirección e Instancia son de consulta. Los momentos del proyecto los valida el ADM en el panel.
 import { captureTokenFromHash, hasToken, startLogin, logout } from "./auth.js";
-import { contexto, api, sys, subirADrive, ApiError } from "./api.js?v=0.9.0";
+import { contexto, api, sys, subirADrive, ApiError } from "./api.js?v=0.9.1";
 import { bienvenidaVisitante, bienvenidaUsuario, detallePlan } from "./bienvenida.js";
-import { prepararDocumento } from "./documentos.js?v=0.9.0";
+import { prepararDocumento } from "./documentos.js?v=0.9.1";
 import { documentoLegal } from "./legal.js";
 import {
   abrirProgramacion, repintarProgramacion, setContexto, actividades, buscarActividad, idDe, listaHtml, deHoy,
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.9.0";
+export const VERSION = "GESTION_APP v0.9.1";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -794,7 +794,7 @@ async function anotarReq(id) {
 // ── Exportar requerimientos (Excel y PDF) ────────────────────
 function descargarArchivo(blob, nombre) {
   const u = URL.createObjectURL(blob), a = document.createElement("a");
-  a.href = u; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+  a.href = u; a.download = nombre; const contenedor = document.querySelector('dialog[open] #dlgBody') || document.body; contenedor.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(u), 2000);
 }
 const hoyYmd = () => { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`; };
@@ -1269,7 +1269,7 @@ async function consultarArchivo(id, accion) {
       if (ventana) ventana.location.replace(r.url);
       else dialogo(`<h3>Documento listo</h3><p class="muted xs">La visualización depende del formato y del dispositivo.</p><a class="btn pri" href="${esc(r.url)}" target="_blank" rel="noopener">Abrir visor</a>`, null);
     } else {
-      const a = document.createElement('a'); a.href = r.url; a.download = r.nombre; document.body.appendChild(a); a.click(); a.remove();
+      const a = document.createElement('a'); a.href = r.url; a.download = r.nombre; const contenedor = document.querySelector('dialog[open] #dlgBody') || document.body; contenedor.appendChild(a); a.click(); a.remove();
       aviso('Descarga iniciada. Algunos formatos requieren una aplicación compatible.');
     }
   } catch (error) { ventana?.close(); aviso(error.message || 'No se pudo consultar el documento.', 'bad'); }

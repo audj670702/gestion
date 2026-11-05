@@ -1,5 +1,5 @@
 // Documentos privados: visor y descarga por bloques, sin credenciales de Drive en el navegador.
-import { archivoInfo, archivoBloque } from './api.js?v=0.9.1';
+import { archivoInfo, archivoBloque } from './api.js?v=0.9.2';
 const sesiones = new Map();
 const DURACION = 2 * 60 * 60 * 1000;
 export function admiteVista(mime = '') {
@@ -37,5 +37,5 @@ export async function prepararDocumento(archivoId, vista, accion) {
     };
     navigator.serviceWorker.controller.postMessage({ type: 'GESTION_DOCUMENTO', id, info, accion, hasta }, [canal.port2]);
   });
-  return { url: new URL(`./__documento/${id}`, location.href.split('#')[0]).href, nombre: info.nombre };
+  return { tamano: info.tamano, url: new URL(`./__documento/${id}`, location.href.split('#')[0]).href, nombre: info.nombre };
 }

@@ -1,5 +1,5 @@
-// SCaD Gestión · App · v0.9.1
-// v0.9.1: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
+// SCaD Gestión · App · v0.9.2
+// v0.9.2: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
 // v0.7.8: tarjeta de identidad compacta visible en todas las vistas (avatar, nombre, correo, rol y vista activa).
@@ -35,16 +35,16 @@
 // staff → Operación · CLIENTE → Instancia. Sólo en Operación se trabaja el checklist;
 // Dirección e Instancia son de consulta. Los momentos del proyecto los valida el ADM en el panel.
 import { captureTokenFromHash, hasToken, startLogin, logout } from "./auth.js";
-import { contexto, api, sys, subirADrive, ApiError } from "./api.js?v=0.9.1";
+import { contexto, api, sys, subirADrive, ApiError } from "./api.js?v=0.9.2";
 import { bienvenidaVisitante, bienvenidaUsuario, detallePlan } from "./bienvenida.js";
-import { prepararDocumento } from "./documentos.js?v=0.9.1";
+import { prepararDocumento } from "./documentos.js?v=0.9.2";
 import { documentoLegal } from "./legal.js";
 import {
   abrirProgramacion, repintarProgramacion, setContexto, actividades, buscarActividad, idDe, listaHtml, deHoy,
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.9.1";
+export const VERSION = "GESTION_APP v0.9.2";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -1269,7 +1269,17 @@ async function consultarArchivo(id, accion) {
       if (ventana) ventana.location.replace(r.url);
       else dialogo(`<h3>Documento listo</h3><p class="muted xs">La visualización depende del formato y del dispositivo.</p><a class="btn pri" href="${esc(r.url)}" target="_blank" rel="noopener">Abrir visor</a>`, null);
     } else {
-      const a = document.createElement('a'); a.href = r.url; a.download = r.nombre; const contenedor = document.querySelector('dialog[open] #dlgBody') || document.body; contenedor.appendChild(a); a.click(); a.remove();
+      if (r.tamano <= 16 * 1024 * 1024) {
+        const respuesta = await fetch(r.url, { cache: 'no-store' });
+        if (!respuesta.ok) throw new Error(await respuesta.text() || 'No se pudo descargar el documento.');
+        const url = URL.createObjectURL(await respuesta.blob());
+        const a = document.createElement('a'); a.href = url; a.download = r.nombre;
+        const contenedor = document.querySelector('dialog[open] #dlgBody') || document.body;
+        contenedor.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } else {
+        const frame = document.createElement('iframe'); frame.hidden = true; frame.title = 'Descarga de documento'; frame.src = r.url; document.body.appendChild(frame);
+      }
       aviso('Descarga iniciada. Algunos formatos requieren una aplicación compatible.');
     }
   } catch (error) { ventana?.close(); aviso(error.message || 'No se pudo consultar el documento.', 'bad'); }

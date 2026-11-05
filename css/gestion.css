@@ -437,3 +437,39 @@ dialog.req .dlg-x:hover{background:rgba(255,255,255,.28)}
 .req-top h3{margin:0;font-size:18px;color:#fff;line-height:1.25}
 .req-top .chip{background:#fff;color:var(--blue);margin-top:4px}
 .req-body{padding:16px 22px 20px}
+
+/* v0.10.1 · Paleta del panel GESTIÓN. Sólo color; se conserva toda la geometría. */
+:root{
+  --ink:#15253d;--muted:#748096;--line:rgba(21,37,61,.10);--bg:#f6f8fb;--card:#fff;
+  --cyan:#18a7bf;--blue:#2478d2;--navy:#2478d2;--violet:#2478d2;
+  --ok:#1f9d6a;--warn:#c98a12;--bad:#c2413a;--amber:#c98a12;--info:#2478d2;
+}
+.topbar{background:linear-gradient(90deg,var(--cyan),var(--blue));color:#fff;border-bottom-color:rgba(255,255,255,.2)}
+.brand-home{background-color:#fff}
+.brand-context{border-color:rgba(255,255,255,.35)}
+.brand .brand-label{color:rgba(255,255,255,.88)}
+.brand #eoName,.brand #eoName:empty::after,.install-button{color:#fff}
+.account-trigger{color:#fff;background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.5)}
+.account-trigger .avatar{background-color:#fff;color:var(--blue)}
+.options-heading,.req-top{background:linear-gradient(90deg,var(--cyan),var(--blue));color:#fff}
+[data-tone="DIRECCION"]{--mode:#2478d2}
+[data-tone="OPERACION"]{--mode:#18a7bf}
+[data-tone="INSTANCIA"]{--mode:#2478d2}
+.secciones,.vistas-bar{background:var(--blue)}
+.secciones a.on,.vistas-bar button.on{background:#fff;color:var(--blue)}
+.menu-modo.on{background:rgba(36,120,210,.06);color:var(--blue)}
+.chip{background:#eef2f7;color:var(--ink)}
+.chip.ok{background:rgba(31,157,106,.12);color:#14734e}
+.chip.warn{background:rgba(201,138,18,.14);color:#8a5d06}
+.chip.bad{background:rgba(194,65,58,.12);color:#a13630}
+.chip.info{background:rgba(36,120,210,.12);color:#1b5ea6}
+.chip.mute{background:#eef2f7;color:var(--muted)}
+.req-top .chip{background:#fff;color:var(--blue)}
+.bar span,.avatar{background-image:linear-gradient(90deg,var(--cyan),var(--blue))}
+.avatar[style*="url"]{background-color:#fff}
+.busy-card{color:var(--blue)}
+.note-box{background:rgba(36,120,210,.06);border-color:rgba(36,120,210,.2);color:#1b5ea6}
+.note-box.ok{background:rgba(31,157,106,.08);border-color:rgba(31,157,106,.25);color:#14734e}
+.btn.bad{border-color:rgba(194,65,58,.25)}
+.plan-basico{--c:#2478d2}.plan-estandar{--c:#18a7bf}.plan-pro{--c:#2478d2}
+.invita,.btn.pri.cta-prueba{background:var(--blue);border-color:var(--blue);color:#fff}

@@ -1,5 +1,5 @@
-// SCaD Gestión · App · v0.8.0
-// v0.8.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
+// SCaD Gestión · App · v0.9.0
+// v0.9.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
 // v0.7.8: tarjeta de identidad compacta visible en todas las vistas (avatar, nombre, correo, rol y vista activa).
@@ -35,15 +35,16 @@
 // staff → Operación · CLIENTE → Instancia. Sólo en Operación se trabaja el checklist;
 // Dirección e Instancia son de consulta. Los momentos del proyecto los valida el ADM en el panel.
 import { captureTokenFromHash, hasToken, startLogin, logout } from "./auth.js";
-import { contexto, api, sys, archivo, subirADrive, ApiError } from "./api.js";
+import { contexto, api, sys, subirADrive, ApiError } from "./api.js?v=0.9.0";
 import { bienvenidaVisitante, bienvenidaUsuario, detallePlan } from "./bienvenida.js";
+import { prepararDocumento } from "./documentos.js?v=0.9.0";
 import { documentoLegal } from "./legal.js";
 import {
   abrirProgramacion, repintarProgramacion, setContexto, actividades, buscarActividad, idDe, listaHtml, deHoy,
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.8.0";
+export const VERSION = "GESTION_APP v0.9.0";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -754,7 +755,8 @@ function detalleReqHTML(x) {
       </dl>
       <div class="req-doc">
         <h4>Documentos del requerimiento (${documentos.length})</h4>
-        ${documentos.length ? documentos.map(a => `<div class="file"><span class="ico">📄</span><div><b>${esc(a.nombre)}</b><span class="muted sm">${tamano(a.tamano)} · ${fecha(a.fechaCarga)}${a.cargadoPorNombre ? ` · ${esc(a.cargadoPorNombre)}` : ""}</span>${a.nombreOriginal && a.nombreOriginal !== a.nombre ? `<span class="muted xs">Original: ${esc(a.nombreOriginal)}</span>` : ""}</div><button class="btn sm" data-ver="${esc(a.id)}">Ver</button></div>`).join("") : `<p class="muted sm">Sin documentos cargados.</p>`}
+        ${documentos.length ? `<p class="muted xs">Algunos formatos requieren una aplicación compatible.</p>` : ""}
+        ${documentos.length ? documentos.map(a => `<div class="file"><span class="ico">📄</span><div><b>${esc(a.nombre)}</b><span class="muted sm">${tamano(a.tamano)} · ${fecha(a.fechaCarga)}${a.cargadoPorNombre ? ` · ${esc(a.cargadoPorNombre)}` : ""}</span>${a.nombreOriginal && a.nombreOriginal !== a.nombre ? `<span class="muted xs">Original: ${esc(a.nombreOriginal)}</span>` : ""}</div><div class="row wrap"><button class="btn sm" data-ver="${esc(a.id)}">Visualizar</button><button class="btn sm" data-descargar="${esc(a.id)}">Descargar</button></div></div>`).join("") : `<p class="muted sm">Sin documentos cargados.</p>`}
       </div>
     </div>
     <div class="req-seg">
@@ -1210,10 +1212,11 @@ function dlgAnotar(id) {
 function dlgSubir(id) {
   const x = reqPorId(id);
   if (!S.ctx.drive?.conectado) { aviso("El Drive de la EO no está conectado. Pide al administrador principal que lo conecte en el panel.", "bad"); return; }
-  const max = S.ctx.reglas?.maxCargaMB || 25;
+  const max = S.ctx.reglas?.maxCargaMB || 1024;
+  const limite = max >= 1024 ? `${max / 1024} GB` : `${max} MB`;
   const nombreIns = ins(x.instanciaId)?.nombre || "la instancia";
   dialogo(`<h3>Subir documento</h3><p class="muted">${esc(x.etiqueta)}</p>
-    <label class="f">Archivo (máximo ${max} MB)<input type="file" id="dFile"></label>
+    <label class="f">Archivo · Cualquier formato · Máximo ${limite}<input type="file" id="dFile"></label>
     <label class="check"><input type="checkbox" id="dNom"> La instancia lo entregó por otro medio: registrarlo en nombre de ${esc(nombreIns)}</label>
     <label class="f" id="dMedioBox" hidden>Medio de recepción<select id="dMedio">${Object.entries(MEDIOS).map(([k, t]) => `<option value="${k}">${t}</option>`).join("")}</select></label>
     <label class="f">Anotación (opcional)<textarea id="dNota" rows="2"></textarea></label>
@@ -1222,7 +1225,8 @@ function dlgSubir(id) {
   async () => {
     const f = $("#dFile").files?.[0];
     if (!f) { aviso("Elige un archivo.", "bad"); return; }
-    if (f.size > max * 1048576) { aviso(`El archivo supera ${max} MB.`, "bad"); return; }
+    if (!f.size) { aviso("El archivo está vacío.", "bad"); return; }
+    if (f.size > max * 1048576) { aviso(`El archivo supera ${limite}.`, "bad"); return; }
     const enNombreDe = $("#dNom").checked;
     const medio = $("#dMedio").value;
     const nota = $("#dNota").value;
@@ -1251,12 +1255,24 @@ function dlgSubir(id) {
   let subido = null;
 }
 
-async function verArchivo(id) {
-  const r = await tarea(() => archivo(id, S.modo));
-  if (!r) return;
-  const url = URL.createObjectURL(r.blob);
-  dialogo(`<h3>Documento listo</h3><p>${esc(r.nombre)}</p>
-    <div class="row wrap"><a class="btn pri" href="${url}" target="_blank" rel="noopener">Abrir</a><a class="btn" href="${url}" download="${esc(r.nombre)}">Descargar</a></div>`, null);
+async function consultarArchivo(id, accion) {
+  const ventana = accion === 'visualizar' ? window.open('about:blank', '_blank') : null;
+  if (ventana) { ventana.opener = null; ventana.document.body.textContent = 'Preparando documento…'; }
+  try {
+    const r = await prepararDocumento(id, S.modo, accion);
+    if (r.sinVista) {
+      ventana?.close();
+      dialogo(`<h3>Sin vista previa</h3><p class="muted">Este formato requiere una aplicación compatible. Puedes descargarlo.</p><button class="btn pri" data-descargar="${esc(id)}">Descargar</button>`, null);
+      return;
+    }
+    if (accion === 'visualizar') {
+      if (ventana) ventana.location.replace(r.url);
+      else dialogo(`<h3>Documento listo</h3><p class="muted xs">La visualización depende del formato y del dispositivo.</p><a class="btn pri" href="${esc(r.url)}" target="_blank" rel="noopener">Abrir visor</a>`, null);
+    } else {
+      const a = document.createElement('a'); a.href = r.url; a.download = r.nombre; document.body.appendChild(a); a.click(); a.remove();
+      aviso('Descarga iniciada. Algunos formatos requieren una aplicación compatible.');
+    }
+  } catch (error) { ventana?.close(); aviso(error.message || 'No se pudo consultar el documento.', 'bad'); }
 }
 
 // ── Eventos ──────────────────────────────────────────────────
@@ -1305,7 +1321,8 @@ document.addEventListener("click", e => {
   if ("nuevoreq" in d) { dlgNuevoReq(); return; }
   if (d.anotar) { dlgAnotar(d.anotar); return; }
   if (d.subir) { dlgSubir(d.subir); return; }
-  if (d.ver) { verArchivo(d.ver); return; }
+  if (d.ver) { consultarArchivo(d.ver, "visualizar"); return; }
+  if (d.descargar) { consultarArchivo(d.descargar, "descargar"); return; }
   if (d.act === "anotarGeneral") {
     const actividadId = $("#segAct")?.value || "", cumpleActividad = !!actividadId && $("#segCumple").checked;
     tarea(() => api("ANOTAR", { proyectoId: S.det.proyecto.id, prqId: $("#segReq").value, nota: $("#segNota").value, visibleCliente: $("#segVis").checked, actividadId, cumpleActividad }))

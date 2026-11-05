@@ -15,7 +15,7 @@ Menú de cuenta: avatar + nombre a mostrar, correo, Actualizar, Editar perfil (`
 
 Programación: modelo NEXUS extendido. Las actividades llegan en el contexto SYS (`actividades`). **Requeridas** (origen ADM): las programa el administrador, generales de la EO o de un proyecto. **Propias** (origen USUARIO): las programa el colaborador, siempre ligadas a un proyecto suyo. Las de proyecto se marcan cumplidas desde la actividad o desde Seguimiento (siempre dejan anotación); el ADM puede convertir una propia en requerida. Calendario, lista, filtros por origen y tipo, búsqueda, agenda por proyecto y bloque «Actividades de hoy».
 
-**Versión:** v0.10.2
+**Versión:** v0.10.3
 
 Documentos por requerimiento: todos los archivos se conservan y se muestran en su detalle, con nombre original, autor y fecha. El backend asigna un nombre `<folio-proyecto>-R<requerimiento>-<consecutivo>.<extensión>` y reserva el consecutivo antes de abrir la carga directa a Drive. Los reintentos de confirmación no crean documentos duplicados.
 

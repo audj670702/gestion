@@ -1,5 +1,5 @@
-// SCaD Gestión · App · v0.7.11
-// v0.7.11: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
+// SCaD Gestión · App · v0.8.0
+// v0.8.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
 // v0.7.8: tarjeta de identidad compacta visible en todas las vistas (avatar, nombre, correo, rol y vista activa).
@@ -43,7 +43,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js";
 
-export const VERSION = "GESTION_APP v0.7.11";
+export const VERSION = "GESTION_APP v0.8.0";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
@@ -380,7 +380,10 @@ function ruta() {
   }
   if (h === "#/inicio") { S.det = null; marcarSeccion(""); pintarBienvenida(); return; }
   const m = /^#\/p\/([\w-]+)/.exec(h);
-  if (m) abrirProyecto(m[1]);
+  if (m) abrirProyecto(m[1]).then(() => {
+    const req = new URLSearchParams(h.split("?")[1] || "").get("req");
+    if (req && S.det?.checklist?.some(x => x.id === req)) dlgDetalleReq(req);
+  });
   else { S.det = null; pintarLista(); }
 }
 window.addEventListener("hashchange", () => { if (S.ctx) ruta(); });
@@ -712,7 +715,7 @@ function vistaChecklist() {
 
 function detalleReqHTML(x) {
   const e = ESTADOS[x.estado] || { t: x.estado, c: "" };
-  const vig = x.archivos.find(a => a.vigente);
+  const documentos = x.archivos || [];
   const trans = editable() ? (S.ctx.reglas?.transiciones?.[x.estado] || []) : [];
   const puedeSubir = editable() && !["VALIDADO", "NO_APLICA"].includes(x.estado);
   const i = S.det.checklist.indexOf(x);
@@ -746,11 +749,12 @@ function detalleReqHTML(x) {
         <dt>Observaciones</dt><dd>${x.observaciones || 0}</dd>
         <dt>Última actualización</dt><dd>${x.ultimaActualizacion ? `${esc(fechaHora(x.ultimaActualizacion))}${x.ultimaActualizacionPorNombre ? ` · ${esc(x.ultimaActualizacionPorNombre)}` : ""}` : "—"}</dd>
         ${x.descripcion ? `<dt>Descripción</dt><dd>${esc(x.descripcion)}</dd>` : ""}
+        ${x.especificaciones ? `<dt>Especificaciones del proyecto</dt><dd>${esc(x.especificaciones)}</dd>` : ""}
         ${x.estado === "NO_APLICA" && x.justificacionNoAplica ? `<dt>No aplica</dt><dd>${esc(x.justificacionNoAplica)}</dd>` : ""}
       </dl>
       <div class="req-doc">
-        ${vig ? `<div class="file"><span class="ico">📄</span><div><b>${esc(vig.nombre)}</b><span class="muted sm">v${vig.version} · ${tamano(vig.tamano)} · ${fecha(vig.fechaCarga)}${vig.cargadoEnNombreDe ? ` · en nombre de ${esc(vig.cargadoEnNombreDe)}` : ""}</span></div><button class="btn sm" data-ver="${esc(vig.id)}">Ver</button></div>` : `<p class="muted sm">Sin documento cargado.</p>`}
-        ${x.archivos.length > 1 ? `<details class="sm"><summary>${x.archivos.length - 1} versión(es) anterior(es)</summary>${x.archivos.filter(a => !a.vigente).map(a => `<div class="row"><span>v${a.version} · ${esc(a.nombre)} · ${fecha(a.fechaCarga)}</span><button class="btn xs" data-ver="${esc(a.id)}">Ver</button></div>`).join("")}</details>` : ""}
+        <h4>Documentos del requerimiento (${documentos.length})</h4>
+        ${documentos.length ? documentos.map(a => `<div class="file"><span class="ico">📄</span><div><b>${esc(a.nombre)}</b><span class="muted sm">${tamano(a.tamano)} · ${fecha(a.fechaCarga)}${a.cargadoPorNombre ? ` · ${esc(a.cargadoPorNombre)}` : ""}</span>${a.nombreOriginal && a.nombreOriginal !== a.nombre ? `<span class="muted xs">Original: ${esc(a.nombreOriginal)}</span>` : ""}</div><button class="btn sm" data-ver="${esc(a.id)}">Ver</button></div>`).join("") : `<p class="muted sm">Sin documentos cargados.</p>`}
       </div>
     </div>
     <div class="req-seg">
@@ -1214,7 +1218,7 @@ function dlgSubir(id) {
     <label class="f" id="dMedioBox" hidden>Medio de recepción<select id="dMedio">${Object.entries(MEDIOS).map(([k, t]) => `<option value="${k}">${t}</option>`).join("")}</select></label>
     <label class="f">Anotación (opcional)<textarea id="dNota" rows="2"></textarea></label>
     <div class="upbar" id="dProg" hidden><span></span></div>
-    <p class="muted xs">El archivo se guarda en el Drive de la EO, en la carpeta del proyecto, instancia y requerimiento. Queda como Entregado, pendiente de tu validación.</p>`,
+    <p class="muted xs">El archivo se guarda en la carpeta de Drive configurada para el proyecto. Recibe un nombre con folio de proyecto, requerimiento y consecutivo. Se conservan todos los documentos; el requerimiento queda Entregado, pendiente de validación.</p>`,
   async () => {
     const f = $("#dFile").files?.[0];
     if (!f) { aviso("Elige un archivo.", "bad"); return; }
@@ -1231,9 +1235,9 @@ function dlgSubir(id) {
       if (!subido || subido.archivo !== f) {
         const prep = await api("CARGA_PREPARAR", { prqId: id, nombreArchivo: f.name, mimeType: f.type, tamano: f.size });
         const meta = await subirADrive(prep.uploadUrl, f, pct => { prog.firstElementChild.style.width = pct + "%"; });
-        subido = { archivo: f, driveFileId: meta.id };
+        subido = { archivo: f, driveFileId: meta.id, cargaId: prep.cargaId };
       }
-      const r = await api("CARGA_CONFIRMAR", { prqId: id, driveFileId: subido.driveFileId, enNombreDe, medio, nota });
+      const r = await api("CARGA_CONFIRMAR", { prqId: id, driveFileId: subido.driveFileId, cargaId: subido.cargaId, enNombreDe, medio, nota });
       subido = null;
       aviso(r.mensaje || "Documento cargado.");
       await trasCambio(r);
@@ -1342,3 +1346,4 @@ if ("serviceWorker" in navigator) {
 }
 
 iniciar().finally(() => window.dispatchEvent(new Event("gestion:ready")));
+

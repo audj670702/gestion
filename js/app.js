@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.11.0
+// SCaD Gestión · App · v0.12.0
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -33,7 +33,7 @@
 // v0.1.1: la ficha muestra todas las instancias otorgantes con su aportación y resultado.
 // Vistas por rol de la EO (sin roles nuevos): ADM → las tres · EJECUTIVO → Dirección ·
 // staff → Operación · CLIENTE → Instancia. Sólo en Operación se trabaja el checklist;
-// Dirección e Instancia son de consulta. Los momentos del proyecto los valida el ADM en el panel.
+// Dirección e Instancia son de consulta. El estatus se actualiza en el panel.
 import { captureTokenFromHash, hasToken, startLogin, logout } from "./auth.js";
 import { contexto, api, sys, subirADrive, ApiError } from "./api.js?v=0.11.0";
 import { bienvenidaVisitante, bienvenidaUsuario, detallePlan } from "./bienvenida.js";
@@ -44,16 +44,14 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.11.0";
+export const VERSION = "GESTION_APP v0.12.0";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
-const FASES = { PREVISION: "Previsión", INTEGRACION: "Integración del expediente", EJECUCION: "Ejecución", CERRADO: "Cerrado" };
 const ESTATUS = {
-  IDENTIFICADO: "Identificado", EN_GESTION: "En gestión de viabilidad", EN_INTEGRACION: "En integración",
-  EXPEDIENTE_VALIDADO: "Expediente validado", EXPEDIENTE_ENTREGADO: "Expediente entregado", EN_EJECUCION: "En ejecución",
-  SUSPENDIDO: "Suspendido", CONCLUIDO: "Concluido", CONCLUIDO_PARCIAL: "Concluido parcialmente", CANCELADO: "Cancelado",
-  DESISTIDO: "Desistido", BENEFICIO_NO_OTORGADO: "Beneficio no otorgado", NO_VIABLE: "No viable"
+  PREVISION: "Previsión", AUTORIZADO: "Autorizado", EN_PROCESO: "En proceso",
+  PAUSADO: "Pausado", CONCLUIDO: "Concluido", CANCELADO: "Cancelado"
 };
+const etiquetaEstatus = p => ESTATUS[p.estatus] || "Sin asignar";
 const ESTADOS = {
   PENDIENTE: { t: "Pendiente", c: "" }, SOLICITADO: { t: "Solicitado", c: "info" }, ENTREGADO: { t: "Entregado · por revisar", c: "warn" },
   OBSERVADO: { t: "Observado", c: "bad" }, VALIDADO: { t: "Validado", c: "ok" }, NO_APLICA: { t: "No aplica", c: "mute" }
@@ -73,7 +71,7 @@ const isoDia = v => { if (!v) return ""; const d = new Date(v); if (isNaN(d)) re
 const pesos = v => (v === null || v === undefined) ? "—" : "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const tamano = b => b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
 
-const S = { indMin: false, segQ: "", segCols: ["fecha", "autor", "tipo", "ref", "nota"], ctx: null, modo: null, proyectos: [], fase: "ACTIVOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "" }, reqCols: ["folio", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
+const S = { indMin: false, segQ: "", segCols: ["fecha", "autor", "tipo", "ref", "nota"], ctx: null, modo: null, proyectos: [], estatus: "TODOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "" }, reqCols: ["folio", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
 
 const ins = id => (S.ctx?.instancias || []).find(i => i.id === id) || null;
 const insEtq = id => { const i = ins(id); return i ? (i.siglas || i.nombre) : ""; };
@@ -118,7 +116,7 @@ async function cambiarModo(m) {
   S.modo = m;
   pintarTarjetaIdentidad();
   try { localStorage.setItem(claveModo(), m); } catch (_) { /* sin almacenamiento */ }
-  Object.assign(S, { fase: "ACTIVOS", q: "", tipo: "", det: null });
+  Object.assign(S, { estatus: "TODOS", q: "", tipo: "", det: null });
   pintarModo();
   history.replaceState({}, "", "#/inicio");
   marcarSeccion("");
@@ -403,30 +401,29 @@ function pintarBienvenida() {
 }
 
 // ── Lista de proyectos (según la vista) ──────────────────────
-const enFase = p => S.fase === "ACTIVOS" ? p.fase !== "CERRADO" : p.fase === S.fase;
+const enEstatus = p => S.estatus === "TODOS" || (p.estatus || "SIN_ASIGNAR") === S.estatus;
 const responsable = p => p.responsableNombre || p.responsable?.nombre || "";
 const otorgantesDe = p => (p.otorgantes?.length ? p.otorgantes.map(o => o.instanciaId) : [p.instanciaOtorganteId]).filter(Boolean);
 function coincide(p) {
   if (S.tipo && p.tipoProyectoClave !== S.tipo) return false;
   const q = norm(S.q).trim();
   if (!q) return true;
-  const txt = norm([p.folio, p.nombre, tipoPry(p.tipoProyectoClave), ESTATUS[p.estatus], FASES[p.fase], responsable(p),
+  const txt = norm([p.folio, p.nombre, tipoPry(p.tipoProyectoClave), etiquetaEstatus(p), responsable(p),
     ...otorgantesDe(p).flatMap(id => [insEtq(id), ins(id)?.nombre])].join(" "));
   return q.split(/\s+/).every(w => txt.includes(w));
 }
 
 function pintarLista() {
   const P = S.proyectos, M = MODOS[S.modo];
-  const activos = P.filter(p => p.fase !== "CERRADO");
-  const suma = k => activos.reduce((n, p) => n + (p.checklist?.[k] || 0), 0);
-  const filtros = [["ACTIVOS", "Activos"], ["PREVISION", "Previsión"], ["INTEGRACION", "Integración"], ["EJECUCION", "Ejecución"], ["CERRADO", "Cerrados"]];
+  const suma = k => P.reduce((n, p) => n + (p.checklist?.[k] || 0), 0);
+  const filtros = [["TODOS", "Todos"], ...Object.entries(ESTATUS), ["SIN_ASIGNAR", "Sin asignar"]];
   const tipos = S.ctx.catalogos?.tiposProyecto || [];
   $("#view").innerHTML = `
     <section class="hero">
       <h1>${M.lista}</h1>
       <p class="muted">${M.sub}</p>
       ${S.modo === "INSTANCIA" ? "" : `<div class="kpis">
-        <div class="kpi"><b>${activos.length}</b><span>Activos</span></div>
+        <div class="kpi"><b>${P.length}</b><span>Proyectos</span></div>
         <div class="kpi warn"><b>${suma("entregados")}</b><span>Por revisar</span></div>
         <div class="kpi bad"><b>${suma("vencidos")}</b><span>Vencidos</span></div>
         <div class="kpi amber"><b>${suma("porVencer")}</b><span>Vencen en ${S.ctx.reglas?.diasRiesgo || 3} días</span></div>
@@ -438,7 +435,7 @@ function pintarLista() {
       ${tipos.length > 1 ? `<select id="fTipo" aria-label="Tipo de proyecto"><option value="">Todos los tipos</option>${tipos.map(t => `<option value="${esc(t.clave)}" ${S.tipo === t.clave ? "selected" : ""}>${esc(t.etiqueta)}</option>`).join("")}</select>` : ""}` : ""}
       <span id="conteo" class="conteo" aria-live="polite"></span>
     </div>
-    ${P.length ? `<nav class="seg">${filtros.map(([k, t]) => `<button class="${S.fase === k ? "on" : ""}" data-fase="${k}">${t}</button>`).join("")}</nav>` : ""}
+    ${P.length ? `<nav class="seg">${filtros.map(([k, t]) => `<button class="${S.estatus === k ? "on" : ""}" data-estatus="${k}">${t}</button>`).join("")}</nav>` : ""}
     <section class="cards" id="cards"></section>`;
   pintarTarjetas();
 }
@@ -454,7 +451,7 @@ function bloqueHoy() {
 
 function pintarTarjetas() {
   const P = S.proyectos;
-  const enF = P.filter(enFase), lista = enF.filter(coincide);
+  const enF = P.filter(enEstatus), lista = enF.filter(coincide);
   const filtrando = !!(S.q.trim() || S.tipo);
   $("#conteo").textContent = filtrando ? `${lista.length} de ${enF.length} proyectos` : `${enF.length} proyecto${enF.length === 1 ? "" : "s"}`;
   $("#cards").innerHTML = lista.length ? lista.map(tarjetaProyecto).join("")
@@ -468,10 +465,10 @@ function tarjetaProyecto(p) {
   return `<button class="card pry" data-pry="${esc(p.id)}">
     <div class="row"><span class="folio">${esc(p.folio)}</span><span class="dot ${p.semaforo === "ROJO" ? "bad" : p.semaforo === "AMARILLO" ? "amber" : "ok"}" title="Semáforo"></span></div>
     <h3>${esc(p.nombre)}</h3>
-    <div class="row wrap"><span class="chip ${p.estatus === "SUSPENDIDO" ? "bad" : "info"}">${esc(ESTATUS[p.estatus] || p.estatus)}</span><span class="muted sm">${esc(FASES[p.fase] || "")}</span>${S.modo === "DIRECCION" && responsable(p) ? `<span class="muted sm">· ${esc(responsable(p))}</span>` : ""}</div>
+    <div class="row wrap"><span class="chip ${["PAUSADO", "CANCELADO"].includes(p.estatus) ? "bad" : "info"}">${esc(etiquetaEstatus(p))}</span>${S.modo === "DIRECCION" && responsable(p) ? `<span class="muted sm">· ${esc(responsable(p))}</span>` : ""}</div>
     ${c.total ? `<div class="bar"><span style="width:${pct}%"></span></div>
       <div class="row sm"><span>${c.validados}/${c.aplicables} validados</span>
-      <span class="badges">${c.entregados ? `<span class="chip warn">${c.entregados} por revisar</span>` : ""}${c.vencidos ? `<span class="chip bad">${c.vencidos} vencidos</span>` : ""}${c.observados ? `<span class="chip">${c.observados} observados</span>` : ""}</span></div>` : `<p class="muted sm">${p.fase === "PREVISION" ? "En Previsión: el checklist se genera cuando el ADM valida la viabilidad." : "Sin checklist."}</p>`}
+      <span class="badges">${c.entregados ? `<span class="chip warn">${c.entregados} por revisar</span>` : ""}${c.vencidos ? `<span class="chip bad">${c.vencidos} vencidos</span>` : ""}${c.observados ? `<span class="chip">${c.observados} observados</span>` : ""}</span></div>` : `<p class="muted sm">Sin checklist.</p>`}
   </button>`;
 }
 
@@ -487,22 +484,22 @@ async function abrirProyecto(id, { silencioso = false } = {}) {
 }
 
 // Sólo en la vista Operación se trabaja el checklist; Dirección e Instancia son de consulta.
-const editable = () => S.modo === "OPERACION" && S.det?.proyecto?.estatus === "EN_INTEGRACION";
-// Registrar seguimiento: el responsable (Operación) y el ADM, en cualquier momento salvo proyecto cerrado.
-const puedeAnotar = () => (S.modo === "OPERACION" || esAdm()) && S.det?.proyecto?.fase !== "CERRADO";
+const editable = () => S.modo === "OPERACION";
+// Registrar seguimiento: el responsable (Operación) y el ADM, con el permiso habitual.
+const puedeAnotar = () => (S.modo === "OPERACION" || esAdm());
 
 function pintarProyecto() {
   const p = S.det.proyecto;
-  const tabs = [["checklist", `Checklist${p.checklist?.entregados ? ` <span class="badge">${p.checklist.entregados}</span>` : ""}`], ["seguimiento", "Seguimiento"], ["agenda", `Agenda${pendientesAgenda(p.id) ? ` <span class="badge">${pendientesAgenda(p.id)}</span>` : ""}`], ["ficha", "Ficha"]];
+  const tabs = [["checklist", `Checklist${p.checklist?.entregados ? ` <span class="badge">${p.checklist.entregados}</span>` : ""}`], ["hitos", "Hitos"], ["seguimiento", "Seguimiento"], ["agenda", `Agenda${pendientesAgenda(p.id) ? ` <span class="badge">${pendientesAgenda(p.id)}</span>` : ""}`], ["ficha", "Ficha"]];
   $("#view").innerHTML = `
     <section class="pry-head">
       <a class="back" href="#/">‹ ${MODOS[S.modo].lista}</a>
-      <div class="row"><span class="folio">${esc(p.folio)}</span><span class="chip ${p.estatus === "SUSPENDIDO" ? "bad" : "info"}">${esc(ESTATUS[p.estatus] || p.estatus)}</span></div>
+      <div class="row"><span class="folio">${esc(p.folio)}</span><span class="chip ${["PAUSADO", "CANCELADO"].includes(p.estatus) ? "bad" : "info"}">${esc(etiquetaEstatus(p))}</span></div>
       <h1>${esc(p.nombre)}</h1>
-      <p class="muted sm">${esc(FASES[p.fase] || "")} · El momento del proyecto lo valida el administrador en el panel.</p>
+      <p class="muted sm">El administrador actualiza el estatus en el panel.</p>
     </section>
     <nav class="tabs">${tabs.map(([k, t]) => `<button class="${S.tab === k ? "on" : ""}" data-tab="${k}">${t}</button>`).join("")}</nav>
-    <section id="tabBody">${{ checklist: vistaChecklist, seguimiento: vistaSeguimiento, agenda: vistaAgenda, ficha: vistaFicha }[S.tab]()}</section>`;
+    <section id="tabBody">${{ checklist: vistaChecklist, hitos: vistaHitos, seguimiento: vistaSeguimiento, agenda: vistaAgenda, ficha: vistaFicha }[S.tab]()}</section>`;
 }
 
 // ── Curva de avance del expediente ───────────────────────────
@@ -681,8 +678,7 @@ function vistaChecklist() {
   const c = p.checklist || {};
   const pct = c.aplicables ? Math.round((c.validados / c.aplicables) * 100) : 0;
   const filtros = [["TODOS", "Todos"], ["REVISAR", "Por revisar"], ["VENCIDOS", "Vencidos"], ["ABIERTOS", "Sin validar"]];
-  const banner = S.modo !== "OPERACION" ? "" : !editable() ? (p.fase === "PREVISION" ? "" : `<div class="note-box">El checklist sólo se trabaja mientras el proyecto está En integración. Momento actual: <b>${esc(ESTATUS[p.estatus] || p.estatus)}</b>.</div>`)
-    : (c.aplicables && c.validados === c.aplicables ? `<div class="note-box ok">Checklist completo. El administrador puede validar el expediente en el panel.</div>` : "");
+  const banner = editable() && c.aplicables && c.validados === c.aplicables ? `<div class="note-box ok">Checklist completo.</div>` : "";
   if (!items.length) return `${banner}<div class="empty">Sin requerimientos en la parrilla.</div>`;
   const f = S.reqF;
   const instancias = [...new Set(items.map(x => x.instanciaId).filter(Boolean))];
@@ -718,7 +714,7 @@ function detalleReqHTML(x) {
   const e = ESTADOS[x.estado] || { t: x.estado, c: "" };
   const documentos = x.archivos || [];
   const trans = editable() ? (S.ctx.reglas?.transiciones?.[x.estado] || []) : [];
-  const puedeSubir = (editable() || (esAdm() && S.det?.proyecto?.estatus === "EN_INTEGRACION")) && !["VALIDADO", "NO_APLICA"].includes(x.estado);
+  const puedeSubir = (editable() || esAdm()) && !["VALIDADO", "NO_APLICA"].includes(x.estado);
   const i = S.det.checklist.indexOf(x);
   const folio = folioRegistro(x.folio, i);
   const plazo = x.semaforo === "VENCIDO" ? "Vencido" : x.semaforo === "POR_VENCER" ? "Por vencer" : "En tiempo";
@@ -733,7 +729,7 @@ function detalleReqHTML(x) {
       <div class="req-nota-pie"><label class="check"><input type="checkbox" id="rqVis"> ${esc(etiquetaVisible(x.id))}</label>
       <button class="btn sm pri" data-regnota="${esc(x.id)}">Registrar</button></div>
     </div>` : "";
-  const hist = seg.map(s => `<li><span class="muted xs">${fechaHora(s.fechaRegistro)} · ${esc(s.autorNombre)}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}${s.registradoEnNombreDe ? ` · en nombre de ${esc(s.registradoEnNombreDe)}` : ""}</span>${s.estadoNuevo ? ` <span class="chip ${(ESTADOS[s.estadoNuevo] || {}).c || "info"}">${esc((ESTADOS[s.estadoNuevo] || {}).t || s.estadoNuevo)}</span>` : ""}<p>${esc(s.nota)}</p></li>`).join("");
+  const hist = seg.map(s => `<li><span class="muted xs">${fechaHora(s.fechaRegistro)} · ${esc(s.autorNombre)}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}${s.registradoEnNombreDe ? ` · en nombre de ${esc(s.registradoEnNombreDe)}` : ""}</span>${s.estadoNuevo ? ` <span class="chip ${(ESTADOS[s.estadoNuevo] || {}).c || "info"}">${esc((ESTADOS[s.estadoNuevo] || {}).t || ESTATUS[s.estadoNuevo] || s.estadoNuevo)}</span>` : ""}<p>${esc(s.nota)}</p></li>`).join("");
   return `<header class="req-top">
       <span class="req-top-meta">${esc(folio)} · ${esc(insEtq(x.instanciaId) || "Sin instancia")}${x.categoria ? ` · Cat. ${x.categoria}` : ""}</span>
       <h3>${esc(x.etiqueta)}</h3>
@@ -846,11 +842,11 @@ async function exportarReq(tipo) {
   } catch (e) { aviso(e.message || "No fue posible generar el PDF.", "bad"); }
 }
 
-const SEG_TIPO = { ANOTACION: "Anotación", CAMBIO_ESTADO: "Cambio de estado", ACTIVIDAD_CUMPLIDA: "Actividad cumplida", RESULTADO_OTORGANTE: "Resultado" };
+const SEG_TIPO = { PROYECTO_ESTATUS: 'Estatus del proyecto', HITO_ALTA: 'Alta de hito', HITO_EDICION: 'Edición de hito', HITO_BAJA: 'Retiro de hito', HITO_ORDEN: 'Orden de hitos', HITO_MARCA: 'Cumplimiento de hito', HITO_PERMISO: 'Permiso de hitos', ANOTACION: "Anotación", CAMBIO_ESTADO: "Cambio de estado", ACTIVIDAD_CUMPLIDA: "Actividad cumplida", RESULTADO_OTORGANTE: "Resultado" };
 const SEG_COLS = [
   { id: "fecha", t: "Fecha", v: s => fechaHora(s.fechaRegistro) },
   { id: "autor", t: "Autor", v: s => `${s.autorNombre || ""}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}` },
-  { id: "tipo", t: "Tipo", v: s => s.tipo === "CAMBIO_ESTADO" && s.estadoNuevo ? `Cambio de estado: ${(ESTADOS[s.estadoNuevo] || {}).t || s.estadoNuevo}` : (SEG_TIPO[s.tipo] || s.tipo || "") },
+  { id: "tipo", t: "Tipo", v: s => s.tipo === "CAMBIO_ESTADO" && s.estadoNuevo ? `Cambio de estado: ${(ESTADOS[s.estadoNuevo] || {}).t || ESTATUS[s.estadoNuevo] || s.estadoNuevo}` : (SEG_TIPO[s.tipo] || s.tipo || "") },
   { id: "ref", t: "Referencia", v: s => s.referenciaEtiqueta || "Proyecto en general" },
   { id: "actividad", t: "Actividad", v: s => s.actividadEtiqueta || "" },
   { id: "visible", t: "Visible para instancia", v: s => s.visibleCliente ? "Sí" : "No" },
@@ -946,6 +942,15 @@ function vistaSeguimiento() {
     <div id="segTabla">${tablaSeg()}</div>`;
 }
 
+function vistaHitos() {
+  const hitos = S.det.hitos || [];
+  if (!hitos.length) return '<div class="empty">Sin hitos configurados.</div>';
+  return `<div class="card"><ol>${hitos.map(h => `<li style="margin:8px 0"><div class="row wrap">
+    <b>${esc(h.nombre)}</b><span class="chip ${h.cumplido ? "ok" : ""}">${h.cumplido ? "Cumplido" : "Pendiente"}</span>
+    ${S.det.puedeMarcarHitos ? `<button class="btn sm" data-hito="${esc(h.id)}" data-on="${h.cumplido ? 0 : 1}">${h.cumplido ? "Desmarcar" : "Marcar cumplido"}</button>` : ""}
+    </div></li>`).join("")}</ol></div>`;
+}
+
 function vistaFicha() {
   const p = S.det.proyecto;
   const otorgantes = (p.otorgantes && p.otorgantes.length) ? p.otorgantes : (p.instanciaOtorganteId ? [{ instanciaId: p.instanciaOtorganteId, aportacion: null, resultado: "PENDIENTE" }] : []);
@@ -968,13 +973,12 @@ function vistaFicha() {
     <dl>
       <dt>Tipo de proyecto</dt><dd>${esc(tipoPry(p.tipoProyectoClave) || "—")}</dd>
       <dt>Valor</dt><dd>${pesos(p.valor)}</dd>
-      <dt>Fase</dt><dd>${esc(FASES[p.fase] || p.fase)}</dd>
-      <dt>Momento</dt><dd>${esc(ESTATUS[p.estatus] || p.estatus)}</dd>
+      <dt>Estatus</dt><dd>${esc(etiquetaEstatus(p))}</dd>
       <dt>Alta</dt><dd>${fecha(p.fechaAlta)}</dd>
     </dl>
     <h3 class="sub-h">${otorgantes.length > 1 ? "Instancias otorgantes" : "Instancia otorgante"}</h3>
     <div class="otgs">${otorgantes.map(bloqueOtorgante).join("") || `<p class="muted sm">Sin instancia otorgante.</p>`}</div>
-    <p class="muted xs">Los datos del proyecto, sus momentos y el resultado de cada otorgante los registra el ADM en el panel de SCaD Gestión.</p>
+    <p class="muted xs">Los datos del proyecto, su estatus y el resultado de cada otorgante los registra el ADM en el panel de SCaD Gestión.</p>
   </div>`;
 }
 
@@ -982,7 +986,7 @@ function vistaFicha() {
 // Los permisos por actividad (puedeEditar / puedeCumplir / puedePromover) los decide el backend.
 const flag = (a, k) => a?.[k] === true;
 const enEscritura = () => S.modo !== "INSTANCIA";
-const misProyectos = () => (S.modo === "OPERACION" || (esAdm() && S.modo === "DIRECCION")) ? S.proyectos.filter(p => p.fase !== "CERRADO") : [];
+const misProyectos = () => (S.modo === "OPERACION" || (esAdm() && S.modo === "DIRECCION")) ? S.proyectos : [];
 const tiposActividad = () => S.ctx?.catalogos?.tiposActividad || [];
 const puedeProgramar = () => enEscritura() && S.ctx?.programacion?.puedeProgramar === true && (esAdm() || misProyectos().length > 0);
 const puedeEditar = a => enEscritura() && !cumplida(a) && flag(a, "puedeEditar");
@@ -1008,7 +1012,7 @@ async function trasActividad(r) {
 function vistaAgenda() {
   const p = S.det.proyecto;
   const L = actsDe(p.id);
-  const puede = puedeProgramar() && p.fase !== "CERRADO" && misProyectos().some(x => x.id === p.id);
+  const puede = puedeProgramar() && misProyectos().some(x => x.id === p.id);
   return `<div class="row agenda-head"><p class="muted sm">Requeridas por el administrador y propias del equipo del proyecto.</p>${puede ? `<button type="button" class="btn pri sm" data-programar="${esc(p.id)}">+ Programar actividad</button>` : ""}</div>
     ${listaHtml(L, "Sin actividades para este proyecto.")}`;
 }
@@ -1319,8 +1323,16 @@ document.addEventListener("click", e => {
   if (d.regnota) { anotarReq(d.regnota); return; }
   if (d.dlg === "cerrar") { cerrarDialogo(); return; }
   if (d.dlg === "ok") { alEnviar && alEnviar(); return; }
-  if (d.fase) { S.fase = d.fase; document.querySelectorAll("[data-fase]").forEach(b => b.classList.toggle("on", b === t)); pintarTarjetas(); return; }
+  if (d.estatus) { S.estatus = d.estatus; document.querySelectorAll("[data-estatus]").forEach(b => b.classList.toggle("on", b === t)); pintarTarjetas(); return; }
   if (d.pry) { S.tab = "checklist"; S.filtroReq = "TODOS"; location.hash = `#/p/${d.pry}`; return; }
+  if (d.hito && S.det?.puedeMarcarHitos) {
+    const proyectoId = S.det.proyecto.id;
+    t.disabled = true;
+    tarea(() => api("HITO_MARCA", { proyectoId, hitoId: d.hito, valor: d.on === "1", solicitudId: crypto.randomUUID() }))
+      .then(r => r && S.det?.proyecto?.id === proyectoId && trasCambio(r))
+      .finally(() => { t.disabled = false; });
+    return;
+  }
   if (d.tab) { S.tab = d.tab; pintarProyecto(); return; }
   if (d.freq) { S.filtroReq = d.freq; pintarProyecto(); return; }
   if (d.indmin !== undefined) { S.indMin = d.indmin === "1"; pintarProyecto(); return; }

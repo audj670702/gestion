@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.1
+// SCaD Gestión · App · v0.13.2
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.1";
+export const VERSION = "GESTION_APP v0.13.2";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -863,7 +863,15 @@ function tablaSeg() {
   const lista = segFiltrados(h);
   if (!lista.length) return `<div class="empty">Ninguna anotación coincide con la búsqueda.</div>`;
   const cols = SEG_COLS.filter(c => S.segCols.includes(c.id));
-  const bandera = s => `<span class="seg-flag" ${puedeAnotar() ? `data-segrel="${esc(s.id)}" data-val="${s.relevante ? "0" : "1"}" role="button" title="${s.relevante ? "Quitar relevancia" : "Marcar como relevante"}"` : ""} style="display:inline-flex;vertical-align:middle;margin-right:6px;color:${s.relevante ? "#c2413a" : "#d5dce6"};cursor:${puedeAnotar() ? "pointer" : "default"}"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M5 4h12l-2.5 4L17 12H5z" fill="currentColor"/></svg></span>`;
+  const puedeMarcar = S.det.puedeMarcarBanderas ?? puedeAnotar();
+  const bandera = s => {
+    const icono = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M5 4h12l-2.5 4L17 12H5z" fill="currentColor"/></svg>';
+    const clase = `seg-flag${s.relevante ? " on" : ""}`;
+    const accion = s.relevante ? "Desmarcar bandera" : "Marcar bandera";
+    if (!puedeMarcar) return `<span class="${clase}" title="${s.relevante ? "Bandera marcada" : "Sin bandera"}">${icono}</span>`;
+    return `<button type="button" class="${clase}" data-segrel="${esc(s.id)}" data-val="${s.relevante ? "0" : "1"}"
+      aria-label="Bandera de seguimiento" aria-pressed="${s.relevante}" title="${accion}">${icono}</button>`;
+  };
   const filas = lista.map((s, i) => `<tr><td style="width:64px;text-align:center;color:#9aa6b6;font-size:11px;font-weight:400;font-variant-numeric:tabular-nums;white-space:nowrap">${bandera(s)}${i + 1}</td>${cols.map(c => `<td class="${c.id === "fecha" ? "t-nw" : ""}${c.id === "nota" ? " t-req" : ""}">${esc(c.v(s))}</td>`).join("")}</tr>`).join("");
   return `<div class="rtable"><table><thead><tr><th style="width:40px;text-align:center;color:#9aa6b6;font-weight:400;font-size:11px">No.</th>${cols.map(c => `<th>${esc(c.t)}</th>`).join("")}</tr></thead><tbody>${filas}</tbody></table></div>
     <p class="rt-pie">${lista.length} de ${h.length} anotaciones</p>`;
@@ -1328,7 +1336,17 @@ document.addEventListener("click", e => {
   const fila = e.target.closest("tr[data-rq]");
   if (fila && !e.target.closest("button, select, input, label, a")) { dlgDetalleReq(fila.dataset.rq); return; }
   if (e.target.closest("[data-rcols]")) { const r = $("#rcols"); if (r) r.hidden = !r.hidden; return; }
-  const sr = e.target.closest("[data-segrel]"); if (sr) { tarea(() => api("SEG_RELEVANCIA", { segId: sr.dataset.segrel, relevante: sr.dataset.val === "1" })).then(trasCambio); return; }
+  const sr = e.target.closest("[data-segrel]");
+  if (sr) {
+    const proyectoId = S.det?.proyecto?.id;
+    sr.disabled = true;
+    tarea(() => api("SEG_RELEVANCIA", { segId: sr.dataset.segrel, relevante: sr.dataset.val === "1", vista: S.modo }))
+      .then(r => {
+        if (r && S.det?.proyecto?.id === proyectoId) return trasCambio(r);
+      })
+      .finally(() => { sr.disabled = false; });
+    return;
+  }
   if (e.target.closest("[data-segx]")) { S.segQ = ""; const q = $("#segQ"); if (q) { q.value = ""; q.focus(); } const x = document.querySelector("[data-segx]"); if (x) x.hidden = true; pintarSegTabla(); return; }
   if (e.target.closest("[data-scols]")) { const r = $("#scols"); if (r) r.hidden = !r.hidden; return; }
   const sx = e.target.closest("[data-sexp]"); if (sx) { exportarSeg(sx.dataset.sexp); return; }

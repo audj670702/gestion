@@ -524,3 +524,10 @@ button.hito-marca:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 button.hito-marca:disabled{opacity:.65;cursor:wait}
 .hito-titulo{display:block;margin-top:5px;font-size:12px;font-weight:600;overflow-wrap:anywhere}
 .hito-paso small{display:block;font-size:11px;color:var(--hito)}
+
+/* Bandera en la fila de Seguimiento */
+.seg-flag{display:inline-grid;place-items:center;vertical-align:middle;margin-right:4px;width:26px;height:26px;padding:0;border:0;border-radius:5px;background:transparent;color:#78889c}
+.seg-flag.on{color:#c2413a}
+button.seg-flag{cursor:pointer}
+button.seg-flag:hover,button.seg-flag:focus-visible{background:var(--bg)}
+button.seg-flag:disabled{cursor:wait;opacity:.6}

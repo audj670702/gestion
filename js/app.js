@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.2
+// SCaD Gestión · App · v0.13.3
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.2";
+export const VERSION = "GESTION_APP v0.13.3";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -71,7 +71,7 @@ const isoDia = v => { if (!v) return ""; const d = new Date(v); if (isNaN(d)) re
 const pesos = v => (v === null || v === undefined) ? "—" : "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const tamano = b => b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
 
-const S = { indMin: false, segQ: "", segCols: ["fecha", "autor", "tipo", "ref", "nota"], ctx: null, modo: null, proyectos: [], estatus: "TODOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "" }, reqCols: ["folio", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
+const S = { indMin: false, segQ: "", segBandera: "", segCols: ["bandera", "fecha", "autor", "tipo", "ref", "nota"], ctx: null, modo: null, proyectos: [], estatus: "TODOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "" }, reqCols: ["folio", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
 
 const ins = id => (S.ctx?.instancias || []).find(i => i.id === id) || null;
 const insEtq = id => { const i = ins(id); return i ? (i.siglas || i.nombre) : ""; };
@@ -844,7 +844,15 @@ async function exportarReq(tipo) {
 }
 
 const SEG_TIPO = { PROYECTO_ESTATUS: 'Estatus del proyecto', HITO_ALTA: 'Alta de hito', HITO_EDICION: 'Edición de hito', HITO_BAJA: 'Retiro de hito', HITO_ORDEN: 'Orden de hitos', HITO_MARCA: 'Cumplimiento de hito', HITO_PERMISO: 'Permiso de hitos', ANOTACION: "Anotación", CAMBIO_ESTADO: "Cambio de estado", ACTIVIDAD_CUMPLIDA: "Actividad cumplida", RESULTADO_OTORGANTE: "Resultado" };
+const SEG_BANDERAS = {
+  NORMAL: { nombre: "Normal", clase: "normal" },
+  ATENCION: { nombre: "Atención", clase: "atencion" },
+  DIFICULTAD: { nombre: "Dificultad", clase: "dificultad" }
+};
+const banderaSeg = s => Object.hasOwn(SEG_BANDERAS, s.bandera) ? s.bandera : (s.relevante ? "DIFICULTAD" : "NORMAL");
+const iconoBandera = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M5 4h12l-2.5 4L17 12H5z" fill="currentColor"/></svg>';
 const SEG_COLS = [
+  { id: "bandera", t: "Bandera", v: s => SEG_BANDERAS[banderaSeg(s)].nombre },
   { id: "fecha", t: "Fecha", v: s => fechaHora(s.fechaRegistro) },
   { id: "autor", t: "Autor", v: s => `${s.autorNombre || ""}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}` },
   { id: "tipo", t: "Tipo", v: s => s.tipo === "CAMBIO_ESTADO" && s.estadoNuevo ? `Cambio de estado: ${(ESTADOS[s.estadoNuevo] || {}).t || ESTATUS[s.estadoNuevo] || s.estadoNuevo}` : (SEG_TIPO[s.tipo] || s.tipo || "") },
@@ -855,24 +863,26 @@ const SEG_COLS = [
 ];
 function segFiltrados(lista) {
   const q = norm(S.segQ || "").trim();
-  return q ? lista.filter(s => norm(SEG_COLS.map(c => c.v(s)).join(" ")).includes(q)) : lista;
+  return lista.filter(s => (!S.segBandera || banderaSeg(s) === S.segBandera)
+    && (!q || norm(SEG_COLS.map(c => c.v(s)).join(" ")).includes(q)));
 }
 function tablaSeg() {
   const h = S.det.seguimiento || [];
   if (!h.length) return `<div class="empty">Sin anotaciones.</div>`;
   const lista = segFiltrados(h);
-  if (!lista.length) return `<div class="empty">Ninguna anotación coincide con la búsqueda.</div>`;
+  if (!lista.length) return `<div class="empty">Ninguna anotación coincide con los filtros.</div>`;
   const cols = SEG_COLS.filter(c => S.segCols.includes(c.id));
   const puedeMarcar = S.det.puedeMarcarBanderas ?? puedeAnotar();
   const bandera = s => {
-    const icono = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M5 4h12l-2.5 4L17 12H5z" fill="currentColor"/></svg>';
-    const clase = `seg-flag${s.relevante ? " on" : ""}`;
-    const accion = s.relevante ? "Desmarcar bandera" : "Marcar bandera";
-    if (!puedeMarcar) return `<span class="${clase}" title="${s.relevante ? "Bandera marcada" : "Sin bandera"}">${icono}</span>`;
-    return `<button type="button" class="${clase}" data-segrel="${esc(s.id)}" data-val="${s.relevante ? "0" : "1"}"
-      aria-label="Bandera de seguimiento" aria-pressed="${s.relevante}" title="${accion}">${icono}</button>`;
+    const { nombre, clase } = SEG_BANDERAS[banderaSeg(s)];
+    const contenido = `<span class="seg-flag-icon" aria-hidden="true">${iconoBandera}</span><span>${nombre}</span>`;
+    return puedeMarcar
+      ? `<button type="button" class="seg-flag ${clase}" data-segrel="${esc(s.id)}"
+          aria-haspopup="dialog" aria-label="Cambiar bandera: ${nombre}">${contenido}</button>`
+      : `<span class="seg-flag ${clase}">${contenido}</span>`;
   };
-  const filas = lista.map((s, i) => `<tr><td style="width:64px;text-align:center;color:#9aa6b6;font-size:11px;font-weight:400;font-variant-numeric:tabular-nums;white-space:nowrap">${bandera(s)}${i + 1}</td>${cols.map(c => `<td class="${c.id === "fecha" ? "t-nw" : ""}${c.id === "nota" ? " t-req" : ""}">${esc(c.v(s))}</td>`).join("")}</tr>`).join("");
+  const filas = lista.map((s, i) => `<tr><td style="width:40px;text-align:center;color:#9aa6b6;font-size:11px;font-variant-numeric:tabular-nums">${i + 1}</td>
+    ${cols.map(c => `<td class="${c.id === "fecha" ? "t-nw" : ""}${c.id === "nota" ? " t-req" : ""}">${c.id === "bandera" ? bandera(s) : esc(c.v(s))}</td>`).join("")}</tr>`).join("");
   return `<div class="rtable"><table><thead><tr><th style="width:40px;text-align:center;color:#9aa6b6;font-weight:400;font-size:11px">No.</th>${cols.map(c => `<th>${esc(c.t)}</th>`).join("")}</tr></thead><tbody>${filas}</tbody></table></div>
     <p class="rt-pie">${lista.length} de ${h.length} anotaciones</p>`;
 }
@@ -881,6 +891,10 @@ function barraSeg() {
   const cols = SEG_COLS.map(c => `<label class="check"><input type="checkbox" data-scol="${c.id}" ${S.segCols.includes(c.id) ? "checked" : ""}> ${esc(c.t)}</label>`).join("");
   return `<div class="rt-bar">
       <label class="rt-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 14l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input type="search" id="segQ" placeholder="Buscar en el seguimiento" value="${esc(S.segQ || "")}"><button type="button" data-segx aria-label="Limpiar búsqueda" title="Limpiar" ${S.segQ ? "" : "hidden"} style="flex:0 0 auto;width:22px;height:22px;padding:0;border:0;border-radius:50%;background:#eef2f7;color:#5b6b80;font-size:15px;line-height:22px;cursor:pointer">×</button></label>
+      <select id="segBandera" class="seg-filtro" aria-label="Filtrar por bandera">
+        <option value="">Todas las banderas</option>
+        ${Object.entries(SEG_BANDERAS).map(([clave, b]) => `<option value="${clave}" ${S.segBandera === clave ? "selected" : ""}>${b.nombre}</option>`).join("")}
+      </select>
       <div class="rt-acc">
         <button class="rt-btn" data-scols>Columnas</button>
         <button class="rt-btn" data-sexp="xls">Excel</button>
@@ -899,7 +913,8 @@ async function exportarSeg(tipo) {
   if (!m.rows.length) { aviso("No hay anotaciones para exportar.", "bad"); return; }
   const p = S.det.proyecto;
   const titulo = `Seguimiento · ${p.folio} · ${p.nombre}`;
-  const filtros = S.segQ ? `Búsqueda: ${S.segQ}` : "";
+  const filtros = [S.segQ && `Búsqueda: ${S.segQ}`,
+    S.segBandera && `Bandera: ${SEG_BANDERAS[S.segBandera].nombre}`].filter(Boolean).join(" · ");
   const base = `Seguimiento_${p.folio}_${hoyYmd()}`;
   if (tipo === "xls") {
     const n = m.headers.length;
@@ -1173,6 +1188,40 @@ async function trasCambio(r) {
   await abrirProyecto(S.det.proyecto.id, { silencioso: true });
 }
 
+function dlgBandera(id) {
+  const detalle = S.det;
+  if (!detalle || !(detalle.puedeMarcarBanderas ?? puedeAnotar())) return;
+  const registro = detalle.seguimiento.find(s => s.id === id);
+  if (!registro) return;
+  const actual = banderaSeg(registro);
+  const admiteAtencion = Object.hasOwn(SEG_BANDERAS, registro.bandera);
+  const opciones = Object.entries(SEG_BANDERAS).map(([clave, { nombre, clase }]) => `
+    <label class="seg-opcion ${clase}">
+      <input type="radio" name="banderaSeguimiento" value="${clave}" ${clave === actual ? "checked" : ""}
+        ${clave === "ATENCION" && !admiteAtencion ? "disabled" : ""}>
+      ${iconoBandera}<span>${nombre}</span>
+    </label>`).join("");
+  dialogo(`<h3>Bandera de seguimiento</h3><fieldset class="seg-opciones">
+      <legend>Elige un estado</legend>${opciones}
+    </fieldset>`, async () => {
+    const bandera = $('#dlgBody input[name="banderaSeguimiento"]:checked')?.value;
+    if (!bandera || bandera === actual) { cerrarDialogo(); return; }
+    const guardar = $('#dlgBody [data-dlg="ok"]');
+    if (guardar.disabled) return;
+    guardar.disabled = true;
+    const r = await tarea(() => api("SEG_RELEVANCIA", {
+      segId: id, bandera, relevante: bandera === "DIFICULTAD", vista: S.modo
+    }));
+    guardar.disabled = false;
+    if (!r || S.det !== detalle) return;
+    registro.relevante = bandera === "DIFICULTAD";
+    if (admiteAtencion) registro.bandera = r.bandera || bandera;
+    if (guardar.isConnected) cerrarDialogo();
+    pintarSegTabla();
+    $("#segTabla")?.querySelector(`[data-segrel="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
+  });
+}
+
 function dlgEstado(id, estado) {
   const x = reqPorId(id);
   const obligatoria = ["OBSERVADO", "NO_APLICA"].includes(estado);
@@ -1337,16 +1386,7 @@ document.addEventListener("click", e => {
   if (fila && !e.target.closest("button, select, input, label, a")) { dlgDetalleReq(fila.dataset.rq); return; }
   if (e.target.closest("[data-rcols]")) { const r = $("#rcols"); if (r) r.hidden = !r.hidden; return; }
   const sr = e.target.closest("[data-segrel]");
-  if (sr) {
-    const proyectoId = S.det?.proyecto?.id;
-    sr.disabled = true;
-    tarea(() => api("SEG_RELEVANCIA", { segId: sr.dataset.segrel, relevante: sr.dataset.val === "1", vista: S.modo }))
-      .then(r => {
-        if (r && S.det?.proyecto?.id === proyectoId) return trasCambio(r);
-      })
-      .finally(() => { sr.disabled = false; });
-    return;
-  }
+  if (sr) { dlgBandera(sr.dataset.segrel); return; }
   if (e.target.closest("[data-segx]")) { S.segQ = ""; const q = $("#segQ"); if (q) { q.value = ""; q.focus(); } const x = document.querySelector("[data-segx]"); if (x) x.hidden = true; pintarSegTabla(); return; }
   if (e.target.closest("[data-scols]")) { const r = $("#scols"); if (r) r.hidden = !r.hidden; return; }
   const sx = e.target.closest("[data-sexp]"); if (sx) { exportarSeg(sx.dataset.sexp); return; }
@@ -1413,6 +1453,7 @@ document.addEventListener("click", e => {
   }
 });
 document.addEventListener("change", e => {
+  if (e.target.id === "segBandera") { S.segBandera = e.target.value; pintarSegTabla(); return; }
   if (e.target.dataset && e.target.dataset.scol) {
     const on = new Set(S.segCols), id = e.target.dataset.scol;
     e.target.checked ? on.add(id) : on.delete(id);

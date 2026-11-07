@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.12.0
+// SCaD Gestión · App · v0.13.0
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.12.0";
+export const VERSION = "GESTION_APP v0.13.0";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -490,7 +490,7 @@ const puedeAnotar = () => (S.modo === "OPERACION" || esAdm());
 
 function pintarProyecto() {
   const p = S.det.proyecto;
-  const tabs = [["checklist", `Checklist${p.checklist?.entregados ? ` <span class="badge">${p.checklist.entregados}</span>` : ""}`], ["hitos", "Hitos"], ["seguimiento", "Seguimiento"], ["agenda", `Agenda${pendientesAgenda(p.id) ? ` <span class="badge">${pendientesAgenda(p.id)}</span>` : ""}`], ["ficha", "Ficha"]];
+  const tabs = [["checklist", `Checklist${p.checklist?.entregados ? ` <span class="badge">${p.checklist.entregados}</span>` : ""}`], ["seguimiento", "Seguimiento"], ["agenda", `Agenda${pendientesAgenda(p.id) ? ` <span class="badge">${pendientesAgenda(p.id)}</span>` : ""}`], ["ficha", "Ficha"]];
   $("#view").innerHTML = `
     <section class="pry-head">
       <a class="back" href="#/">‹ ${MODOS[S.modo].lista}</a>
@@ -498,8 +498,9 @@ function pintarProyecto() {
       <h1>${esc(p.nombre)}</h1>
       <p class="muted sm">El administrador actualiza el estatus en el panel.</p>
     </section>
+    ${vistaHitos()}
     <nav class="tabs">${tabs.map(([k, t]) => `<button class="${S.tab === k ? "on" : ""}" data-tab="${k}">${t}</button>`).join("")}</nav>
-    <section id="tabBody">${{ checklist: vistaChecklist, hitos: vistaHitos, seguimiento: vistaSeguimiento, agenda: vistaAgenda, ficha: vistaFicha }[S.tab]()}</section>`;
+    <section id="tabBody">${{ checklist: vistaChecklist, seguimiento: vistaSeguimiento, agenda: vistaAgenda, ficha: vistaFicha }[S.tab]()}</section>`;
 }
 
 // ── Curva de avance del expediente ───────────────────────────
@@ -942,13 +943,47 @@ function vistaSeguimiento() {
     <div id="segTabla">${tablaSeg()}</div>`;
 }
 
+const diaHitoMX = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit" });
+const fechaHito = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", timeZone: "UTC" });
+
+function estadoHito(hito, hoy) {
+  const { fechaCompromiso, fechaCumplimiento, cumplido } = hito;
+  if (cumplido) {
+    if (fechaCompromiso && fechaCumplimiento > fechaCompromiso) return ["aviso", "Cumplido tarde"];
+    return ["ok", "Cumplido"];
+  }
+  if (!fechaCompromiso) return ["neutro", "Sin fecha"];
+  if (fechaCompromiso < hoy) return ["vencido", "Vencido"];
+  if (fechaCompromiso === hoy) return ["aviso", "Vence hoy"];
+  return ["previsto", "Programado"];
+}
+
 function vistaHitos() {
   const hitos = S.det.hitos || [];
-  if (!hitos.length) return '<div class="empty">Sin hitos configurados.</div>';
-  return `<div class="card"><ol>${hitos.map(h => `<li style="margin:8px 0"><div class="row wrap">
-    <b>${esc(h.nombre)}</b><span class="chip ${h.cumplido ? "ok" : ""}">${h.cumplido ? "Cumplido" : "Pendiente"}</span>
-    ${S.det.puedeMarcarHitos ? `<button class="btn sm" data-hito="${esc(h.id)}" data-on="${h.cumplido ? 0 : 1}">${h.cumplido ? "Desmarcar" : "Marcar cumplido"}</button>` : ""}
-    </div></li>`).join("")}</ol></div>`;
+  if (!hitos.length) return "";
+  const hoy = diaHitoMX.format(new Date());
+  const filas = hitos.map(hito => {
+    const [color, estado] = estadoHito(hito, hoy);
+    const { id, nombre, cumplido, fechaCompromiso, fechaCumplimiento } = hito;
+    const marca = cumplido ? "✓" : "";
+    const detalle = [nombre, estado, fechaCompromiso && `Fecha compromiso ${fechaCompromiso}`,
+      fechaCumplimiento && `Cumplido el ${fechaCumplimiento}`].filter(Boolean).join(". ");
+    const control = S.det.puedeMarcarHitos
+      ? `<button type="button" class="hito-marca" role="checkbox" aria-checked="${Boolean(cumplido)}"
+          aria-label="${esc(nombre)}" data-hito="${esc(id)}" data-on="${cumplido ? 0 : 1}">${marca}</button>`
+      : `<span class="hito-marca" aria-hidden="true">${marca}</span>`;
+    const fecha = fechaCompromiso ? `<time datetime="${esc(fechaCompromiso)}">${fechaHito.format(new Date(fechaCompromiso + "T00:00:00Z"))}</time>` : "";
+    return `<li class="hito-paso hito-${color}" title="${esc(detalle)}">${control}
+      <span class="hito-titulo">${esc(nombre)}</span>
+      <small>${fecha ? fecha + " · " : ""}${estado}</small>
+    </li>`;
+  }).join("");
+  return `<section class="card hitos-avance" aria-labelledby="tituloHitos">
+    <h3 id="tituloHitos">Hitos</h3>
+    <div class="hitos-desplazable" tabindex="0" role="region" aria-label="Secuencia de hitos">
+      <ol class="hitos-linea">${filas}</ol>
+    </div>
+  </section>`;
 }
 
 function vistaFicha() {
@@ -1327,9 +1362,18 @@ document.addEventListener("click", e => {
   if (d.pry) { S.tab = "checklist"; S.filtroReq = "TODOS"; location.hash = `#/p/${d.pry}`; return; }
   if (d.hito && S.det?.puedeMarcarHitos) {
     const proyectoId = S.det.proyecto.id;
+    const linea = t.closest(".hitos-desplazable");
     t.disabled = true;
     tarea(() => api("HITO_MARCA", { proyectoId, hitoId: d.hito, valor: d.on === "1", solicitudId: crypto.randomUUID() }))
-      .then(r => r && S.det?.proyecto?.id === proyectoId && trasCambio(r))
+      .then(async r => {
+        if (!r || S.det?.proyecto?.id !== proyectoId || !linea.isConnected) return;
+        const scroll = linea.scrollLeft;
+        await trasCambio(r);
+        if (S.det?.proyecto?.id !== proyectoId) return;
+        const actual = $(".hitos-desplazable");
+        if (actual) actual.scrollLeft = scroll;
+        actual?.querySelector(`[data-hito="${CSS.escape(d.hito)}"]`)?.focus({ preventScroll: true });
+      })
       .finally(() => { t.disabled = false; });
     return;
   }

@@ -504,3 +504,22 @@ dialog.req .dlg-x:hover{background:rgba(255,255,255,.28)}
 .prg-dia.proxima{border-color:var(--cyan);box-shadow:inset 0 0 0 1px var(--cyan)}
 .prg-ev:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 @media(max-width:480px){.prg-herramientas{gap:8px}.prg-modo .seg-sw button{min-width:36px;padding:7px}.prg-origen{gap:6px}.prg-origen button{gap:6px;padding:8px 5px;font-size:12px}.prg-origen svg{width:16px;height:16px}.prg-mes{justify-content:center}.prg-mes-acciones{justify-content:center}.prg-mes-rotulo strong{min-width:150px}.prg-resumen{gap:6px}.prg-resumen span{font-size:10px}.prg-busqueda{padding:0 9px;gap:7px}}
+
+/* Línea de avance de los hitos del proyecto */
+.hitos-avance{margin:12px 0;padding:12px}
+.hitos-desplazable{overflow-x:auto;margin-top:8px}
+.hitos-linea{display:flex;list-style:none;margin:0;padding:4px 0 8px;width:max-content;min-width:100%}
+.hito-paso{--hito:#64748b;--hito-fondo:#eef2f7;position:relative;flex:1 0 112px;max-width:160px;min-width:112px;text-align:center;padding:0 6px}
+.hito-paso::before,.hito-paso::after{content:"";position:absolute;top:21px;width:50%;height:2px;background:var(--hito);opacity:.55}
+.hito-paso::before{left:0}.hito-paso::after{right:0}
+.hito-paso:first-child::before,.hito-paso:last-child::after{display:none}
+.hito-ok{--hito:#16704a;--hito-fondo:#e1f4e9}
+.hito-previsto{--hito:#1b5eab;--hito-fondo:#e6f0fc}
+.hito-aviso{--hito:#885900;--hito-fondo:#fff0c2}
+.hito-vencido{--hito:#a92525;--hito-fondo:#fde9e9}
+.hito-marca{position:relative;z-index:1;display:grid;place-items:center;width:44px;height:44px;margin:auto;border:2px solid var(--hito);border-radius:50%;background:var(--hito-fondo);color:var(--hito);font:700 20px/1 system-ui}
+button.hito-marca{cursor:pointer}
+button.hito-marca:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+button.hito-marca:disabled{opacity:.65;cursor:wait}
+.hito-titulo{display:block;margin-top:5px;font-size:12px;font-weight:600;overflow-wrap:anywhere}
+.hito-paso small{display:block;font-size:11px;color:var(--hito)}

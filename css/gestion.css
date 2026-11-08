@@ -527,7 +527,9 @@ button.hito-marca:disabled{opacity:.65;cursor:wait}
 
 /* Bandera en la fila de Seguimiento */
 .seg-flag,.seg-opcion{--bandera:#64748b}
-.seg-flag.atencion,.seg-opcion.atencion{--bandera:#885900}
+.seg-flag.atencion,.seg-opcion.atencion{--bandera:#875400;--bandera-icono:#b57200}
+.seg-flag.atencion svg,.seg-opcion.atencion svg{color:var(--bandera-icono)}
+.seg-flag.atencion .seg-flag-icon{background:#fff1cb}
 .seg-flag.dificultad,.seg-opcion.dificultad{--bandera:#b52e2e}
 .seg-flag{display:inline-flex;gap:6px;align-items:center;white-space:nowrap;min-height:30px;padding:2px 6px;border:0;border-radius:6px;background:transparent;color:var(--bandera);font:inherit}
 .seg-flag-icon{display:grid;place-items:center;width:22px;height:22px;border-radius:50%}
@@ -538,6 +540,7 @@ button.seg-flag:hover,button.seg-flag:focus-visible{background:var(--bg)}
 .seg-opciones legend{color:var(--muted);font-size:13px}
 .seg-opcion{display:flex;gap:10px;align-items:center;min-height:42px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;color:var(--bandera)}
 .seg-opcion input{accent-color:var(--bandera)}
+.seg-opcion.atencion input{accent-color:var(--bandera-icono)}
 @keyframes gestion-pulso{0%,55%,100%{box-shadow:0 0 0 0 #b52e2e00} 15%{box-shadow:0 0 0 2px #b52e2e70} 45%{box-shadow:0 0 0 7px #b52e2e00}}
 @media(prefers-reduced-motion:no-preference){
   .seg-flag.dificultad .seg-flag-icon,.hito-vencido .hito-marca{animation:gestion-pulso 2.8s ease-out infinite}

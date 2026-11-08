@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.10
+// SCaD Gestión · App · v0.13.11
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -36,7 +36,7 @@
 // Dirección e Instancia son de consulta. El estatus se actualiza en el panel.
 import { captureTokenFromHash, hasToken, startLogin, logout } from "./auth.js";
 import { contexto, api, sys, subirADrive, ApiError } from "./api.js?v=0.11.0";
-import { bienvenidaVisitante, bienvenidaUsuario, detallePlan } from "./bienvenida.js";
+import { bienvenidaVisitante, bienvenidaUsuario, detallePlan } from "./bienvenida.js?v=0.13.11";
 import { prepararDocumento } from "./documentos.js?v=0.11.0";
 import { documentoLegal } from "./legal.js";
 import {
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.10";
+export const VERSION = "GESTION_APP v0.13.11";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -393,7 +393,7 @@ function pintarBienvenida() {
   const rol = { DIRECCION: "Dirección", OPERACION: "Operación", INSTANCIA: "Instancia" }[S.modo] || "";
   const foto = urlImagen(u.avatar || u.foto);
   $("#view").innerHTML = bienvenidaUsuario({
-    ctx: S.ctx, modo: S.modo, proyectos: S.proyectos, esAdm: esAdm(),
+    ctx: S.ctx, modo: S.modo, proyectos: S.proyectos, esAdm: esAdm(), resumenProyectos: resumenProyectos(true),
     identidad: { nombre: n === "Usuario" ? "" : n, email: u.email || S.ctx.email || "", foto, iniciales: iniciales(n) },
     eoNombre: S.ctx.eo?.nombreMostrar || S.ctx.eo?.nombre || "",
     rolEtiqueta: esAdm() ? "Administrador" + (rol ? " · " + rol : "") : rol
@@ -414,25 +414,30 @@ function coincide(p) {
   return q.split(/\s+/).every(w => txt.includes(w));
 }
 
-function pintarLista() {
-  const P = S.proyectos, M = MODOS[S.modo];
+function resumenProyectos(desdeInicio = false) {
+  const P = S.proyectos;
   const suma = k => P.reduce((n, p) => n + (p.checklist?.[k] || 0), 0);
-  const filtros = [["TODOS", "Todos"], ...Object.entries(ESTATUS), ["SIN_ASIGNAR", "Sin asignar"]];
   const indicadores = [
     ["proyectos", "Proyectos", P.length, ""],
     ["entregados", "Por revisar", suma("entregados"), "warn"],
     ["vencidos", "Vencidos", suma("vencidos"), "bad"],
     ["porVencer", `Vencen en ${S.ctx.reglas?.diasRiesgo || 3} días`, suma("porVencer"), "amber"]
   ];
+  return `<div class="kpis" role="group" aria-label="Filtrar proyectos por resumen">
+    ${indicadores.map(([clave, etiqueta, total, clase]) => `<button type="button" class="kpi ${clase}" data-resumen="${clave}"
+      ${desdeInicio ? "" : `aria-pressed="${S.resumen === clave}" aria-controls="cards"`}><b>${total}</b><span>${etiqueta}</span></button>`).join("")}
+  </div>`;
+}
+
+function pintarLista() {
+  const P = S.proyectos, M = MODOS[S.modo];
+  const filtros = [["TODOS", "Todos"], ...Object.entries(ESTATUS), ["SIN_ASIGNAR", "Sin asignar"]];
   const tipos = S.ctx.catalogos?.tiposProyecto || [];
   $("#view").innerHTML = `
     <section class="hero">
       <h1>${M.lista}</h1>
       ${M.sub ? `<p class="muted">${M.sub}</p>` : ""}
-      <div class="kpis" role="group" aria-label="Filtrar proyectos por resumen">
-        ${indicadores.map(([clave, etiqueta, total, clase]) => `<button type="button" class="kpi ${clase}" data-resumen="${clave}"
-          aria-pressed="${S.resumen === clave}" aria-controls="cards"><b>${total}</b><span>${etiqueta}</span></button>`).join("")}
-      </div>
+      ${resumenProyectos()}
     </section>
     ${bloqueHoy()}
     <div class="buscar">
@@ -1537,6 +1542,11 @@ document.addEventListener("click", e => {
   if (d.dlg === "ok") { alEnviar && alEnviar(); return; }
   if (d.resumen) {
     S.resumen = d.resumen;
+    if (location.hash === "#/inicio") {
+      Object.assign(S, { estatus: "TODOS", q: "", tipo: "" });
+      location.hash = "#/";
+      return;
+    }
     document.querySelectorAll("[data-resumen]").forEach(b => b.setAttribute("aria-pressed", String(b === t)));
     pintarTarjetas();
     return;

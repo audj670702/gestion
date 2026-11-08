@@ -83,7 +83,7 @@ export function detallePlan(id) {
 // ── Usuario (sesión y vista asignada) ──
 // ctx: contexto ya cargado. modo: vista activa. proyectos: lista de la vista activa.
 // identidad: { nombre, email, foto, iniciales }. Proyectos y Programación ya están en la barra inferior: no se repiten aquí.
-export function bienvenidaUsuario({ ctx, modo, proyectos, esAdm, identidad, eoNombre, rolEtiqueta }) {
+export function bienvenidaUsuario({ ctx, modo, proyectos, esAdm, identidad, eoNombre, rolEtiqueta, resumenProyectos }) {
   const activos = (proyectos || []).filter(p => p.fase !== "CERRADO");
   const suma = k => activos.reduce((n, p) => n + (p.checklist?.[k] || 0), 0);
   const hoy = deHoy(ctx);
@@ -91,13 +91,6 @@ export function bienvenidaUsuario({ ctx, modo, proyectos, esAdm, identidad, eoNo
   const vencidasHoy = hoy.filter(a => sinCumplir(a));
   const mostrarChecklist = modo !== "INSTANCIA";
   const fotoStyle = identidad.foto ? ` style="background-image:url('${esc(identidad.foto).replace(/'/g, "%27")}')"` : "";
-
-  const resumen = [
-    `<div class="kl"><b>${activos.length}</b><span>Proyectos activos</span></div>`,
-    mostrarChecklist ? `<div class="kl warn"><b>${suma("entregados")}</b><span>Por revisar</span></div>` : "",
-    mostrarChecklist ? `<div class="kl bad"><b>${suma("vencidos")}</b><span>Vencidos</span></div>` : "",
-    `<div class="kl"><b>${hoy.length}</b><span>Actividades hoy</span></div>`
-  ].join("");
 
   const actividades = hoy.length
     ? `<div class="bien-hoy">${hoy.slice(0, 4).map(a => `
@@ -141,9 +134,9 @@ export function bienvenidaUsuario({ ctx, modo, proyectos, esAdm, identidad, eoNo
     </section>
     <section class="bien-resumen">
       <span class="bien-fecha">${esc(fechaLarga())}</span>
-      <div class="kpis-line">${resumen}</div>
+      ${resumenProyectos}
       ${avisos ? `<div class="row wrap bien-avisos">${avisos}</div>` : ""}
-      <h3 class="bien-sub">Hoy</h3>
+      <h3 class="bien-sub">Hoy${hoy.length ? ` · ${hoy.length} actividad${hoy.length === 1 ? "" : "es"}` : ""}</h3>
       ${actividades}
     </section>`;
 }

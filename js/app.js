@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.5
+// SCaD Gestión · App · v0.13.6
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.5";
+export const VERSION = "GESTION_APP v0.13.6";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -71,7 +71,7 @@ const isoDia = v => { if (!v) return ""; const d = new Date(v); if (isNaN(d)) re
 const pesos = v => (v === null || v === undefined) ? "—" : "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const tamano = b => b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
 
-const S = { indMin: false, segQ: "", segBandera: "", segCols: ["bandera", "fecha", "autor", "tipo", "ref", "nota"], ctx: null, modo: null, proyectos: [], estatus: "TODOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "", bandera: "" }, reqCols: ["folio", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo", "bandera"], reqSel: null };
+const S = { indMin: false, segQ: "", segBandera: "", segCols: ["bandera", "fecha", "autor", "tipo", "ref", "nota"], ctx: null, modo: null, proyectos: [], estatus: "TODOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "", bandera: "" }, reqCols: ["folio", "bandera", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
 
 const ins = id => (S.ctx?.instancias || []).find(i => i.id === id) || null;
 const insEtq = id => { const i = ins(id); return i ? (i.siglas || i.nombre) : ""; };
@@ -614,6 +614,7 @@ function curvaDetalle() {
 const folioRegistro = (f, i) => { const m = /(\d+)$/.exec(String(f || "")); return (m ? m[1] : String(i + 1)).padStart(3, "0"); };
 const COLS_REQ = [
   { id: "folio", t: "Folio", v: (x, i) => folioRegistro(x.folio, i) },
+  { id: "bandera", t: "Bandera", v: (x, i, bandera) => SEG_BANDERAS[bandera].nombre },
   { id: "etiqueta", t: "Requerimiento", v: x => x.etiqueta },
   { id: "instancia", t: "Instancia", v: x => insEtq(x.instanciaId) || "Sin instancia" },
   { id: "categoria", t: "Cat.", v: x => x.categoria ? String(x.categoria) : "—", n: true },
@@ -621,7 +622,6 @@ const COLS_REQ = [
   { id: "compromiso", t: "Compromiso", v: x => fecha(x.fechaCompromiso) },
   { id: "estado", t: "Estado", v: x => (ESTADOS[x.estado] || { t: x.estado }).t },
   { id: "semaforo", t: "Plazo", v: x => x.semaforo === "VENCIDO" ? "Vencido" : x.semaforo === "POR_VENCER" ? "Por vencer" : "En tiempo" },
-  { id: "bandera", t: "Bandera", v: (x, i, bandera) => SEG_BANDERAS[bandera].nombre },
   { id: "obs", t: "Obs.", v: x => String(x.observaciones || 0), n: true },
   { id: "actualiza", t: "Última actualización", v: x => fechaHora(x.ultimaActualizacion) }
 ];
@@ -672,21 +672,21 @@ function tablaReq() {
   const lista = reqFiltrados(items, banderas);
   const cols = COLS_REQ.filter(c => S.reqCols.includes(c.id));
   if (!lista.length) return `<div class="empty">Nada con este filtro.</div>`;
-  const clasesCelda = (c, x, bandera) => [
+  const clasesCelda = (c, x) => [
     c.n ? "num" : "",
     c.id === "folio" ? "t-folio" : "",
     c.id === "etiqueta" ? "t-req" : "",
-    ["compromiso", "actualiza", "folio", "categoria", "obs"].includes(c.id) ? "t-nw" : "",
+    ["compromiso", "actualiza", "folio", "bandera", "categoria", "obs"].includes(c.id) ? "t-nw" : "",
     c.id === "semaforo" && x.semaforo === "VENCIDO" ? "t-bad" : "",
-    c.id === "semaforo" && x.semaforo === "POR_VENCER" ? "t-amber" : "",
-    c.id === "bandera" ? ({ DIFICULTAD: "t-bad", ATENCION: "t-amber", NORMAL: "muted" })[bandera] : ""
+    c.id === "semaforo" && x.semaforo === "POR_VENCER" ? "t-amber" : ""
   ].filter(Boolean).join(" ");
   const filas = lista.map((x, i) => {
     const bandera = banderas.get(x.id) || "NORMAL";
     return `<tr data-rq="${esc(x.id)}" class="${x.semaforo === "VENCIDO" ? "vencido" : ""}${S.reqSel === x.id ? " sel" : ""}">
     ${cols.map(c => c.id === "estado"
       ? `<td class="t-nw"><span class="chip ${(ESTADOS[x.estado] || {}).c || ""}">${esc(c.v(x, i))}</span></td>`
-      : `<td class="${clasesCelda(c, x, bandera)}">${esc(c.v(x, i, bandera))}</td>`).join("")}
+      : `<td class="${clasesCelda(c, x)}">${c.id === "bandera"
+        ? `<span class="seg-flag ${SEG_BANDERAS[bandera].clase}">${iconoBandera}${esc(c.v(x, i, bandera))}</span>` : esc(c.v(x, i, bandera))}</td>`).join("")}
   </tr>`;
   }).join("");
   return `<div class="rtable"><table><thead><tr>${cols.map(c => `<th class="${c.n ? "num" : ""}${c.id === "folio" ? " t-folio" : ""}">${esc(c.t)}</th>`).join("")}</tr></thead><tbody>${filas}</tbody></table></div>

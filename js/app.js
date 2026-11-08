@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.12
+// SCaD Gestión · App · v0.13.13
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.12";
+export const VERSION = "GESTION_APP v0.13.13";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -731,7 +731,7 @@ function vistaChecklist() {
         <select data-rf="estado" class="rt-sel" aria-label="Estado"><option value="">Todos los estados</option>${Object.entries(ESTADOS).map(([k, v]) => `<option value="${k}" ${f.estado === k ? "selected" : ""}>${esc(v.t)}</option>`).join("")}</select>
         <select data-rf="inst" class="rt-sel" aria-label="Instancia"><option value="">Todas las instancias</option>${instancias.map(id => `<option value="${esc(id)}" ${f.inst === id ? "selected" : ""}>${esc(insEtq(id))}</option>`).join("")}</select>
         <select data-rf="cat" class="rt-sel" aria-label="Categoría"><option value="">Todas las categorías</option>${[1, 2, 3].map(n => `<option value="${n}" ${f.cat === String(n) ? "selected" : ""}>Categoría ${n}</option>`).join("")}</select>
-        <select data-rf="bandera" class="rt-sel" aria-label="Bandera"><option value="">Todas las banderas</option>${Object.entries(SEG_BANDERAS).map(([k, b]) => `<option value="${k}" ${f.bandera === k ? "selected" : ""}>${b.nombre}</option>`).join("")}</select>
+        ${filtroBanderaHTML("requerimientos", f.bandera)}
         <select data-rf="venc" class="rt-sel" aria-label="Plazo"><option value="">Cualquier plazo</option><option value="VENCIDO" ${f.venc === "VENCIDO" ? "selected" : ""}>Vencidos</option><option value="POR_VENCER" ${f.venc === "POR_VENCER" ? "selected" : ""}>Por vencer</option></select>
       </div>
       <div class="rt-acc">
@@ -960,17 +960,21 @@ function etiquetaFiltroBandera(clave) {
     : `<span class="seg-flag normal">${iconoBandera}<span>Todas las banderas</span></span>`;
 }
 
+function filtroBanderaHTML(ambito, seleccionada) {
+  return `<details class="seg-filtro" data-filtro-bandera="${ambito}">
+    <summary><span class="seg-filtro-valor">${etiquetaFiltroBandera(seleccionada)}</span></summary>
+    <div class="seg-filtro-opciones" role="group" aria-label="Filtrar por bandera">
+      ${["", ...Object.keys(SEG_BANDERAS)].map(clave => `<button type="button" data-seg-filtro="${clave}"
+        aria-pressed="${seleccionada === clave}">${etiquetaFiltroBandera(clave)}</button>`).join("")}
+    </div>
+  </details>`;
+}
+
 function barraSeg() {
   const cols = SEG_COLS.map(c => `<label class="check"><input type="checkbox" data-scol="${c.id}" ${S.segCols.includes(c.id) ? "checked" : ""}> ${esc(c.t)}</label>`).join("");
   return `<div class="rt-bar">
       <label class="rt-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 14l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input type="search" id="segQ" placeholder="Buscar en el seguimiento" value="${esc(S.segQ || "")}"><button type="button" data-segx aria-label="Limpiar búsqueda" title="Limpiar" ${S.segQ ? "" : "hidden"} style="flex:0 0 auto;width:22px;height:22px;padding:0;border:0;border-radius:50%;background:#eef2f7;color:#5b6b80;font-size:15px;line-height:22px;cursor:pointer">×</button></label>
-      <details id="segBandera" class="seg-filtro">
-        <summary><span class="seg-filtro-valor">${etiquetaFiltroBandera(S.segBandera)}</span></summary>
-        <div class="seg-filtro-opciones" role="group" aria-label="Filtrar por bandera">
-          ${["", ...Object.keys(SEG_BANDERAS)].map(clave => `<button type="button" data-seg-filtro="${clave}"
-            aria-pressed="${S.segBandera === clave}">${etiquetaFiltroBandera(clave)}</button>`).join("")}
-        </div>
-      </details>
+      ${filtroBanderaHTML("seguimiento", S.segBandera)}
       <div class="rt-acc">
         <button class="rt-btn" data-scols>Columnas</button>
         <button class="rt-btn" data-sexp="xls">Excel</button>
@@ -1515,16 +1519,22 @@ document.addEventListener("click", e => {
   const fila = e.target.closest("tr[data-rq]");
   if (fila && !e.target.closest("button, select, input, label, a")) { dlgDetalleReq(fila.dataset.rq); return; }
   if (e.target.closest("[data-rcols]")) { const r = $("#rcols"); if (r) r.hidden = !r.hidden; return; }
-  const filtroBandera = $("#segBandera");
-  if (filtroBandera?.open && !filtroBandera.contains(e.target)) filtroBandera.open = false;
+  const filtroBandera = e.target.closest("[data-filtro-bandera]");
+  document.querySelectorAll("[data-filtro-bandera][open]").forEach(filtro => {
+    if (filtro !== filtroBandera) filtro.open = false;
+  });
   const opcionBandera = e.target.closest("[data-seg-filtro]");
   if (opcionBandera && filtroBandera) {
-    S.segBandera = opcionBandera.dataset.segFiltro;
-    filtroBandera.querySelector(".seg-filtro-valor").innerHTML = etiquetaFiltroBandera(S.segBandera);
+    const clave = opcionBandera.dataset.segFiltro;
+    const esChecklist = filtroBandera.dataset.filtroBandera === "requerimientos";
+    if (esChecklist) S.reqF.bandera = clave;
+    else S.segBandera = clave;
+    filtroBandera.querySelector(".seg-filtro-valor").innerHTML = etiquetaFiltroBandera(clave);
     filtroBandera.querySelectorAll("[data-seg-filtro]").forEach(b => b.setAttribute("aria-pressed", String(b === opcionBandera)));
     filtroBandera.open = false;
     filtroBandera.querySelector("summary").focus();
-    pintarSegTabla();
+    if (esChecklist) pintarReqTabla();
+    else pintarSegTabla();
     return;
   }
   const sr = e.target.closest("[data-segrel]");
@@ -1637,7 +1647,7 @@ document.addEventListener("input", e => {
 });
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
-  const filtro = e.target.closest?.("#segBandera[open]");
+  const filtro = e.target.closest?.("[data-filtro-bandera][open]");
   if (filtro) {
     e.preventDefault();
     filtro.open = false;

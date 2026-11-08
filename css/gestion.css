@@ -542,3 +542,8 @@ button.seg-flag:hover,button.seg-flag:focus-visible{background:var(--bg)}
 @media(prefers-reduced-motion:no-preference){
   .seg-flag.dificultad .seg-flag-icon,.hito-vencido .hito-marca{animation:gestion-pulso 2.8s ease-out infinite}
 }
+
+.seg-dialogo{padding:18px}
+.seg-dialogo h3{font-size:18px}
+.seg-error{margin:0;color:var(--bad);font-size:13px}
+.req-seg-meta{gap:6px}

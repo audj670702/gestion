@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.3
+// SCaD Gestión · App · v0.13.4
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.3";
+export const VERSION = "GESTION_APP v0.13.4";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -730,7 +730,7 @@ function detalleReqHTML(x) {
       <div class="req-nota-pie"><label class="check"><input type="checkbox" id="rqVis"> ${esc(etiquetaVisible(x.id))}</label>
       <button class="btn sm pri" data-regnota="${esc(x.id)}">Registrar</button></div>
     </div>` : "";
-  const hist = seg.map(s => `<li><span class="muted xs">${fechaHora(s.fechaRegistro)} · ${esc(s.autorNombre)}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}${s.registradoEnNombreDe ? ` · en nombre de ${esc(s.registradoEnNombreDe)}` : ""}</span>${s.estadoNuevo ? ` <span class="chip ${(ESTADOS[s.estadoNuevo] || {}).c || "info"}">${esc((ESTADOS[s.estadoNuevo] || {}).t || ESTATUS[s.estadoNuevo] || s.estadoNuevo)}</span>` : ""}<p>${esc(s.nota)}</p></li>`).join("");
+  const hist = seg.map(s => `<li><div class="row wrap req-seg-meta"><span class="muted xs">${fechaHora(s.fechaRegistro)} · ${esc(s.autorNombre)}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}${s.registradoEnNombreDe ? ` · en nombre de ${esc(s.registradoEnNombreDe)}` : ""}</span>${s.estadoNuevo ? ` <span class="chip ${(ESTADOS[s.estadoNuevo] || {}).c || "info"}">${esc((ESTADOS[s.estadoNuevo] || {}).t || ESTATUS[s.estadoNuevo] || s.estadoNuevo)}</span>` : ""}${controlBandera(s)}</div><p>${esc(s.nota)}</p></li>`).join("");
   return `<header class="req-top">
       <span class="req-top-meta">${esc(folio)} · ${esc(insEtq(x.instanciaId) || "Sin instancia")}${x.categoria ? ` · Cat. ${x.categoria}` : ""}</span>
       <h3>${esc(x.etiqueta)}</h3>
@@ -866,23 +866,22 @@ function segFiltrados(lista) {
   return lista.filter(s => (!S.segBandera || banderaSeg(s) === S.segBandera)
     && (!q || norm(SEG_COLS.map(c => c.v(s)).join(" ")).includes(q)));
 }
+function controlBandera(registro) {
+  const { nombre, clase } = SEG_BANDERAS[banderaSeg(registro)];
+  const contenido = `<span class="seg-flag-icon" aria-hidden="true">${iconoBandera}</span><span>${nombre}</span>`;
+  return (S.det.puedeMarcarBanderas ?? puedeAnotar())
+    ? `<button type="button" class="seg-flag ${clase}" data-segrel="${esc(registro.id)}"
+        aria-haspopup="dialog" aria-label="Cambiar bandera: ${nombre}">${contenido}</button>`
+    : `<span class="seg-flag ${clase}">${contenido}</span>`;
+}
 function tablaSeg() {
   const h = S.det.seguimiento || [];
   if (!h.length) return `<div class="empty">Sin anotaciones.</div>`;
   const lista = segFiltrados(h);
   if (!lista.length) return `<div class="empty">Ninguna anotación coincide con los filtros.</div>`;
   const cols = SEG_COLS.filter(c => S.segCols.includes(c.id));
-  const puedeMarcar = S.det.puedeMarcarBanderas ?? puedeAnotar();
-  const bandera = s => {
-    const { nombre, clase } = SEG_BANDERAS[banderaSeg(s)];
-    const contenido = `<span class="seg-flag-icon" aria-hidden="true">${iconoBandera}</span><span>${nombre}</span>`;
-    return puedeMarcar
-      ? `<button type="button" class="seg-flag ${clase}" data-segrel="${esc(s.id)}"
-          aria-haspopup="dialog" aria-label="Cambiar bandera: ${nombre}">${contenido}</button>`
-      : `<span class="seg-flag ${clase}">${contenido}</span>`;
-  };
   const filas = lista.map((s, i) => `<tr><td style="width:40px;text-align:center;color:#9aa6b6;font-size:11px;font-variant-numeric:tabular-nums">${i + 1}</td>
-    ${cols.map(c => `<td class="${c.id === "fecha" ? "t-nw" : ""}${c.id === "nota" ? " t-req" : ""}">${c.id === "bandera" ? bandera(s) : esc(c.v(s))}</td>`).join("")}</tr>`).join("");
+    ${cols.map(c => `<td class="${c.id === "fecha" ? "t-nw" : ""}${c.id === "nota" ? " t-req" : ""}">${c.id === "bandera" ? controlBandera(s) : esc(c.v(s))}</td>`).join("")}</tr>`).join("");
   return `<div class="rtable"><table><thead><tr><th style="width:40px;text-align:center;color:#9aa6b6;font-weight:400;font-size:11px">No.</th>${cols.map(c => `<th>${esc(c.t)}</th>`).join("")}</tr></thead><tbody>${filas}</tbody></table></div>
     <p class="rt-pie">${lista.length} de ${h.length} anotaciones</p>`;
 }
@@ -1188,9 +1187,10 @@ async function trasCambio(r) {
   await abrirProyecto(S.det.proyecto.id, { silencioso: true });
 }
 
-function dlgBandera(id) {
+function dlgBandera(boton) {
   const detalle = S.det;
   if (!detalle || !(detalle.puedeMarcarBanderas ?? puedeAnotar())) return;
+  const id = boton.dataset.segrel;
   const registro = detalle.seguimiento.find(s => s.id === id);
   if (!registro) return;
   const actual = banderaSeg(registro);
@@ -1201,25 +1201,48 @@ function dlgBandera(id) {
         ${clave === "ATENCION" && !admiteAtencion ? "disabled" : ""}>
       ${iconoBandera}<span>${nombre}</span>
     </label>`).join("");
-  dialogo(`<h3>Bandera de seguimiento</h3><fieldset class="seg-opciones">
-      <legend>Elige un estado</legend>${opciones}
-    </fieldset>`, async () => {
-    const bandera = $('#dlgBody input[name="banderaSeguimiento"]:checked')?.value;
-    if (!bandera || bandera === actual) { cerrarDialogo(); return; }
-    const guardar = $('#dlgBody [data-dlg="ok"]');
+  // Un diálogo separado conserva la ficha del requerimiento y su anotación en edición.
+  const modal = document.createElement("dialog");
+  modal.setAttribute("aria-label", "Bandera de seguimiento");
+  modal.innerHTML = `<form method="dialog" class="seg-dialogo">
+    <h3>Bandera de seguimiento</h3>
+    <fieldset class="seg-opciones"><legend>Elige un estado</legend>${opciones}</fieldset>
+    <p class="seg-error" role="alert" hidden></p>
+    <div class="dlg-acts"><button class="btn" value="cancelar">Cancelar</button>
+      <button class="btn pri" value="guardar">Guardar</button></div>
+  </form>`;
+  const form = modal.querySelector("form");
+  const guardar = form.querySelector('[value="guardar"]');
+  const error = form.querySelector(".seg-error");
+  form.addEventListener("submit", async e => {
+    if (e.submitter?.value === "cancelar") return;
+    e.preventDefault();
+    const bandera = form.elements.banderaSeguimiento.value;
+    if (!bandera || bandera === actual) { modal.close(); return; }
     if (guardar.disabled) return;
     guardar.disabled = true;
+    error.hidden = true;
     const r = await tarea(() => api("SEG_RELEVANCIA", {
       segId: id, bandera, relevante: bandera === "DIFICULTAD", vista: S.modo
     }));
     guardar.disabled = false;
-    if (!r || S.det !== detalle) return;
-    registro.relevante = bandera === "DIFICULTAD";
-    if (admiteAtencion) registro.bandera = r.bandera || bandera;
-    if (guardar.isConnected) cerrarDialogo();
-    pintarSegTabla();
-    $("#segTabla")?.querySelector(`[data-segrel="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
+    if (!r) {
+      error.textContent = "No se pudo guardar la bandera. Inténtalo de nuevo.";
+      error.hidden = false;
+      return;
+    }
+    if (S.det === detalle) {
+      registro.relevante = bandera === "DIFICULTAD";
+      if (admiteAtencion) registro.bandera = r.bandera || bandera;
+      if (boton.isConnected && boton.closest(".req-seg")) boton.outerHTML = controlBandera(registro);
+      pintarSegTabla();
+    }
+    modal.close();
+    document.querySelector(`[data-segrel="${CSS.escape(id)}"]:is(.req-seg *, #segTabla *)`)?.focus({ preventScroll: true });
   });
+  modal.addEventListener("close", () => modal.remove(), { once: true });
+  document.body.append(modal);
+  modal.showModal();
 }
 
 function dlgEstado(id, estado) {
@@ -1386,7 +1409,7 @@ document.addEventListener("click", e => {
   if (fila && !e.target.closest("button, select, input, label, a")) { dlgDetalleReq(fila.dataset.rq); return; }
   if (e.target.closest("[data-rcols]")) { const r = $("#rcols"); if (r) r.hidden = !r.hidden; return; }
   const sr = e.target.closest("[data-segrel]");
-  if (sr) { dlgBandera(sr.dataset.segrel); return; }
+  if (sr) { dlgBandera(sr); return; }
   if (e.target.closest("[data-segx]")) { S.segQ = ""; const q = $("#segQ"); if (q) { q.value = ""; q.focus(); } const x = document.querySelector("[data-segx]"); if (x) x.hidden = true; pintarSegTabla(); return; }
   if (e.target.closest("[data-scols]")) { const r = $("#scols"); if (r) r.hidden = !r.hidden; return; }
   const sx = e.target.closest("[data-sexp]"); if (sx) { exportarSeg(sx.dataset.sexp); return; }

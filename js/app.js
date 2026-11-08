@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.4
+// SCaD Gestión · App · v0.13.5
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.4";
+export const VERSION = "GESTION_APP v0.13.5";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -71,7 +71,7 @@ const isoDia = v => { if (!v) return ""; const d = new Date(v); if (isNaN(d)) re
 const pesos = v => (v === null || v === undefined) ? "—" : "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const tamano = b => b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
 
-const S = { indMin: false, segQ: "", segBandera: "", segCols: ["bandera", "fecha", "autor", "tipo", "ref", "nota"], ctx: null, modo: null, proyectos: [], estatus: "TODOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "" }, reqCols: ["folio", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
+const S = { indMin: false, segQ: "", segBandera: "", segCols: ["bandera", "fecha", "autor", "tipo", "ref", "nota"], ctx: null, modo: null, proyectos: [], estatus: "TODOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "", bandera: "" }, reqCols: ["folio", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo", "bandera"], reqSel: null };
 
 const ins = id => (S.ctx?.instancias || []).find(i => i.id === id) || null;
 const insEtq = id => { const i = ins(id); return i ? (i.siglas || i.nombre) : ""; };
@@ -621,11 +621,24 @@ const COLS_REQ = [
   { id: "compromiso", t: "Compromiso", v: x => fecha(x.fechaCompromiso) },
   { id: "estado", t: "Estado", v: x => (ESTADOS[x.estado] || { t: x.estado }).t },
   { id: "semaforo", t: "Plazo", v: x => x.semaforo === "VENCIDO" ? "Vencido" : x.semaforo === "POR_VENCER" ? "Por vencer" : "En tiempo" },
+  { id: "bandera", t: "Bandera", v: (x, i, bandera) => SEG_BANDERAS[bandera].nombre },
   { id: "obs", t: "Obs.", v: x => String(x.observaciones || 0), n: true },
   { id: "actualiza", t: "Última actualización", v: x => fechaHora(x.ultimaActualizacion) }
 ];
 
-function reqFiltrados(items) {
+function banderasReq() {
+  const banderas = new Map();
+  for (const anotacion of S.det.seguimiento || []) {
+    if (!anotacion.referenciaId) continue;
+    const bandera = banderaSeg(anotacion);
+    if (bandera === "DIFICULTAD" || (bandera === "ATENCION" && !banderas.has(anotacion.referenciaId))) {
+      banderas.set(anotacion.referenciaId, bandera);
+    }
+  }
+  return banderas;
+}
+
+function reqFiltrados(items, banderas) {
   const q = norm(S.reqQ || "").trim();
   const f = S.reqF || {};
   return items.filter(x => {
@@ -636,7 +649,9 @@ function reqFiltrados(items) {
     if (f.inst && x.instanciaId !== f.inst) return false;
     if (f.cat && String(x.categoria || "") !== f.cat) return false;
     if (f.venc && x.semaforo !== f.venc) return false;
-    if (q && !norm(COLS_REQ.map(c => c.v(x, 0)).join(" ")).includes(q)) return false;
+    const bandera = banderas.get(x.id) || "NORMAL";
+    if (f.bandera && bandera !== f.bandera) return false;
+    if (q && !norm(COLS_REQ.map(c => c.v(x, 0, bandera)).join(" ")).includes(q)) return false;
     return true;
   });
 }
@@ -647,27 +662,33 @@ const textoFiltroReq = () => {
   if (f.inst) p.push(`Instancia: ${insEtq(f.inst)}`);
   if (f.cat) p.push(`Categoría ${f.cat}`);
   if (f.venc) p.push(f.venc === "VENCIDO" ? "Vencidos" : "Por vencer");
+  if (f.bandera) p.push(`Bandera: ${SEG_BANDERAS[f.bandera].nombre}`);
   return p.join(" · ");
 };
 
 function tablaReq() {
   const items = S.det.checklist;
-  const lista = reqFiltrados(items);
+  const banderas = banderasReq();
+  const lista = reqFiltrados(items, banderas);
   const cols = COLS_REQ.filter(c => S.reqCols.includes(c.id));
   if (!lista.length) return `<div class="empty">Nada con este filtro.</div>`;
-  const clasesCelda = (c, x) => [
+  const clasesCelda = (c, x, bandera) => [
     c.n ? "num" : "",
     c.id === "folio" ? "t-folio" : "",
     c.id === "etiqueta" ? "t-req" : "",
     ["compromiso", "actualiza", "folio", "categoria", "obs"].includes(c.id) ? "t-nw" : "",
     c.id === "semaforo" && x.semaforo === "VENCIDO" ? "t-bad" : "",
-    c.id === "semaforo" && x.semaforo === "POR_VENCER" ? "t-amber" : ""
+    c.id === "semaforo" && x.semaforo === "POR_VENCER" ? "t-amber" : "",
+    c.id === "bandera" ? ({ DIFICULTAD: "t-bad", ATENCION: "t-amber", NORMAL: "muted" })[bandera] : ""
   ].filter(Boolean).join(" ");
-  const filas = lista.map((x, i) => `<tr data-rq="${esc(x.id)}" class="${x.semaforo === "VENCIDO" ? "vencido" : ""}${S.reqSel === x.id ? " sel" : ""}">
+  const filas = lista.map((x, i) => {
+    const bandera = banderas.get(x.id) || "NORMAL";
+    return `<tr data-rq="${esc(x.id)}" class="${x.semaforo === "VENCIDO" ? "vencido" : ""}${S.reqSel === x.id ? " sel" : ""}">
     ${cols.map(c => c.id === "estado"
       ? `<td class="t-nw"><span class="chip ${(ESTADOS[x.estado] || {}).c || ""}">${esc(c.v(x, i))}</span></td>`
-      : `<td class="${clasesCelda(c, x)}">${esc(c.v(x, i))}</td>`).join("")}
-  </tr>`).join("");
+      : `<td class="${clasesCelda(c, x, bandera)}">${esc(c.v(x, i, bandera))}</td>`).join("")}
+  </tr>`;
+  }).join("");
   return `<div class="rtable"><table><thead><tr>${cols.map(c => `<th class="${c.n ? "num" : ""}${c.id === "folio" ? " t-folio" : ""}">${esc(c.t)}</th>`).join("")}</tr></thead><tbody>${filas}</tbody></table></div>
     <p class="rt-pie">${lista.length} de ${items.length} requerimientos · clic en una fila para ver el detalle y las acciones</p>`;
 }
@@ -698,6 +719,7 @@ function vistaChecklist() {
         <select data-rf="estado" class="rt-sel" aria-label="Estado"><option value="">Todos los estados</option>${Object.entries(ESTADOS).map(([k, v]) => `<option value="${k}" ${f.estado === k ? "selected" : ""}>${esc(v.t)}</option>`).join("")}</select>
         <select data-rf="inst" class="rt-sel" aria-label="Instancia"><option value="">Todas las instancias</option>${instancias.map(id => `<option value="${esc(id)}" ${f.inst === id ? "selected" : ""}>${esc(insEtq(id))}</option>`).join("")}</select>
         <select data-rf="cat" class="rt-sel" aria-label="Categoría"><option value="">Todas las categorías</option>${[1, 2, 3].map(n => `<option value="${n}" ${f.cat === String(n) ? "selected" : ""}>Categoría ${n}</option>`).join("")}</select>
+        <select data-rf="bandera" class="rt-sel" aria-label="Bandera"><option value="">Todas las banderas</option>${Object.entries(SEG_BANDERAS).map(([k, b]) => `<option value="${k}" ${f.bandera === k ? "selected" : ""}>${b.nombre}</option>`).join("")}</select>
         <select data-rf="venc" class="rt-sel" aria-label="Plazo"><option value="">Cualquier plazo</option><option value="VENCIDO" ${f.venc === "VENCIDO" ? "selected" : ""}>Vencidos</option><option value="POR_VENCER" ${f.venc === "POR_VENCER" ? "selected" : ""}>Por vencer</option></select>
       </div>
       <div class="rt-acc">
@@ -796,8 +818,12 @@ function descargarArchivo(blob, nombre) {
 const hoyYmd = () => { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`; };
 function matrizReq() {
   const cols = COLS_REQ.filter(c => S.reqCols.includes(c.id));
-  const lista = reqFiltrados(S.det.checklist);
-  return { cols, headers: cols.map(c => c.t), rows: lista.map((x, i) => cols.map(c => String(c.v(x, i)))) };
+  const banderas = banderasReq();
+  const lista = reqFiltrados(S.det.checklist, banderas);
+  return { cols, headers: cols.map(c => c.t), rows: lista.map((x, i) => {
+    const bandera = banderas.get(x.id) || "NORMAL";
+    return cols.map(c => String(c.v(x, i, bandera)));
+  }) };
 }
 async function cargarJsPdfApp() {
   if (window.jspdf?.jsPDF?.API?.autoTable) return window.jspdf.jsPDF;
@@ -1236,6 +1262,7 @@ function dlgBandera(boton) {
       if (admiteAtencion) registro.bandera = r.bandera || bandera;
       if (boton.isConnected && boton.closest(".req-seg")) boton.outerHTML = controlBandera(registro);
       pintarSegTabla();
+      pintarReqTabla();
     }
     modal.close();
     document.querySelector(`[data-segrel="${CSS.escape(id)}"]:is(.req-seg *, #segTabla *)`)?.focus({ preventScroll: true });

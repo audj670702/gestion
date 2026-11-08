@@ -539,7 +539,13 @@ button.hito-marca:disabled{opacity:.65;cursor:wait}
 .seg-flag-icon{display:grid;place-items:center;width:22px;height:22px;border-radius:50%}
 button.seg-flag{cursor:pointer}
 button.seg-flag:hover,button.seg-flag:focus-visible{background:var(--bg)}
-.seg-filtro{min-height:38px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--card);color:var(--ink);font:inherit}
+.seg-filtro{position:relative}
+.seg-filtro summary{display:flex;align-items:center;gap:6px;min-height:38px;padding:0 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);cursor:pointer;list-style:none}
+.seg-filtro summary::-webkit-details-marker{display:none}
+.seg-filtro summary::after{content:"";width:6px;height:6px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);margin:0 3px 4px 0}
+.seg-filtro-opciones{position:absolute;z-index:3;top:calc(100% + 4px);left:0;min-width:100%;padding:4px;border:1px solid var(--line);border-radius:8px;background:var(--card);box-shadow:0 6px 18px #15253d26}
+.seg-filtro-opciones button{display:block;width:100%;padding:0 4px;border:0;border-radius:5px;background:transparent;text-align:left;font:inherit;cursor:pointer}
+.seg-filtro-opciones button:hover,.seg-filtro-opciones button[aria-pressed="true"]{background:var(--bg)}
 .seg-opciones{display:grid;gap:8px;border:0;padding:4px 0;margin:12px 0}
 .seg-opciones legend{color:var(--muted);font-size:13px}
 .seg-opcion{display:flex;gap:10px;align-items:center;min-height:42px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;color:var(--bandera)}

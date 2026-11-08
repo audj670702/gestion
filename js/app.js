@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.11
+// SCaD Gestión · App · v0.13.12
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.11";
+export const VERSION = "GESTION_APP v0.13.12";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -953,14 +953,24 @@ function tablaSeg() {
     <p class="rt-pie">${lista.length} de ${h.length} anotaciones</p>`;
 }
 function pintarSegTabla() { const el = $("#segTabla"); if (el) el.innerHTML = tablaSeg(); }
+function etiquetaFiltroBandera(clave) {
+  const bandera = SEG_BANDERAS[clave];
+  return bandera
+    ? `<span class="seg-flag ${bandera.clase}">${iconoBandera}<span>${bandera.nombre}</span></span>`
+    : `<span class="seg-flag normal">${iconoBandera}<span>Todas las banderas</span></span>`;
+}
+
 function barraSeg() {
   const cols = SEG_COLS.map(c => `<label class="check"><input type="checkbox" data-scol="${c.id}" ${S.segCols.includes(c.id) ? "checked" : ""}> ${esc(c.t)}</label>`).join("");
   return `<div class="rt-bar">
       <label class="rt-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 14l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input type="search" id="segQ" placeholder="Buscar en el seguimiento" value="${esc(S.segQ || "")}"><button type="button" data-segx aria-label="Limpiar búsqueda" title="Limpiar" ${S.segQ ? "" : "hidden"} style="flex:0 0 auto;width:22px;height:22px;padding:0;border:0;border-radius:50%;background:#eef2f7;color:#5b6b80;font-size:15px;line-height:22px;cursor:pointer">×</button></label>
-      <select id="segBandera" class="seg-filtro" aria-label="Filtrar por bandera">
-        <option value="">Todas las banderas</option>
-        ${Object.entries(SEG_BANDERAS).map(([clave, b]) => `<option value="${clave}" ${S.segBandera === clave ? "selected" : ""}>${b.nombre}</option>`).join("")}
-      </select>
+      <details id="segBandera" class="seg-filtro">
+        <summary><span class="seg-filtro-valor">${etiquetaFiltroBandera(S.segBandera)}</span></summary>
+        <div class="seg-filtro-opciones" role="group" aria-label="Filtrar por bandera">
+          ${["", ...Object.keys(SEG_BANDERAS)].map(clave => `<button type="button" data-seg-filtro="${clave}"
+            aria-pressed="${S.segBandera === clave}">${etiquetaFiltroBandera(clave)}</button>`).join("")}
+        </div>
+      </details>
       <div class="rt-acc">
         <button class="rt-btn" data-scols>Columnas</button>
         <button class="rt-btn" data-sexp="xls">Excel</button>
@@ -1505,6 +1515,18 @@ document.addEventListener("click", e => {
   const fila = e.target.closest("tr[data-rq]");
   if (fila && !e.target.closest("button, select, input, label, a")) { dlgDetalleReq(fila.dataset.rq); return; }
   if (e.target.closest("[data-rcols]")) { const r = $("#rcols"); if (r) r.hidden = !r.hidden; return; }
+  const filtroBandera = $("#segBandera");
+  if (filtroBandera?.open && !filtroBandera.contains(e.target)) filtroBandera.open = false;
+  const opcionBandera = e.target.closest("[data-seg-filtro]");
+  if (opcionBandera && filtroBandera) {
+    S.segBandera = opcionBandera.dataset.segFiltro;
+    filtroBandera.querySelector(".seg-filtro-valor").innerHTML = etiquetaFiltroBandera(S.segBandera);
+    filtroBandera.querySelectorAll("[data-seg-filtro]").forEach(b => b.setAttribute("aria-pressed", String(b === opcionBandera)));
+    filtroBandera.open = false;
+    filtroBandera.querySelector("summary").focus();
+    pintarSegTabla();
+    return;
+  }
   const sr = e.target.closest("[data-segrel]");
   if (sr) { dlgBandera(sr); return; }
   const verNota = e.target.closest("[data-ver-anotacion]");
@@ -1587,7 +1609,6 @@ document.addEventListener("click", e => {
   }
 });
 document.addEventListener("change", e => {
-  if (e.target.id === "segBandera") { S.segBandera = e.target.value; pintarSegTabla(); return; }
   if (e.target.dataset && e.target.dataset.scol) {
     const on = new Set(S.segCols), id = e.target.dataset.scol;
     e.target.checked ? on.add(id) : on.delete(id);
@@ -1614,7 +1635,17 @@ document.addEventListener("input", e => {
   if (e.target.id === "segQ") { S.segQ = e.target.value; const x = document.querySelector("[data-segx]"); if (x) x.hidden = !S.segQ; pintarSegTabla(); }
   if (e.target.id === "fBuscar") { S.q = e.target.value; pintarTarjetas(); }
 });
-document.addEventListener("keydown", e => { if (e.key === "Escape") cerrarMenu(true); });
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  const filtro = e.target.closest?.("#segBandera[open]");
+  if (filtro) {
+    e.preventDefault();
+    filtro.open = false;
+    filtro.querySelector("summary").focus();
+    return;
+  }
+  cerrarMenu(true);
+});
 $("#dlg").addEventListener("close", () => { alEnviar = null; $("#dlgBody video")?.pause(); });
 
 if ("serviceWorker" in navigator) {

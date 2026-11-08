@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.6
+// SCaD Gestión · App · v0.13.7
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.6";
+export const VERSION = "GESTION_APP v0.13.7";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -71,7 +71,7 @@ const isoDia = v => { if (!v) return ""; const d = new Date(v); if (isNaN(d)) re
 const pesos = v => (v === null || v === undefined) ? "—" : "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const tamano = b => b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
 
-const S = { indMin: false, segQ: "", segBandera: "", segCols: ["bandera", "fecha", "autor", "tipo", "ref", "nota"], ctx: null, modo: null, proyectos: [], estatus: "TODOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "", bandera: "" }, reqCols: ["folio", "bandera", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
+const S = { indMin: false, segQ: "", segBandera: "", segCols: ["bandera", "fecha", "autor", "ref", "nota"], ctx: null, modo: null, proyectos: [], estatus: "TODOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "", bandera: "" }, reqCols: ["folio", "bandera", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
 
 const ins = id => (S.ctx?.instancias || []).find(i => i.id === id) || null;
 const insEtq = id => { const i = ins(id); return i ? (i.siglas || i.nombre) : ""; };
@@ -628,7 +628,7 @@ const COLS_REQ = [
 
 function banderasReq() {
   const banderas = new Map();
-  for (const anotacion of S.det.seguimiento || []) {
+  for (const anotacion of anotacionesSeg()) {
     if (!anotacion.referenciaId) continue;
     const bandera = banderaSeg(anotacion);
     if (bandera === "DIFICULTAD" || (bandera === "ATENCION" && !banderas.has(anotacion.referenciaId))) {
@@ -741,7 +741,7 @@ function detalleReqHTML(x) {
   const i = S.det.checklist.indexOf(x);
   const folio = folioRegistro(x.folio, i);
   const plazo = x.semaforo === "VENCIDO" ? "Vencido" : x.semaforo === "POR_VENCER" ? "Por vencer" : "En tiempo";
-  const seg = (S.det.seguimiento || []).filter(s => s.referenciaId === x.id);
+  const seg = anotacionesSeg().filter(s => s.referenciaId === x.id);
   const acciones = editable() ? `<div class="req-acc">
       ${trans.map(t => `<button class="btn sm ${ACCION[t]?.c || ""}" data-estado="${t}" data-req="${esc(x.id)}">${esc(ACCION[t]?.t || t)}</button>`).join("")}
       <button class="btn sm ${x.esperaDocumento ? "" : "ghost"}" data-espera="${x.esperaDocumento ? "0" : "1"}" data-req="${esc(x.id)}">${x.esperaDocumento ? "Quitar espera de documento" : "Espera documento"}</button>
@@ -752,7 +752,7 @@ function detalleReqHTML(x) {
       <div class="req-nota-pie"><label class="check"><input type="checkbox" id="rqVis"> ${esc(etiquetaVisible(x.id))}</label>
       <button class="btn sm pri" data-regnota="${esc(x.id)}">Registrar</button></div>
     </div>` : "";
-  const hist = seg.map(s => `<li><div class="row wrap req-seg-meta"><span class="muted xs">${fechaHora(s.fechaRegistro)} · ${esc(s.autorNombre)}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}${s.registradoEnNombreDe ? ` · en nombre de ${esc(s.registradoEnNombreDe)}` : ""}</span>${s.estadoNuevo ? ` <span class="chip ${(ESTADOS[s.estadoNuevo] || {}).c || "info"}">${esc((ESTADOS[s.estadoNuevo] || {}).t || ESTATUS[s.estadoNuevo] || s.estadoNuevo)}</span>` : ""}${controlBandera(s)}</div><p>${esc(s.nota)}</p></li>`).join("");
+  const hist = seg.map(s => `<li><div class="row wrap req-seg-meta"><span class="muted xs">${fechaHora(s.fechaRegistro)} · ${esc(s.autorNombre)}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}${s.registradoEnNombreDe ? ` · en nombre de ${esc(s.registradoEnNombreDe)}` : ""}</span>${controlBandera(s)}</div><p>${esc(s.nota)}</p></li>`).join("");
   return `<header class="req-top">
       <span class="req-top-meta">${esc(folio)} · ${esc(insEtq(x.instanciaId) || "Sin instancia")}${x.categoria ? ` · Cat. ${x.categoria}` : ""}</span>
       <h3>${esc(x.etiqueta)}</h3>
@@ -869,7 +869,35 @@ async function exportarReq(tipo) {
   } catch (e) { aviso(e.message || "No fue posible generar el PDF.", "bad"); }
 }
 
-const SEG_TIPO = { PROYECTO_ESTATUS: 'Estatus del proyecto', HITO_ALTA: 'Alta de hito', HITO_EDICION: 'Edición de hito', HITO_BAJA: 'Retiro de hito', HITO_ORDEN: 'Orden de hitos', HITO_MARCA: 'Cumplimiento de hito', HITO_PERMISO: 'Permiso de hitos', ANOTACION: "Anotación", CAMBIO_ESTADO: "Cambio de estado", ACTIVIDAD_CUMPLIDA: "Actividad cumplida", RESULTADO_OTORGANTE: "Resultado" };
+const MOVIMIENTOS_PROYECTO = {
+  PROYECTO_ESTATUS: "Estatus del proyecto actualizado",
+  HITO_ALTA: "Hito agregado",
+  HITO_EDICION: "Hito editado",
+  HITO_BAJA: "Hito retirado",
+  HITO_ORDEN: "Hitos reordenados",
+  HITO_PERMISO: "Permiso de hitos actualizado",
+  CAMBIO_ESTADO: "Cambio de estado",
+  ACTIVIDAD_CUMPLIDA: "Actividad cumplida",
+  RESULTADO_OTORGANTE: "Resultado de instancia actualizado"
+};
+const tituloMovimiento = s => s.tipo === "HITO_MARCA"
+  ? (s.estadoNuevo === "CUMPLIDO" ? "Hito marcado como cumplido" : "Hito desmarcado")
+  : (MOVIMIENTOS_PROYECTO[s.tipo] || "Actualización registrada");
+
+// Algunos movimientos anteriores se guardaron con el mismo tipo que las notas libres.
+function esAnotacionSeg(s) {
+  const nota = s.nota || "";
+  if (s.tipo === "ACTIVIDAD_CUMPLIDA") return !!nota && nota !== `Actividad cumplida: ${s.actividadEtiqueta}.`;
+  if (s.tipo !== "ANOTACION") return false;
+  if (s.referenciaEtiqueta && nota.startsWith(`${s.referenciaEtiqueta}: se actualizó `)) return false;
+  return !/^(?:Valor del proyecto: .* → |Fecha compromiso del expediente: .* → |Instancias otorgantes: (?:se agrega |se retira |aportación de )|Responsable reasignado de .* a |Requerimiento quitado de la parrilla: |Requerimiento extraordinario agregado por el responsable: |Actividad convertida en requerida: )/.test(nota);
+}
+const anotacionesSeg = () => (S.det.seguimiento || []).filter(esAnotacionSeg);
+const autorSeg = s => [
+  (s.autorNombre || "—") + (s.autorTipo === "CLIENTE" ? " (instancia)" : ""),
+  s.registradoEnNombreDe && `en nombre de ${s.registradoEnNombreDe}`
+].filter(Boolean).join(" · ");
+
 const SEG_BANDERAS = {
   NORMAL: { nombre: "Normal", clase: "normal" },
   ATENCION: { nombre: "Atención", clase: "atencion" },
@@ -880,8 +908,7 @@ const iconoBandera = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidde
 const SEG_COLS = [
   { id: "bandera", t: "Bandera", v: s => SEG_BANDERAS[banderaSeg(s)].nombre },
   { id: "fecha", t: "Fecha", v: s => fechaHora(s.fechaRegistro) },
-  { id: "autor", t: "Autor", v: s => `${s.autorNombre || ""}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}` },
-  { id: "tipo", t: "Tipo", v: s => s.tipo === "CAMBIO_ESTADO" && s.estadoNuevo ? `Cambio de estado: ${(ESTADOS[s.estadoNuevo] || {}).t || ESTATUS[s.estadoNuevo] || s.estadoNuevo}` : (SEG_TIPO[s.tipo] || s.tipo || "") },
+  { id: "autor", t: "Autor", v: autorSeg },
   { id: "ref", t: "Referencia", v: s => s.referenciaEtiqueta || "Proyecto en general" },
   { id: "actividad", t: "Actividad", v: s => s.actividadEtiqueta || "" },
   { id: "visible", t: "Visible para instancia", v: s => s.visibleCliente ? "Sí" : "No" },
@@ -901,14 +928,16 @@ function controlBandera(registro) {
     : `<span class="seg-flag ${clase}">${contenido}</span>`;
 }
 function tablaSeg() {
-  const h = S.det.seguimiento || [];
+  const h = anotacionesSeg();
   if (!h.length) return `<div class="empty">Sin anotaciones.</div>`;
   const lista = segFiltrados(h);
   if (!lista.length) return `<div class="empty">Ninguna anotación coincide con los filtros.</div>`;
   const cols = SEG_COLS.filter(c => S.segCols.includes(c.id));
-  const filas = lista.map((s, i) => `<tr><td style="width:40px;text-align:center;color:#9aa6b6;font-size:11px;font-variant-numeric:tabular-nums">${i + 1}</td>
-    ${cols.map(c => `<td class="${c.id === "fecha" ? "t-nw" : ""}${c.id === "nota" ? " t-req" : ""}">${c.id === "bandera" ? controlBandera(s) : esc(c.v(s))}</td>`).join("")}</tr>`).join("");
-  return `<div class="rtable"><table><thead><tr><th style="width:40px;text-align:center;color:#9aa6b6;font-weight:400;font-size:11px">No.</th>${cols.map(c => `<th>${esc(c.t)}</th>`).join("")}</tr></thead><tbody>${filas}</tbody></table></div>
+  const filas = lista.map((s, i) => `<tr data-segdetalle="${esc(s.id)}"><td class="num">${i + 1}</td>
+    ${cols.map(c => `<td class="${c.id === "fecha" ? "t-nw" : ""}${c.id === "nota" ? " t-req" : ""}">${c.id === "bandera" ? controlBandera(s)
+      : c.id === "nota" ? `<span class="seg-resumen">${esc(c.v(s))}</span>` : esc(c.v(s))}</td>`).join("")}
+    <td><button type="button" class="btn sm t-nw" data-ver-anotacion="${esc(s.id)}" aria-haspopup="dialog">Ver detalle</button></td></tr>`).join("");
+  return `<div class="rtable"><table><thead><tr><th class="num">No.</th>${cols.map(c => `<th>${esc(c.t)}</th>`).join("")}<th>Detalle</th></tr></thead><tbody>${filas}</tbody></table></div>
     <p class="rt-pie">${lista.length} de ${h.length} anotaciones</p>`;
 }
 function pintarSegTabla() { const el = $("#segTabla"); if (el) el.innerHTML = tablaSeg(); }
@@ -929,7 +958,7 @@ function barraSeg() {
     <div class="rcols" id="scols" hidden>${cols}</div>`;
 }
 function matrizSeg() {
-  const lista = segFiltrados(S.det.seguimiento || []);
+  const lista = segFiltrados(anotacionesSeg());
   const cols = SEG_COLS.filter(c => S.segCols.includes(c.id));
   return { cols, headers: ["No.", ...cols.map(c => c.t)], rows: lista.map((s, i) => [String(i + 1), ...cols.map(c => String(c.v(s)))]) };
 }
@@ -974,7 +1003,6 @@ async function exportarSeg(tipo) {
 
 function vistaSeguimiento() {
   const p = S.det.proyecto;
-  const h = S.det.seguimiento;
   const abierto = puedeAnotar();
   return `${abierto ? `<div class="card compose">
       <textarea id="segNota" rows="3" placeholder="Escribe una anotación del proyecto: gestiones, acuerdos, llamadas…"></textarea>
@@ -1034,6 +1062,19 @@ function vistaHitos() {
   </section>`;
 }
 
+function historialProyecto() {
+  const movimientos = (S.det.seguimiento || []).filter(s => !esAnotacionSeg(s));
+  if (!movimientos.length) return "";
+  return `<details class="card historial-proyecto">
+    <summary>Historial del proyecto (${movimientos.length})</summary>
+    <ul class="pro-hist">${movimientos.map(s => `<li>
+      <b>${esc(tituloMovimiento(s))}</b>
+      <div class="muted xs">${esc(fechaHora(s.fechaRegistro))} · ${esc(autorSeg(s))}${s.referenciaEtiqueta ? ` · ${esc(s.referenciaEtiqueta)}` : ""}</div>
+      ${s.nota ? `<p class="seg-texto">${esc(s.nota)}</p>` : ""}
+    </li>`).join("")}</ul>
+  </details>`;
+}
+
 function vistaFicha() {
   const p = S.det.proyecto;
   const otorgantes = (p.otorgantes && p.otorgantes.length) ? p.otorgantes : (p.instanciaOtorganteId ? [{ instanciaId: p.instanciaOtorganteId, aportacion: null, resultado: "PENDIENTE" }] : []);
@@ -1062,7 +1103,7 @@ function vistaFicha() {
     <h3 class="sub-h">${otorgantes.length > 1 ? "Instancias otorgantes" : "Instancia otorgante"}</h3>
     <div class="otgs">${otorgantes.map(bloqueOtorgante).join("") || `<p class="muted sm">Sin instancia otorgante.</p>`}</div>
     <p class="muted xs">Los datos del proyecto, su estatus y el resultado de cada otorgante los registra el ADM en el panel de SCaD Gestión.</p>
-  </div>`;
+  </div>${historialProyecto()}`;
 }
 
 // ── Actividades: requeridas (ADM) y propias (colaborador) ────
@@ -1213,6 +1254,23 @@ async function trasCambio(r) {
   await abrirProyecto(S.det.proyecto.id, { silencioso: true });
 }
 
+function dlgDetalleSeg(id) {
+  const nota = anotacionesSeg().find(s => s.id === id);
+  if (!nota) return;
+  dialogo(`<section class="seg-detalle">
+    <h3>Detalle de la anotación</h3>
+    <dl class="kv">
+      <dt>Fecha y hora</dt><dd>${esc(fechaHora(nota.fechaRegistro))}</dd>
+      <dt>Autor</dt><dd>${esc(autorSeg(nota))}</dd>
+      <dt>Referencia</dt><dd>${esc(nota.referenciaEtiqueta || "Proyecto en general")}</dd>
+      ${nota.actividadEtiqueta ? `<dt>Actividad</dt><dd>${esc(nota.actividadEtiqueta)}</dd>` : ""}
+      <dt>Visible para instancia</dt><dd>${nota.visibleCliente ? "Sí" : "No"}</dd>
+      <dt>Bandera</dt><dd>${controlBandera(nota)}</dd>
+    </dl>
+    <h4>Anotación</h4><p class="seg-texto">${esc(nota.nota || "—")}</p>
+  </section>`, null, { textoCerrar: "Cerrar" });
+}
+
 function dlgBandera(boton) {
   const detalle = S.det;
   if (!detalle || !(detalle.puedeMarcarBanderas ?? puedeAnotar())) return;
@@ -1260,12 +1318,12 @@ function dlgBandera(boton) {
     if (S.det === detalle) {
       registro.relevante = bandera === "DIFICULTAD";
       if (admiteAtencion) registro.bandera = r.bandera || bandera;
-      if (boton.isConnected && boton.closest(".req-seg")) boton.outerHTML = controlBandera(registro);
+      if (boton.isConnected && boton.closest(".req-seg, .seg-detalle")) boton.outerHTML = controlBandera(registro);
       pintarSegTabla();
       pintarReqTabla();
     }
     modal.close();
-    document.querySelector(`[data-segrel="${CSS.escape(id)}"]:is(.req-seg *, #segTabla *)`)?.focus({ preventScroll: true });
+    document.querySelector(`[data-segrel="${CSS.escape(id)}"]:is(.req-seg *, .seg-detalle *, #segTabla *)`)?.focus({ preventScroll: true });
   });
   modal.addEventListener("close", () => modal.remove(), { once: true });
   document.body.append(modal);
@@ -1437,6 +1495,10 @@ document.addEventListener("click", e => {
   if (e.target.closest("[data-rcols]")) { const r = $("#rcols"); if (r) r.hidden = !r.hidden; return; }
   const sr = e.target.closest("[data-segrel]");
   if (sr) { dlgBandera(sr); return; }
+  const verNota = e.target.closest("[data-ver-anotacion]");
+  if (verNota) { dlgDetalleSeg(verNota.dataset.verAnotacion); return; }
+  const filaNota = e.target.closest("tr[data-segdetalle]");
+  if (filaNota && !e.target.closest("button, a")) { dlgDetalleSeg(filaNota.dataset.segdetalle); return; }
   if (e.target.closest("[data-segx]")) { S.segQ = ""; const q = $("#segQ"); if (q) { q.value = ""; q.focus(); } const x = document.querySelector("[data-segx]"); if (x) x.hidden = true; pintarSegTabla(); return; }
   if (e.target.closest("[data-scols]")) { const r = $("#scols"); if (r) r.hidden = !r.hidden; return; }
   const sx = e.target.closest("[data-sexp]"); if (sx) { exportarSeg(sx.dataset.sexp); return; }

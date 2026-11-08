@@ -547,3 +547,11 @@ button.seg-flag:hover,button.seg-flag:focus-visible{background:var(--bg)}
 .seg-dialogo h3{font-size:18px}
 .seg-error{margin:0;color:var(--bad);font-size:13px}
 .req-seg-meta{gap:6px}
+
+.seg-resumen{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+.seg-detalle .kv{grid-template-columns:minmax(100px, 1fr) minmax(0, 2fr);align-items:center}
+.seg-detalle .kv dd{overflow-wrap:anywhere}
+.seg-detalle h4{margin:14px 0 6px}
+.seg-texto{white-space:pre-wrap;overflow-wrap:anywhere}
+.historial-proyecto{margin-top:12px}
+.historial-proyecto summary{cursor:pointer;font-weight:600}

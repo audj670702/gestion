@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.8
+// SCaD Gestión · App · v0.13.9
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.8";
+export const VERSION = "GESTION_APP v0.13.9";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -71,7 +71,7 @@ const isoDia = v => { if (!v) return ""; const d = new Date(v); if (isNaN(d)) re
 const pesos = v => (v === null || v === undefined) ? "—" : "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const tamano = b => b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
 
-const S = { indMin: false, segQ: "", segBandera: "", segCols: ["bandera", "fecha", "autor", "ref", "nota"], ctx: null, modo: null, proyectos: [], estatus: "TODOS", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "", bandera: "" }, reqCols: ["folio", "bandera", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
+const S = { indMin: false, segQ: "", segBandera: "", segCols: ["bandera", "fecha", "autor", "ref", "nota"], ctx: null, modo: null, proyectos: [], estatus: "TODOS", resumen: "proyectos", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "", bandera: "" }, reqCols: ["folio", "bandera", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
 
 const ins = id => (S.ctx?.instancias || []).find(i => i.id === id) || null;
 const insEtq = id => { const i = ins(id); return i ? (i.siglas || i.nombre) : ""; };
@@ -82,7 +82,7 @@ const norm = v => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "
 // ── Vistas (modo) ────────────────────────────────────────────
 const MODOS = {
   DIRECCION: { t: "Dirección", band: "MODO DIRECCIÓN", lista: "Proyectos", sub: "Cartera de proyectos de la EO." },
-  OPERACION: { t: "Operación", band: "MODO OPERACIÓN", lista: "Mis proyectos", sub: "Proyectos de los que eres responsable." },
+  OPERACION: { t: "Operación", band: "MODO OPERACIÓN", lista: "Mis proyectos" },
   INSTANCIA: { t: "Instancia", band: "MODO INSTANCIA", lista: "Proyectos", sub: "Proyectos en los que participa tu instancia." }
 };
 const usr = () => S.ctx?.usuario || {};
@@ -116,7 +116,7 @@ async function cambiarModo(m) {
   S.modo = m;
   pintarTarjetaIdentidad();
   try { localStorage.setItem(claveModo(), m); } catch (_) { /* sin almacenamiento */ }
-  Object.assign(S, { estatus: "TODOS", q: "", tipo: "", det: null });
+  Object.assign(S, { estatus: "TODOS", resumen: "proyectos", q: "", tipo: "", det: null });
   pintarModo();
   history.replaceState({}, "", "#/inicio");
   marcarSeccion("");
@@ -402,6 +402,7 @@ function pintarBienvenida() {
 
 // ── Lista de proyectos (según la vista) ──────────────────────
 const enEstatus = p => S.estatus === "TODOS" || (p.estatus || "SIN_ASIGNAR") === S.estatus;
+const enResumen = p => S.resumen === "proyectos" || p.checklist?.[S.resumen] > 0;
 const responsable = p => p.responsableNombre || p.responsable?.nombre || "";
 const otorgantesDe = p => (p.otorgantes?.length ? p.otorgantes.map(o => o.instanciaId) : [p.instanciaOtorganteId]).filter(Boolean);
 function coincide(p) {
@@ -417,25 +418,31 @@ function pintarLista() {
   const P = S.proyectos, M = MODOS[S.modo];
   const suma = k => P.reduce((n, p) => n + (p.checklist?.[k] || 0), 0);
   const filtros = [["TODOS", "Todos"], ...Object.entries(ESTATUS), ["SIN_ASIGNAR", "Sin asignar"]];
+  const indicadores = [
+    ["proyectos", "Proyectos", P.length, ""],
+    ["entregados", "Por revisar", suma("entregados"), "warn"],
+    ["vencidos", "Vencidos", suma("vencidos"), "bad"],
+    ["porVencer", `Vencen en ${S.ctx.reglas?.diasRiesgo || 3} días`, suma("porVencer"), "amber"]
+  ];
   const tipos = S.ctx.catalogos?.tiposProyecto || [];
   $("#view").innerHTML = `
     <section class="hero">
       <h1>${M.lista}</h1>
-      <p class="muted">${M.sub}</p>
-      ${S.modo === "INSTANCIA" ? "" : `<div class="kpis">
-        <div class="kpi"><b>${P.length}</b><span>Proyectos</span></div>
-        <div class="kpi warn"><b>${suma("entregados")}</b><span>Por revisar</span></div>
-        <div class="kpi bad"><b>${suma("vencidos")}</b><span>Vencidos</span></div>
-        <div class="kpi amber"><b>${suma("porVencer")}</b><span>Vencen en ${S.ctx.reglas?.diasRiesgo || 3} días</span></div>
+      ${M.sub ? `<p class="muted">${M.sub}</p>` : ""}
+      ${S.modo === "INSTANCIA" ? "" : `<div class="kpis" role="group" aria-label="Filtrar proyectos por resumen">
+        ${indicadores.map(([clave, etiqueta, total, clase]) => `<button type="button" class="kpi ${clase}" data-resumen="${clave}"
+          aria-pressed="${S.resumen === clave}" aria-controls="cards"><b>${total}</b><span>${etiqueta}</span></button>`).join("")}
       </div>`}
     </section>
     ${bloqueHoy()}
     <div class="buscar">
       ${P.length ? `<input type="search" id="fBuscar" placeholder="Buscar folio, nombre, instancia${S.modo === "DIRECCION" ? ", responsable" : ""}…" value="${esc(S.q)}" autocomplete="off" enterkeyhint="search" aria-label="Buscar proyectos">
+      <select id="fEstatus" aria-label="Estatus del proyecto">
+        ${filtros.map(([k, t]) => `<option value="${esc(k)}" ${S.estatus === k ? "selected" : ""}>${esc(t)}</option>`).join("")}
+      </select>
       ${tipos.length > 1 ? `<select id="fTipo" aria-label="Tipo de proyecto"><option value="">Todos los tipos</option>${tipos.map(t => `<option value="${esc(t.clave)}" ${S.tipo === t.clave ? "selected" : ""}>${esc(t.etiqueta)}</option>`).join("")}</select>` : ""}` : ""}
       <span id="conteo" class="conteo" aria-live="polite"></span>
     </div>
-    ${P.length ? `<nav class="seg">${filtros.map(([k, t]) => `<button class="${S.estatus === k ? "on" : ""}" data-estatus="${k}">${t}</button>`).join("")}</nav>` : ""}
     <section class="cards" id="cards"></section>`;
   pintarTarjetas();
 }
@@ -451,7 +458,7 @@ function bloqueHoy() {
 
 function pintarTarjetas() {
   const P = S.proyectos;
-  const enF = P.filter(enEstatus), lista = enF.filter(coincide);
+  const enF = P.filter(p => enEstatus(p) && enResumen(p)), lista = enF.filter(coincide);
   const filtrando = !!(S.q.trim() || S.tipo);
   $("#conteo").textContent = filtrando ? `${lista.length} de ${enF.length} proyectos` : `${enF.length} proyecto${enF.length === 1 ? "" : "s"}`;
   $("#cards").innerHTML = lista.length ? lista.map(tarjetaProyecto).join("")
@@ -1528,7 +1535,12 @@ document.addEventListener("click", e => {
   if (d.regnota) { anotarReq(d.regnota); return; }
   if (d.dlg === "cerrar") { cerrarDialogo(); return; }
   if (d.dlg === "ok") { alEnviar && alEnviar(); return; }
-  if (d.estatus) { S.estatus = d.estatus; document.querySelectorAll("[data-estatus]").forEach(b => b.classList.toggle("on", b === t)); pintarTarjetas(); return; }
+  if (d.resumen) {
+    S.resumen = d.resumen;
+    document.querySelectorAll("[data-resumen]").forEach(b => b.setAttribute("aria-pressed", String(b === t)));
+    pintarTarjetas();
+    return;
+  }
   if (d.pry) { S.tab = "checklist"; S.filtroReq = "TODOS"; location.hash = `#/p/${d.pry}`; return; }
   if (d.hito && S.det?.puedeMarcarHitos) {
     const proyectoId = S.det.proyecto.id;
@@ -1583,6 +1595,7 @@ document.addEventListener("change", e => {
   if (e.target.id === "segReq") $("#segVisTxt").textContent = etiquetaVisible(e.target.value);
   if (e.target.id === "segAct") $("#segCumpleBox").hidden = !e.target.selectedOptions[0]?.dataset.cumplible;
   if (e.target.id === "aTodo") { $("#aHoraIni").disabled = $("#aHoraFin").disabled = e.target.checked; }
+  if (e.target.id === "fEstatus") { S.estatus = e.target.value; pintarTarjetas(); }
   if (e.target.id === "fTipo") { S.tipo = e.target.value; pintarTarjetas(); }
   if (e.target.id === "pFoto") { const f = e.target.files?.[0]; if (f) pintarAvatar($("#pAvatar"), URL.createObjectURL(f), ""); }
 });

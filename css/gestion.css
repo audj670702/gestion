@@ -81,6 +81,10 @@ main.ancho{max-width:none;padding:16px 22px}
 .hero{margin-bottom:12px}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
 .kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+button.kpi{font:inherit;color:var(--ink);cursor:pointer}
+button.kpi:hover{background:#f5f9ff}
+button.kpi[aria-pressed="true"]{border-color:var(--blue);background:#edf5ff}
+button.kpi:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .kpi b{display:block;font-size:22px}
 .kpi span{font-size:11px;color:var(--muted)}
 .kpi.warn b{color:var(--warn)} .kpi.bad b{color:var(--bad)} .kpi.amber b{color:#a26f00}

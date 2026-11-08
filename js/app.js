@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.9
+// SCaD Gestión · App · v0.13.10
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.9";
+export const VERSION = "GESTION_APP v0.13.10";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -83,7 +83,7 @@ const norm = v => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "
 const MODOS = {
   DIRECCION: { t: "Dirección", band: "MODO DIRECCIÓN", lista: "Proyectos", sub: "Cartera de proyectos de la EO." },
   OPERACION: { t: "Operación", band: "MODO OPERACIÓN", lista: "Mis proyectos" },
-  INSTANCIA: { t: "Instancia", band: "MODO INSTANCIA", lista: "Proyectos", sub: "Proyectos en los que participa tu instancia." }
+  INSTANCIA: { t: "Instancia", band: "MODO INSTANCIA", lista: "Proyectos" }
 };
 const usr = () => S.ctx?.usuario || {};
 const rolApp = () => String(usr().modo || "").toUpperCase();
@@ -429,10 +429,10 @@ function pintarLista() {
     <section class="hero">
       <h1>${M.lista}</h1>
       ${M.sub ? `<p class="muted">${M.sub}</p>` : ""}
-      ${S.modo === "INSTANCIA" ? "" : `<div class="kpis" role="group" aria-label="Filtrar proyectos por resumen">
+      <div class="kpis" role="group" aria-label="Filtrar proyectos por resumen">
         ${indicadores.map(([clave, etiqueta, total, clase]) => `<button type="button" class="kpi ${clase}" data-resumen="${clave}"
           aria-pressed="${S.resumen === clave}" aria-controls="cards"><b>${total}</b><span>${etiqueta}</span></button>`).join("")}
-      </div>`}
+      </div>
     </section>
     ${bloqueHoy()}
     <div class="buscar">

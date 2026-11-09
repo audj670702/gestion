@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.15
+// SCaD Gestión · App · v0.13.16
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.15";
+export const VERSION = "GESTION_APP v0.13.16";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -773,7 +773,7 @@ function tablaReq() {
     ${cols.map(c => c.id === "estado"
       ? `<td class="t-nw"><span class="chip ${(ESTADOS[x.estado] || {}).c || ""}">${esc(valor(c, x))}</span></td>`
       : `<td class="${clasesCelda(c, x)}">${c.id === "bandera"
-        ? `<span class="seg-flag ${SEG_BANDERAS[bandera].clase}">${iconoBandera}${esc(valor(c, x))}</span>` : esc(valor(c, x))}</td>`).join("")}
+        ? `<span class="seg-flag ${SEG_BANDERAS[bandera].clase}" role="img" aria-label="${esc(valor(c, x))}" title="${esc(valor(c, x))}">${iconoBandera}</span>` : esc(valor(c, x))}</td>`).join("")}
   </tr>`;
   }).join("");
   return `<div class="rtable"><table>${cabeceraTabla("req", cols)}<tbody>${filas}</tbody></table></div>
@@ -1008,13 +1008,15 @@ function segFiltrados(lista) {
   return lista.filter(s => (!S.segBandera || banderaSeg(s) === S.segBandera)
     && (!q || norm(SEG_COLS.map(c => c.v(s)).join(" ")).includes(q)));
 }
-function controlBandera(registro) {
+function controlBandera(registro, { soloIcono = false } = {}) {
   const { nombre, clase } = SEG_BANDERAS[banderaSeg(registro)];
-  const contenido = `<span class="seg-flag-icon" aria-hidden="true">${iconoBandera}</span><span>${nombre}</span>`;
+  const icono = `<span class="seg-flag-icon" aria-hidden="true">${iconoBandera}</span>`;
+  const contenido = soloIcono ? icono : `${icono}<span>${nombre}</span>`;
+  const titulo = soloIcono ? ` title="${nombre}"` : "";
   return (S.det.puedeMarcarBanderas ?? puedeAnotar())
-    ? `<button type="button" class="seg-flag ${clase}" data-segrel="${esc(registro.id)}"
+    ? `<button type="button" class="seg-flag ${clase}" data-segrel="${esc(registro.id)}"${titulo}
         aria-haspopup="dialog" aria-label="Cambiar bandera: ${nombre}">${contenido}</button>`
-    : `<span class="seg-flag ${clase}">${contenido}</span>`;
+    : `<span class="seg-flag ${clase}"${soloIcono ? ` role="img" aria-label="${nombre}"${titulo}` : ""}>${contenido}</span>`;
 }
 function tablaSeg() {
   const h = anotacionesSeg();
@@ -1022,7 +1024,7 @@ function tablaSeg() {
   const { cols, lista } = datosTablaSeg(h);
   if (!lista.length) return `<div class="empty">Ninguna anotación coincide con los filtros.</div>`;
   const filas = lista.map((s, i) => `<tr data-segdetalle="${esc(s.id)}">${celdasSeleccion("seg", s.id, i, `anotación ${i + 1}`)}
-    ${cols.map(c => `<td class="${c.id === "fecha" ? "t-nw" : ""}${c.id === "nota" ? " t-req" : ""}">${c.id === "bandera" ? controlBandera(s)
+    ${cols.map(c => `<td class="${c.id === "fecha" ? "t-nw" : ""}${c.id === "nota" ? " t-req" : ""}">${c.id === "bandera" ? controlBandera(s, { soloIcono: true })
       : c.id === "nota" ? `<span class="seg-resumen">${esc(c.v(s))}</span>` : esc(c.v(s))}</td>`).join("")}
     <td><button type="button" class="btn sm t-nw" data-ver-anotacion="${esc(s.id)}" aria-haspopup="dialog">Ver detalle</button></td></tr>`).join("");
   return `<div class="rtable"><table>${cabeceraTabla("seg", cols, "Detalle")}<tbody>${filas}</tbody></table></div>

@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.16
+// SCaD Gestión · App · v0.13.17
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.16";
+export const VERSION = "GESTION_APP v0.13.17";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -781,6 +781,19 @@ function tablaReq() {
 }
 function pintarReqTabla() { repintarTabla("req", tablaReq); }
 
+function botonesExportar(atributo) {
+  const formatos = [
+    { id: "xls", nombre: "Excel", color: "#1d7a46", marca: '<rect x="2" y="9" width="12" height="10" rx="1.5" fill="currentColor"/><path d="m5 12 5 4m0-4-5 4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>' },
+    { id: "pdf", nombre: "PDF", color: "#c2413a", marca: '<rect x="1" y="9" width="15" height="8" rx="1.5" fill="currentColor"/><text x="8.5" y="14.9" font-size="5.7" font-family="Arial,sans-serif" font-weight="700" text-anchor="middle" fill="#fff">PDF</text>' }
+  ];
+  return formatos.map(({ id, nombre, color, marca }) => `<button type="button" class="rt-btn rt-exportar" ${atributo}="${id}"
+    aria-label="Exportar a ${nombre}" title="Exportar a ${nombre}">
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" color="${color}">
+      <path d="M6 2h8l5 5v15H6z" fill="#fff" stroke="currentColor" stroke-width="1.6"/>
+      <path d="M14 2v5h5" fill="none" stroke="currentColor" stroke-width="1.6"/>${marca}
+    </svg></button>`).join("");
+}
+
 function vistaChecklist() {
   const items = S.det.checklist;
   const p = S.det.proyecto;
@@ -814,8 +827,7 @@ function vistaChecklist() {
       <div class="rt-acc">
         ${editable() ? `<button class="rt-btn" data-nuevoreq>Agregar requerimiento</button>` : ""}
         <button class="rt-btn" data-rcols>Columnas</button>
-        <button class="rt-btn" data-rexp="xls">Excel</button>
-        <button class="rt-btn rt-pri" data-rexp="pdf">PDF</button>
+        ${botonesExportar("data-rexp")}
       </div>
     </div>
     <div class="rcols" id="rcols" hidden>${cols}</div>
@@ -1056,8 +1068,7 @@ function barraSeg() {
       ${filtroSeleccionHTML("seg")}
       <div class="rt-acc">
         <button class="rt-btn" data-scols>Columnas</button>
-        <button class="rt-btn" data-sexp="xls">Excel</button>
-        <button class="rt-btn rt-pri" data-sexp="pdf">PDF</button>
+        ${botonesExportar("data-sexp")}
       </div>
     </div>
     <div class="rcols" id="scols" hidden>${cols}</div>`;

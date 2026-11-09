@@ -395,8 +395,8 @@ dialog{position:relative}
 .rt-acc{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}
 .rt-btn{height:40px;padding:0 15px;border:1px solid #d9e0ea;border-radius:12px;background:#fff;color:var(--ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 1px 2px rgba(21,37,61,.04)}
 .rt-btn:hover{background:#f5f8fc}
-.rt-btn.rt-pri{background:var(--blue);border-color:var(--blue);color:#fff}
-.rt-btn.rt-pri:hover{filter:brightness(1.05)}
+.rt-exportar{display:inline-grid;place-items:center;width:40px;padding:0}
+.rt-exportar:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .rcols{display:flex;flex-wrap:wrap;gap:8px 18px;padding:12px 14px;border:1px solid #d9e0ea;border-radius:12px;background:#fbfcfe;margin-bottom:12px}
 .rcols .check{font-size:13px}
 .rtable{overflow:auto;border:1px solid #e3e8ef;border-radius:14px;background:#fff;max-height:62vh;box-shadow:0 1px 3px rgba(21,37,61,.04)}

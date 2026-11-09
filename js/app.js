@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.17
+// SCaD Gestión · App · v0.13.18
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.17";
+export const VERSION = "GESTION_APP v0.13.18";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1226,9 +1226,11 @@ function vistaFicha() {
 // Los permisos por actividad (puedeEditar / puedeCumplir / puedePromover) los decide el backend.
 const flag = (a, k) => a?.[k] === true;
 const enEscritura = () => S.modo !== "INSTANCIA";
-const misProyectos = () => (S.modo === "OPERACION" || (esAdm() && S.modo === "DIRECCION")) ? S.proyectos : [];
+const misProyectos = () => (S.modo === "INSTANCIA" || S.modo === "OPERACION" || (esAdm() && S.modo === "DIRECCION")) ? S.proyectos : [];
 const tiposActividad = () => S.ctx?.catalogos?.tiposActividad || [];
-const puedeProgramar = () => enEscritura() && S.ctx?.programacion?.puedeProgramar === true && (esAdm() || misProyectos().length > 0);
+const puedeProgramar = () => S.modo === "INSTANCIA"
+  ? S.ctx?.programacion?.puedeProgramarEnInstancia === true && misProyectos().length > 0
+  : S.ctx?.programacion?.puedeProgramar === true && (esAdm() || misProyectos().length > 0);
 const puedeEditar = a => enEscritura() && !cumplida(a) && flag(a, "puedeEditar");
 const puedeCumplir = a => enEscritura() && programada(a) && flag(a, "puedeCumplir");
 const puedePromover = a => enEscritura() && esAdm() && origenDe(a) === "USUARIO" && flag(a, "puedePromover");
@@ -1316,12 +1318,14 @@ function dlgProgramar(a = null, proyectoId = "") {
   if (!a && !puedeProgramar()) { aviso("Sólo puedes programar actividades en proyectos que tienes asignados.", "bad"); return; }
   if (!tipos.length) { aviso("No tienes tipos de actividad autorizados. El administrador los configura en Programación del panel.", "bad"); return; }
   const adm = esAdm();
-  const pid = a ? (a.proyectoId || "") : (proyectoId || (P.length === 1 && !adm ? P[0].id : ""));
+  const requiereProyecto = !adm || S.modo === "INSTANCIA";
+  const puedeCompartir = rolApp() !== "CLIENTE";
+  const pid = a ? (a.proyectoId || "") : (proyectoId || (P.length === 1 && requiereProyecto ? P[0].id : ""));
   const s = a ? inicio(a) : null, e = a ? fin(a) : null;
   const tipoSel = a ? tipoDe(a) : "";
   dialogo(`<h3>${a ? "Editar actividad" : "Programar actividad"}</h3>
     <p class="muted xs">${adm ? "Como administrador, la actividad queda como <b>requerida</b>." : "Actividad propia: organiza tu trabajo en el proyecto. Las requeridas las programa el administrador."}</p>
-    <label class="f">Proyecto<select id="aPry" ${a ? "disabled" : ""}>${adm ? `<option value="">General de la EO (sin proyecto)</option>` : `<option value="">Elige un proyecto</option>`}${P.map(p => `<option value="${esc(p.id)}" ${p.id === pid ? "selected" : ""}>${esc(p.folio)} · ${esc(p.nombre)}</option>`).join("")}${a && a.proyectoId && !P.some(p => p.id === a.proyectoId) ? `<option selected>${esc(a.proyectoFolio || "Proyecto")}</option>` : ""}</select></label>
+    <label class="f">Proyecto<select id="aPry" ${a ? "disabled" : ""}>${requiereProyecto ? `<option value="">Elige un proyecto</option>` : `<option value="">General de la EO (sin proyecto)</option>`}${P.map(p => `<option value="${esc(p.id)}" ${p.id === pid ? "selected" : ""}>${esc(p.folio)} · ${esc(p.nombre)}</option>`).join("")}${a && a.proyectoId && !P.some(p => p.id === a.proyectoId) ? `<option selected>${esc(a.proyectoFolio || "Proyecto")}</option>` : ""}</select></label>
     <label class="f">Actividad<input id="aTit" maxlength="180" value="${esc(a ? titulo(a) : "")}" placeholder="Ej. Llamada con el enlace de SIOP"></label>
     <label class="f">Tipo<select id="aTipo">${tipos.map(t => `<option value="${esc(t.id)}" ${t.etiqueta === tipoSel ? "selected" : ""}>${esc(t.etiqueta)}</option>`).join("")}</select></label>
     <div class="grid3">
@@ -1333,14 +1337,15 @@ function dlgProgramar(a = null, proyectoId = "") {
     <label class="f">Lugar (opcional)<input id="aLugar" maxlength="240" value="${esc(a ? lugar(a) : "")}"></label>
     <label class="f">Detalle (opcional)<textarea id="aDet" rows="2">${esc(a ? detalle(a) : "")}</textarea></label>
     <label class="f">Enlace (opcional)<input id="aEnl" type="url" maxlength="500" value="${esc(a?.enlace || "")}" placeholder="https://"></label>
-    <label class="check"><input type="checkbox" id="aVis" ${a?.visibleCliente ? "checked" : ""}> Visible para la instancia</label>`,
+    ${puedeCompartir ? `<label class="check"><input type="checkbox" id="aVis" ${a?.visibleCliente ? "checked" : ""}> Visible para la instancia</label>` : ""}`,
   () => {
     const fechaV = $("#aFecha").value, todo = $("#aTodo").checked, hi = $("#aHoraIni").value, hf = $("#aHoraFin").value;
     const datos = {
       actividadId: a?.id || "", proyectoId: a ? (a.proyectoId || "") : $("#aPry").value, titulo: $("#aTit").value.trim(), tipoId: $("#aTipo").value,
-      todoElDia: todo, lugar: $("#aLugar").value.trim(), descripcion: $("#aDet").value.trim(), enlace: $("#aEnl").value.trim(), visibleCliente: $("#aVis").checked
+      todoElDia: todo, lugar: $("#aLugar").value.trim(), descripcion: $("#aDet").value.trim(), enlace: $("#aEnl").value.trim(),
+      vista: S.modo, visibleCliente: $("#aVis")?.checked === true
     };
-    if (!adm && !datos.proyectoId) { aviso("Elige el proyecto.", "bad"); return; }
+    if (requiereProyecto && !datos.proyectoId) { aviso("Elige el proyecto.", "bad"); return; }
     if (!datos.titulo) { aviso("Escribe el nombre de la actividad.", "bad"); return; }
     if (!fechaV || (!todo && !hi)) { aviso(todo ? "Indica la fecha." : "Indica la fecha y la hora de inicio.", "bad"); return; }
     if (datos.enlace && !/^https?:\/\//i.test(datos.enlace)) { aviso("El enlace debe iniciar con https://", "bad"); return; }

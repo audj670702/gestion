@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.14
+// SCaD Gestión · App · v0.13.15
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.14";
+export const VERSION = "GESTION_APP v0.13.15";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -489,6 +489,7 @@ async function abrirProyecto(id, { silencioso = false } = {}) {
   if (!silencioso) $("#view").innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
   const r = await tarea(() => api("PROYECTO", { proyectoId: id, vista: S.modo }));
   if (!r) { location.hash = "#/"; return; }
+  prepararTablasProyecto(r.proyecto.id);
   S.det = r;
   const i = S.proyectos.findIndex(p => p.id === id);
   if (i >= 0) S.proyectos[i] = r.proyecto;
@@ -513,6 +514,7 @@ function pintarProyecto() {
     ${vistaHitos()}
     <nav class="tabs">${tabs.map(([k, t]) => `<button class="${S.tab === k ? "on" : ""}" data-tab="${k}">${t}</button>`).join("")}</nav>
     <section id="tabBody">${{ checklist: vistaChecklist, seguimiento: vistaSeguimiento, agenda: vistaAgenda, ficha: vistaFicha }[S.tab]()}</section>`;
+  actualizarCasillaCabecera($("#tabBody"));
 }
 
 // ── Curva de avance del expediente ───────────────────────────
@@ -621,6 +623,71 @@ function curvaDetalle() {
   </div>`;
 }
 
+// ── Controles compartidos de las tablas del proyecto ─────────
+const VISTAS_SELECCION = { "": "Todos los registros", seleccionados: "Seleccionados", restantes: "No seleccionados" };
+const FILTROS_RAPIDOS_REQ = { TODOS: "Todos", REVISAR: "Por revisar", VENCIDOS: "Vencidos", ABIERTOS: "Sin validar" };
+const TABLAS = { req: {}, seg: {} };
+const ordenTexto = new Intl.Collator("es-MX", { numeric: true, sensitivity: "base" });
+let contextoTablas;
+
+function prepararTablasProyecto(id) {
+  const contexto = JSON.stringify([S.modo, id]);
+  if (contexto === contextoTablas) return;
+  contextoTablas = contexto;
+  for (const tabla of Object.values(TABLAS)) {
+    Object.assign(tabla, { ids: new Set(), vista: "", columna: "", sentido: 1 });
+  }
+}
+function filtroSeleccionHTML(tipo) {
+  return `<select class="rt-sel" data-tabla-vista="${tipo}" aria-label="Filtrar por selección">${Object.entries(VISTAS_SELECCION).map(([valor, texto]) =>
+    `<option value="${valor}" ${TABLAS[tipo].vista === valor ? "selected" : ""}>${texto}</option>`).join("")}</select>`;
+}
+function filasTabla(tipo, registros, columnas, valor) {
+  const { ids, vista, columna, sentido } = TABLAS[tipo];
+  const visibles = registros.filter(x => !vista || ids.has(x.id) === (vista === "seleccionados"));
+  const criterio = columnas.find(c => c.id === columna);
+  if (!criterio) return visibles;
+  return visibles.map(registro => ({
+    registro, clave: (criterio.orden ? criterio.orden(registro) : valor(criterio, registro)) ?? ""
+  })).sort((a, b) => sentido * (criterio.orden ? a.clave - b.clave : ordenTexto.compare(a.clave, b.clave)))
+    .map(x => x.registro);
+}
+function fechaOrden(valor) { return Date.parse(valor) || 0; }
+
+function cabeceraTabla(tipo, cols, detalle = "") {
+  const { columna, sentido } = TABLAS[tipo];
+  return `<thead><tr><th scope="col" class="rt-casilla"><input type="checkbox" data-tabla-todas="${tipo}" aria-label="Seleccionar o deseleccionar los registros visibles"></th>
+    <th scope="col" class="rt-numero">No.</th>
+    ${cols.map(c => {
+      const activa = columna === c.id;
+      const asc = sentido === 1;
+      const direccion = activa && asc ? "Z a A" : "A a Z";
+      return `<th scope="col" class="${c.n ? "num" : ""}" ${activa ? `aria-sort="${asc ? "ascending" : "descending"}"` : ""}>
+        <button type="button" class="rt-orden" data-tabla-orden="${tipo}" data-columna="${c.id}" aria-label="${esc(c.t)}. Ordenar de ${direccion}" title="Ordenar de ${direccion}">${esc(c.t)} <span aria-hidden="true">${activa ? (asc ? "↑" : "↓") : "↕"}</span></button>
+      </th>`;
+    }).join("")}${detalle ? `<th scope="col">${detalle}</th>` : ""}</tr></thead>`;
+}
+function celdasSeleccion(tipo, id, indice, nombre) {
+  return `<td class="rt-casilla"><input type="checkbox" data-tabla-fila="${tipo}" value="${esc(id)}" aria-label="Seleccionar ${esc(nombre)}" ${TABLAS[tipo].ids.has(id) ? "checked" : ""}></td>
+    <td class="rt-numero">${indice + 1}</td>`;
+}
+function actualizarCasillaCabecera(contenedor) {
+  const todas = contenedor.querySelector("[data-tabla-todas]");
+  if (!todas) return;
+  const filas = [...contenedor.querySelectorAll("[data-tabla-fila]")];
+  todas.checked = filas.every(fila => fila.checked);
+  todas.indeterminate = !todas.checked && filas.some(fila => fila.checked);
+}
+function repintarTabla(tipo, html) {
+  const el = $(`#${tipo}Tabla`);
+  if (!el) return;
+  const scroll = el.querySelector(".rtable")?.scrollLeft || 0;
+  el.innerHTML = html();
+  const tabla = el.querySelector(".rtable");
+  if (tabla) tabla.scrollLeft = scroll;
+  actualizarCasillaCabecera(el);
+}
+
 // ── Checklist · tabla con detalle (v0.7.0) ───────────────────
 // Folio de registro: sólo el número (001); el folio del proyecto ya identifica el expediente.
 const folioRegistro = (f, i) => { const m = /(\d+)$/.exec(String(f || "")); return (m ? m[1] : String(i + 1)).padStart(3, "0"); };
@@ -631,11 +698,11 @@ const COLS_REQ = [
   { id: "instancia", t: "Instancia", v: x => insEtq(x.instanciaId) || "Sin instancia" },
   { id: "categoria", t: "Cat.", v: x => x.categoria ? String(x.categoria) : "—", n: true },
   { id: "documento", t: "Tipo de acreditación", v: x => x.tipoDocumentoClave ? tipoDoc(x.tipoDocumentoClave) : "—" },
-  { id: "compromiso", t: "Compromiso", v: x => fecha(x.fechaCompromiso) },
+  { id: "compromiso", t: "Compromiso", v: x => fecha(x.fechaCompromiso), orden: x => fechaOrden(x.fechaCompromiso) },
   { id: "estado", t: "Estado", v: x => (ESTADOS[x.estado] || { t: x.estado }).t },
   { id: "semaforo", t: "Plazo", v: x => x.semaforo === "VENCIDO" ? "Vencido" : x.semaforo === "POR_VENCER" ? "Por vencer" : "En tiempo" },
   { id: "obs", t: "Obs.", v: x => String(x.observaciones || 0), n: true },
-  { id: "actualiza", t: "Última actualización", v: x => fechaHora(x.ultimaActualizacion) }
+  { id: "actualiza", t: "Última actualización", v: x => fechaHora(x.ultimaActualizacion), orden: x => fechaOrden(x.ultimaActualizacion) }
 ];
 
 function banderasReq() {
@@ -653,7 +720,7 @@ function banderasReq() {
 function reqFiltrados(items, banderas) {
   const q = norm(S.reqQ || "").trim();
   const f = S.reqF || {};
-  return items.filter(x => {
+  return items.filter((x, i) => {
     if (S.filtroReq === "REVISAR" && x.estado !== "ENTREGADO") return false;
     if (S.filtroReq === "VENCIDOS" && x.semaforo !== "VENCIDO") return false;
     if (S.filtroReq === "ABIERTOS" && ["VALIDADO", "NO_APLICA"].includes(x.estado)) return false;
@@ -663,12 +730,21 @@ function reqFiltrados(items, banderas) {
     if (f.venc && x.semaforo !== f.venc) return false;
     const bandera = banderas.get(x.id) || "NORMAL";
     if (f.bandera && bandera !== f.bandera) return false;
-    if (q && !norm(COLS_REQ.map(c => c.v(x, 0, bandera)).join(" ")).includes(q)) return false;
+    if (q && !norm(COLS_REQ.map(c => c.v(x, i, bandera)).join(" ")).includes(q)) return false;
     return true;
   });
 }
+function datosTablaReq(items) {
+  const banderas = banderasReq();
+  const indices = new Map(items.map((x, i) => [x.id, i]));
+  const cols = COLS_REQ.filter(c => S.reqCols.includes(c.id));
+  const valor = (c, x) => c.v(x, indices.get(x.id), banderas.get(x.id) || "NORMAL");
+  return { cols, valor, banderas, lista: filasTabla("req", reqFiltrados(items, banderas), cols, valor) };
+}
 const textoFiltroReq = () => {
   const f = S.reqF || {}, p = [];
+  if (S.filtroReq !== "TODOS") p.push(FILTROS_RAPIDOS_REQ[S.filtroReq]);
+  if (TABLAS.req.vista) p.push(VISTAS_SELECCION[TABLAS.req.vista]);
   if (S.reqQ) p.push(`Búsqueda: ${S.reqQ}`);
   if (f.estado) p.push(`Estado: ${ESTADOS[f.estado]?.t || f.estado}`);
   if (f.inst) p.push(`Instancia: ${insEtq(f.inst)}`);
@@ -680,9 +756,7 @@ const textoFiltroReq = () => {
 
 function tablaReq() {
   const items = S.det.checklist;
-  const banderas = banderasReq();
-  const lista = reqFiltrados(items, banderas);
-  const cols = COLS_REQ.filter(c => S.reqCols.includes(c.id));
+  const { cols, valor, banderas, lista } = datosTablaReq(items);
   if (!lista.length) return `<div class="empty">Nada con este filtro.</div>`;
   const clasesCelda = (c, x) => [
     c.n ? "num" : "",
@@ -695,39 +769,42 @@ function tablaReq() {
   const filas = lista.map((x, i) => {
     const bandera = banderas.get(x.id) || "NORMAL";
     return `<tr data-rq="${esc(x.id)}" class="${x.semaforo === "VENCIDO" ? "vencido" : ""}${S.reqSel === x.id ? " sel" : ""}">
+    ${celdasSeleccion("req", x.id, i, x.etiqueta)}
     ${cols.map(c => c.id === "estado"
-      ? `<td class="t-nw"><span class="chip ${(ESTADOS[x.estado] || {}).c || ""}">${esc(c.v(x, i))}</span></td>`
+      ? `<td class="t-nw"><span class="chip ${(ESTADOS[x.estado] || {}).c || ""}">${esc(valor(c, x))}</span></td>`
       : `<td class="${clasesCelda(c, x)}">${c.id === "bandera"
-        ? `<span class="seg-flag ${SEG_BANDERAS[bandera].clase}">${iconoBandera}${esc(c.v(x, i, bandera))}</span>` : esc(c.v(x, i, bandera))}</td>`).join("")}
+        ? `<span class="seg-flag ${SEG_BANDERAS[bandera].clase}">${iconoBandera}${esc(valor(c, x))}</span>` : esc(valor(c, x))}</td>`).join("")}
   </tr>`;
   }).join("");
-  return `<div class="rtable"><table><thead><tr>${cols.map(c => `<th class="${c.n ? "num" : ""}${c.id === "folio" ? " t-folio" : ""}">${esc(c.t)}</th>`).join("")}</tr></thead><tbody>${filas}</tbody></table></div>
+  return `<div class="rtable"><table>${cabeceraTabla("req", cols)}<tbody>${filas}</tbody></table></div>
     <p class="rt-pie">${lista.length} de ${items.length} requerimientos · clic en una fila para ver el detalle y las acciones</p>`;
 }
-function pintarReqTabla() { const el = $("#reqTabla"); if (el) el.innerHTML = tablaReq(); }
+function pintarReqTabla() { repintarTabla("req", tablaReq); }
 
 function vistaChecklist() {
   const items = S.det.checklist;
   const p = S.det.proyecto;
   const c = p.checklist || {};
   const pct = c.aplicables ? Math.round((c.validados / c.aplicables) * 100) : 0;
-  const filtros = [["TODOS", "Todos"], ["REVISAR", "Por revisar"], ["VENCIDOS", "Vencidos"], ["ABIERTOS", "Sin validar"]];
   const banner = editable() && c.aplicables && c.validados === c.aplicables ? `<div class="note-box ok">Checklist completo.</div>` : "";
   if (!items.length) return `${banner}<div class="empty">Sin requerimientos en la parrilla.</div>`;
   const f = S.reqF;
   const instancias = [...new Set(items.map(x => x.instanciaId).filter(Boolean))];
   const cols = COLS_REQ.map(c => `<label class="check"><input type="checkbox" data-rcol="${c.id}" ${S.reqCols.includes(c.id) ? "checked" : ""}> ${esc(c.t)}</label>`).join("");
   const indicadores = S.indMin
-    ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin-bottom:10px"><span class="sm"><b>${pct}%</b> <span class="muted">· ${c.validados} de ${c.aplicables} validados</span></span><div class="bar" style="flex:1;min-width:140px;margin:0"><span style="width:${pct}%"></span></div><button class="btn sm ghost" data-indmin="0">Mostrar indicadores</button></div>`
-    : `<div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="btn sm ghost" data-indmin="1">Ocultar indicadores</button></div>
+    ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin-bottom:10px"><span class="sm"><b>${pct}%</b> <span class="muted">· ${c.validados} de ${c.aplicables} validados</span></span><div class="bar" style="flex:1;min-width:140px;margin:0"><span style="width:${pct}%"></span></div><button class="btn sm ghost" data-indmin="0">Mostrar gráfica</button></div>`
+    : `<div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="btn sm ghost" data-indmin="1">Ocultar gráfica</button></div>
     ${curvaHTML(items, p)}
     <div class="progress"><div class="row"><b>${pct}%</b><span class="muted sm">${c.validados} de ${c.aplicables} requerimientos aplicables validados</span></div><div class="bar"><span style="width:${pct}%"></span></div></div>`;
   return `${banner}
     ${indicadores}
-    <nav class="seg sm">${filtros.map(([k, t]) => `<button class="${S.filtroReq === k ? "on" : ""}" data-freq="${k}">${t}</button>`).join("")}</nav>
     <div class="rt-bar">
-      <label class="rt-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 14l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input type="search" id="reqQ" placeholder="Buscar folio, requerimiento o instancia" value="${esc(S.reqQ || "")}"></label>
+      <div class="rt-busqueda-rapida"><label class="rt-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 14l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input type="search" id="reqQ" placeholder="Buscar folio, requerimiento o instancia" value="${esc(S.reqQ || "")}"></label>
+        <select id="filtroReqRapido" class="rt-sel" aria-label="Filtro rápido de requerimientos">${Object.entries(FILTROS_RAPIDOS_REQ).map(([k, t]) =>
+          `<option value="${k}" ${S.filtroReq === k ? "selected" : ""}>${t}</option>`).join("")}</select>
+      </div>
       <div class="rt-filtros">
+        ${filtroSeleccionHTML("req")}
         <select data-rf="estado" class="rt-sel" aria-label="Estado"><option value="">Todos los estados</option>${Object.entries(ESTADOS).map(([k, v]) => `<option value="${k}" ${f.estado === k ? "selected" : ""}>${esc(v.t)}</option>`).join("")}</select>
         <select data-rf="inst" class="rt-sel" aria-label="Instancia"><option value="">Todas las instancias</option>${instancias.map(id => `<option value="${esc(id)}" ${f.inst === id ? "selected" : ""}>${esc(insEtq(id))}</option>`).join("")}</select>
         <select data-rf="cat" class="rt-sel" aria-label="Categoría"><option value="">Todas las categorías</option>${[1, 2, 3].map(n => `<option value="${n}" ${f.cat === String(n) ? "selected" : ""}>Categoría ${n}</option>`).join("")}</select>
@@ -829,13 +906,9 @@ function descargarArchivo(blob, nombre) {
 }
 const hoyYmd = () => { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`; };
 function matrizReq() {
-  const cols = COLS_REQ.filter(c => S.reqCols.includes(c.id));
-  const banderas = banderasReq();
-  const lista = reqFiltrados(S.det.checklist, banderas);
-  return { cols, headers: cols.map(c => c.t), rows: lista.map((x, i) => {
-    const bandera = banderas.get(x.id) || "NORMAL";
-    return cols.map(c => String(c.v(x, i, bandera)));
-  }) };
+  const { cols, valor, lista } = datosTablaReq(S.det.checklist);
+  return { cols, headers: ["No.", ...cols.map(c => c.t)], rows: lista.map((x, i) =>
+    [String(i + 1), ...cols.map(c => String(valor(c, x)))]) };
 }
 async function cargarJsPdfApp() {
   if (window.jspdf?.jsPDF?.API?.autoTable) return window.jspdf.jsPDF;
@@ -853,7 +926,7 @@ async function exportarReq(tipo) {
   const base = `Requerimientos_${p.folio}_${hoyYmd()}`;
   if (tipo === "xls") {
     const n = m.headers.length;
-    const tr = r => `<tr>${r.map((v, k) => `<td${m.cols[k].n ? ' style="text-align:right"' : ""}>${esc(v)}</td>`).join("")}</tr>`;
+    const tr = r => `<tr>${r.map((v, k) => `<td${(k === 0 || m.cols[k - 1]?.n) ? ' style="text-align:right"' : ""}>${esc(v)}</td>`).join("")}</tr>`;
     const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table>
       <tr><th colspan="${n}" style="font-size:14pt;text-align:left">${esc(titulo)}</th></tr>
       <tr><td colspan="${n}">Generado por ${esc(usr().nombreVisible || usr().nombre || "")} · ${esc(new Date().toLocaleString("es-MX"))}</td></tr>
@@ -919,13 +992,17 @@ const banderaSeg = s => Object.hasOwn(SEG_BANDERAS, s.bandera) ? s.bandera : (s.
 const iconoBandera = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M5 4h12l-2.5 4L17 12H5z" fill="currentColor"/></svg>';
 const SEG_COLS = [
   { id: "bandera", t: "Bandera", v: s => SEG_BANDERAS[banderaSeg(s)].nombre },
-  { id: "fecha", t: "Fecha", v: s => fechaHora(s.fechaRegistro) },
+  { id: "fecha", t: "Fecha", v: s => fechaHora(s.fechaRegistro), orden: s => fechaOrden(s.fechaRegistro) },
   { id: "autor", t: "Autor", v: autorSeg },
   { id: "ref", t: "Referencia", v: s => s.referenciaEtiqueta || "Proyecto en general" },
   { id: "actividad", t: "Actividad", v: s => s.actividadEtiqueta || "" },
   { id: "visible", t: "Visible para instancia", v: s => s.visibleCliente ? "Sí" : "No" },
   { id: "nota", t: "Anotación", v: s => s.nota || "" }
 ];
+function datosTablaSeg(registros) {
+  const cols = SEG_COLS.filter(c => S.segCols.includes(c.id));
+  return { cols, lista: filasTabla("seg", segFiltrados(registros), cols, (c, s) => c.v(s)) };
+}
 function segFiltrados(lista) {
   const q = norm(S.segQ || "").trim();
   return lista.filter(s => (!S.segBandera || banderaSeg(s) === S.segBandera)
@@ -942,17 +1019,16 @@ function controlBandera(registro) {
 function tablaSeg() {
   const h = anotacionesSeg();
   if (!h.length) return `<div class="empty">Sin anotaciones.</div>`;
-  const lista = segFiltrados(h);
+  const { cols, lista } = datosTablaSeg(h);
   if (!lista.length) return `<div class="empty">Ninguna anotación coincide con los filtros.</div>`;
-  const cols = SEG_COLS.filter(c => S.segCols.includes(c.id));
-  const filas = lista.map((s, i) => `<tr data-segdetalle="${esc(s.id)}"><td class="num">${i + 1}</td>
+  const filas = lista.map((s, i) => `<tr data-segdetalle="${esc(s.id)}">${celdasSeleccion("seg", s.id, i, `anotación ${i + 1}`)}
     ${cols.map(c => `<td class="${c.id === "fecha" ? "t-nw" : ""}${c.id === "nota" ? " t-req" : ""}">${c.id === "bandera" ? controlBandera(s)
       : c.id === "nota" ? `<span class="seg-resumen">${esc(c.v(s))}</span>` : esc(c.v(s))}</td>`).join("")}
     <td><button type="button" class="btn sm t-nw" data-ver-anotacion="${esc(s.id)}" aria-haspopup="dialog">Ver detalle</button></td></tr>`).join("");
-  return `<div class="rtable"><table><thead><tr><th class="num">No.</th>${cols.map(c => `<th>${esc(c.t)}</th>`).join("")}<th>Detalle</th></tr></thead><tbody>${filas}</tbody></table></div>
+  return `<div class="rtable"><table>${cabeceraTabla("seg", cols, "Detalle")}<tbody>${filas}</tbody></table></div>
     <p class="rt-pie">${lista.length} de ${h.length} anotaciones</p>`;
 }
-function pintarSegTabla() { const el = $("#segTabla"); if (el) el.innerHTML = tablaSeg(); }
+function pintarSegTabla() { repintarTabla("seg", tablaSeg); }
 function etiquetaFiltroBandera(clave) {
   const bandera = SEG_BANDERAS[clave];
   return bandera
@@ -975,6 +1051,7 @@ function barraSeg() {
   return `<div class="rt-bar">
       <label class="rt-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 14l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input type="search" id="segQ" placeholder="Buscar en el seguimiento" value="${esc(S.segQ || "")}"><button type="button" data-segx aria-label="Limpiar búsqueda" title="Limpiar" ${S.segQ ? "" : "hidden"} style="flex:0 0 auto;width:22px;height:22px;padding:0;border:0;border-radius:50%;background:#eef2f7;color:#5b6b80;font-size:15px;line-height:22px;cursor:pointer">×</button></label>
       ${filtroBanderaHTML("seguimiento", S.segBandera)}
+      ${filtroSeleccionHTML("seg")}
       <div class="rt-acc">
         <button class="rt-btn" data-scols>Columnas</button>
         <button class="rt-btn" data-sexp="xls">Excel</button>
@@ -984,8 +1061,7 @@ function barraSeg() {
     <div class="rcols" id="scols" hidden>${cols}</div>`;
 }
 function matrizSeg() {
-  const lista = segFiltrados(anotacionesSeg());
-  const cols = SEG_COLS.filter(c => S.segCols.includes(c.id));
+  const { cols, lista } = datosTablaSeg(anotacionesSeg());
   return { cols, headers: ["No.", ...cols.map(c => c.t)], rows: lista.map((s, i) => [String(i + 1), ...cols.map(c => String(c.v(s)))]) };
 }
 async function exportarSeg(tipo) {
@@ -994,7 +1070,8 @@ async function exportarSeg(tipo) {
   const p = S.det.proyecto;
   const titulo = `Seguimiento · ${p.folio} · ${p.nombre}`;
   const filtros = [S.segQ && `Búsqueda: ${S.segQ}`,
-    S.segBandera && `Bandera: ${SEG_BANDERAS[S.segBandera].nombre}`].filter(Boolean).join(" · ");
+    S.segBandera && `Bandera: ${SEG_BANDERAS[S.segBandera].nombre}`,
+    TABLAS.seg.vista && VISTAS_SELECCION[TABLAS.seg.vista]].filter(Boolean).join(" · ");
   const base = `Seguimiento_${p.folio}_${hoyYmd()}`;
   if (tipo === "xls") {
     const n = m.headers.length;
@@ -1516,8 +1593,18 @@ async function consultarArchivo(id, accion) {
 
 // ── Eventos ──────────────────────────────────────────────────
 document.addEventListener("click", e => {
+  const ordenar = e.target.closest("[data-tabla-orden]");
+  if (ordenar) {
+    const { tablaOrden: tipo, columna } = ordenar.dataset;
+    const tabla = TABLAS[tipo];
+    tabla.sentido = tabla.columna === columna ? -tabla.sentido : 1;
+    tabla.columna = columna;
+    (tipo === "req" ? pintarReqTabla : pintarSegTabla)();
+    $(`[data-tabla-orden="${tipo}"][data-columna="${columna}"]`)?.focus({ preventScroll: true });
+    return;
+  }
   const fila = e.target.closest("tr[data-rq]");
-  if (fila && !e.target.closest("button, select, input, label, a")) { dlgDetalleReq(fila.dataset.rq); return; }
+  if (fila && !e.target.closest("button, select, input, label, a, .rt-casilla")) { dlgDetalleReq(fila.dataset.rq); return; }
   if (e.target.closest("[data-rcols]")) { const r = $("#rcols"); if (r) r.hidden = !r.hidden; return; }
   const filtroBandera = e.target.closest("[data-filtro-bandera]");
   document.querySelectorAll("[data-filtro-bandera][open]").forEach(filtro => {
@@ -1542,7 +1629,7 @@ document.addEventListener("click", e => {
   const verNota = e.target.closest("[data-ver-anotacion]");
   if (verNota) { dlgDetalleSeg(verNota.dataset.verAnotacion); return; }
   const filaNota = e.target.closest("tr[data-segdetalle]");
-  if (filaNota && !e.target.closest("button, a")) { dlgDetalleSeg(filaNota.dataset.segdetalle); return; }
+  if (filaNota && !e.target.closest("button, a, .rt-casilla")) { dlgDetalleSeg(filaNota.dataset.segdetalle); return; }
   if (e.target.closest("[data-segx]")) { S.segQ = ""; const q = $("#segQ"); if (q) { q.value = ""; q.focus(); } const x = document.querySelector("[data-segx]"); if (x) x.hidden = true; pintarSegTabla(); return; }
   if (e.target.closest("[data-scols]")) { const r = $("#scols"); if (r) r.hidden = !r.hidden; return; }
   const sx = e.target.closest("[data-sexp]"); if (sx) { exportarSeg(sx.dataset.sexp); return; }
@@ -1602,7 +1689,6 @@ document.addEventListener("click", e => {
     return;
   }
   if (d.tab) { S.tab = d.tab; pintarProyecto(); return; }
-  if (d.freq) { S.filtroReq = d.freq; pintarProyecto(); return; }
   if (d.indmin !== undefined) { S.indMin = d.indmin === "1"; pintarProyecto(); return; }
   if (d.estado) { dlgEstado(d.req, d.estado); return; }
   if (d.espera !== undefined) { tarea(() => api("REQ_ESPERA_DOC", { prqId: d.req, espera: d.espera === "1" })).then(trasCambio); return; }
@@ -1619,6 +1705,32 @@ document.addEventListener("click", e => {
   }
 });
 document.addEventListener("change", e => {
+  const control = e.target;
+  const { tablaVista, tablaFila, tablaTodas } = control.dataset;
+  if (tablaVista) {
+    TABLAS[tablaVista].vista = control.value;
+    (tablaVista === "req" ? pintarReqTabla : pintarSegTabla)();
+    return;
+  }
+  const tipo = tablaFila || tablaTodas;
+  if (tipo) {
+    const contenedor = $(`#${tipo}Tabla`);
+    const { ids, vista } = TABLAS[tipo];
+    const filas = tablaTodas ? contenedor.querySelectorAll("[data-tabla-fila]") : [control];
+    for (const fila of filas) {
+      fila.checked = control.checked;
+      if (fila.checked) ids.add(fila.value);
+      else ids.delete(fila.value);
+    }
+    if (vista) {
+      (tipo === "req" ? pintarReqTabla : pintarSegTabla)();
+      $(`[data-tabla-vista="${tipo}"]`)?.focus({ preventScroll: true });
+    } else {
+      actualizarCasillaCabecera(contenedor);
+    }
+    return;
+  }
+  if (control.id === "filtroReqRapido") { S.filtroReq = control.value; pintarReqTabla(); return; }
   if (e.target.dataset && e.target.dataset.scol) {
     const on = new Set(S.segCols), id = e.target.dataset.scol;
     e.target.checked ? on.add(id) : on.delete(id);

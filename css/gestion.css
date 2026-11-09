@@ -531,7 +531,7 @@ button.hito-marca:disabled{opacity:.65;cursor:wait}
 
 /* Bandera en la fila de Seguimiento */
 .seg-flag,.seg-opcion{--bandera:#64748b}
-.seg-flag.atencion,.seg-opcion.atencion{--bandera:#875400;--bandera-icono:#b57200}
+.seg-flag.atencion,.seg-opcion.atencion{--bandera:var(--ink);--bandera-icono:#FFC107}
 .seg-flag.atencion svg,.seg-opcion.atencion svg{color:var(--bandera-icono)}
 .seg-flag.atencion .seg-flag-icon{background:#fff1cb}
 .seg-flag.dificultad,.seg-opcion.dificultad{--bandera:#b52e2e}

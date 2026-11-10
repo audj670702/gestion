@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.19
+// SCaD Gestión · App · v0.13.20
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.19";
+export const VERSION = "GESTION_APP v0.13.20";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -374,15 +374,7 @@ function ruta() {
   if (prg) {
     S.det = null;
     abrirProgramacion($("#view"), S.ctx, { puedeProgramar: puedeProgramar() });
-    const cabecera = $("#view .hero .row");
-    if (cabecera) {
-      const boton = document.createElement("button");
-      boton.type = "button";
-      boton.className = "btn sm";
-      boton.textContent = "Conectar Google Calendar";
-      boton.addEventListener("click", () => conectarGoogleCalendarGestion(boton));
-      cabecera.append(boton);
-    }
+    montarGoogleCalendar(h);
     if (prg[1]) dlgActividad(decodeURIComponent(prg[1]));
     return;
   }
@@ -394,24 +386,109 @@ function ruta() {
   });
   else { S.det = null; pintarLista(); }
 }
-async function conectarGoogleCalendarGestion(boton) {
-  boton.disabled = true;
-  try {
-    const resultado = await api("GCAL_CONECTAR");
-    if (resultado.conectado === true) {
-      aviso("Google Calendar ya está autorizado para este contexto.");
+function montarGoogleCalendar(hash) {
+  const cabecera = $("#view .hero .row");
+  if (!cabecera) return;
+
+  const parametros = new URLSearchParams(hash.slice("#/programacion?".length));
+  const retorno = hash.startsWith("#/programacion?") ? parametros.get("gcal") : null;
+  const codigo = parametros.get("gcalCode") || "";
+  if (retorno !== null) {
+    parametros.delete("gcal");
+    parametros.delete("gcalCode");
+    const consulta = parametros.toString();
+    history.replaceState(history.state, "", "#/programacion" + (consulta ? "?" + consulta : ""));
+  }
+
+  const boton = document.createElement("button");
+  boton.type = "button";
+  boton.className = "btn sm";
+  cabecera.append(boton);
+
+  let conectado = null;
+  function mostrarEstado(estado) {
+    conectado = estado;
+    boton.textContent = estado === null
+      ? "Revisar conexión con Google Calendar"
+      : estado ? "Desconectar Google Calendar" : "Conectar Google Calendar";
+  }
+
+  async function consultarEstado() {
+    boton.disabled = true;
+    boton.textContent = "Consultando Google Calendar…";
+    try {
+      const resultado = await api("GCAL_ESTADO");
+      mostrarEstado(resultado.conectado === true);
+      return conectado;
+    } catch (error) {
+      mostrarEstado(null);
+      if (boton.isConnected) aviso(error.message || "No se pudo consultar la conexión con Google Calendar.", "bad");
+      return null;
+    } finally {
+      boton.disabled = false;
+    }
+  }
+
+  async function desconectar() {
+    if (boton.disabled) return;
+    boton.disabled = true;
+    try {
+      const resultado = await tarea(() => api("GCAL_DESCONECTAR"));
+      if (!resultado) return;
+      mostrarEstado(resultado.conectado === true);
+      cerrarDialogo();
+      if (!conectado) aviso("Google Calendar desconectado.");
+    } finally {
+      boton.disabled = false;
+    }
+  }
+
+  boton.addEventListener("click", async () => {
+    if (conectado === null) {
+      await consultarEstado();
       return;
     }
-    const url = new URL(resultado.url);
-    if (url.origin !== "https://accounts.google.com" || url.pathname !== "/o/oauth2/v2/auth") {
-      throw new Error("La dirección de autorización de Google no es válida.");
+    if (conectado) {
+      dialogo(
+        "<h3>Desconectar Google Calendar</h3><p>Se desconectará para este contexto. El calendario y sus eventos se conservarán en Google.</p>",
+        desconectar, { textoBoton: "Desconectar", clase: "bad" }
+      );
+      return;
     }
-    location.assign(url.href);
-  } catch (error) {
-    aviso(error.message || "No se pudo abrir Google Calendar.", "bad");
-  } finally {
-    boton.disabled = false;
-  }
+
+    boton.disabled = true;
+    try {
+      const resultado = await api("GCAL_CONECTAR");
+      if (resultado.conectado === true) {
+        mostrarEstado(true);
+        aviso("Google Calendar ya está conectado.");
+        return;
+      }
+      const url = new URL(resultado.url);
+      if (url.origin !== "https://accounts.google.com" || url.pathname !== "/o/oauth2/v2/auth") {
+        throw new Error("La dirección de autorización de Google no es válida.");
+      }
+      location.assign(url.href);
+    } catch (error) {
+      aviso(error.message || "No se pudo abrir Google Calendar.", "bad");
+    } finally {
+      boton.disabled = false;
+    }
+  });
+
+  consultarEstado().then(estado => {
+    if (!boton.isConnected) return;
+    if (retorno === "conectado" && estado === true) {
+      aviso("Google Calendar conectado.");
+    } else if (retorno === "conectado" && estado === false) {
+      aviso("La conexión con Google Calendar no se pudo confirmar. Puedes reintentar.", "bad");
+    } else if (retorno === "cancelado") {
+      aviso("Autorización de Google Calendar cancelada.");
+    } else if (retorno === "error") {
+      const detalle = /^(GCAL_[A-Z_]{1,50}|WDE\d{4})$/.test(codigo) ? " (" + codigo + ")" : "";
+      aviso("No se pudo conectar Google Calendar" + detalle + ". Puedes reintentar.", "bad");
+    }
+  });
 }
 window.addEventListener("hashchange", () => { if (S.ctx) ruta(); });
 

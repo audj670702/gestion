@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.20
+// SCaD Gestión · App · v0.13.21
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -42,9 +42,9 @@ import { documentoLegal } from "./legal.js";
 import {
   abrirProgramacion, repintarProgramacion, setContexto, actividades, buscarActividad, idDe, listaHtml, deHoy,
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
-} from "./programacion.js?v=0.11.0";
+} from "./programacion.js?v=0.13.21";
 
-export const VERSION = "GESTION_APP v0.13.20";
+export const VERSION = "GESTION_APP v0.13.21";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1364,14 +1364,17 @@ function vistaAgenda() {
     ${listaHtml(L, "Sin actividades para este proyecto.")}`;
 }
 
-function dlgActividad(id) {
-  const a = buscarActividad(id);
+function dlgActividad(id, fechaOcurrencia = "") {
+  const a = buscarActividad(id, fechaOcurrencia);
   if (!a) { aviso("La actividad ya no está disponible.", "bad"); return; }
   const s = inicio(a), e = fin(a), propia = origenDe(a) === "USUARIO";
   const cuando = isNaN(s) ? "—" : todoDia(a) ? s.toLocaleDateString("es-MX", { dateStyle: "full" }) + " · Todo el día" : s.toLocaleString("es-MX", { dateStyle: "full", timeStyle: "short" });
   const fila = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : "";
   const estado = cumplida(a) ? `<span class="chip ok">Cumplida</span>` : sinCumplir(a) ? `<span class="chip bad">Sin cumplir</span>` : programada(a) ? `<span class="chip info">Programada</span>` : "";
+  const puedeEnviarGoogle = /^#\/programacion(?:[/?]|$)/.test(location.hash)
+    && Boolean(a.id) && !isNaN(s) && !todoDia(a) && !cumplida(a);
   const acciones = [
+    puedeEnviarGoogle ? `<button type="button" class="btn" data-gcal-piloto>Enviar a Google Calendar</button>` : "",
     puedeCumplir(a) ? `<button class="btn pri" data-act-accion="cumplir" data-act-id="${esc(idDe(a))}">Marcar cumplida</button>` : "",
     puedeEditar(a) ? `<button class="btn" data-act-accion="editar" data-act-id="${esc(idDe(a))}">Editar</button>` : "",
     puedeEditar(a) ? `<button class="btn bad" data-act-accion="eliminar" data-act-id="${esc(idDe(a))}">Eliminar</button>` : "",
@@ -1393,6 +1396,21 @@ function dlgActividad(id) {
     </dl>
 
     ${acciones ? `<div class="act-acciones">${acciones}</div>` : ""}`, null, { textoCerrar: "Cerrar" });
+  const enviarGoogle = $("#dlgBody [data-gcal-piloto]");
+  if (enviarGoogle) {
+    enviarGoogle.addEventListener("click", async () => {
+      enviarGoogle.disabled = true;
+      try {
+        const resultado = await tarea(() => api("GCAL_ENVIAR_PILOTO", {
+          actividadId: a.id,
+          inicio: s.toISOString()
+        }), { mensajeCarga: "Enviando a Google Calendar…" });
+        if (resultado?.enviado === true) aviso("Actividad disponible en Google Calendar.");
+      } finally {
+        enviarGoogle.disabled = false;
+      }
+    });
+  }
 }
 
 function accionActividad(accion, id) {
@@ -1775,7 +1793,7 @@ document.addEventListener("click", e => {
   if (d.modo) { cambiarModo(d.modo); return; }
   if (d.bien === "panel") { abrirPanel(); return; }
   if (d.bien) { location.hash = d.bien; return; }
-  if (d.actividad) { e.preventDefault(); dlgActividad(d.actividad); return; }
+  if (d.actividad) { e.preventDefault(); dlgActividad(d.actividad, d.actividadInicio || d.prgFecha); return; }
   if ("programar" in d) { cerrarDialogo(); dlgProgramar(null, d.programar || S.det?.proyecto?.id || ""); return; }
   if (d.actAccion) { accionActividad(d.actAccion, d.actId); return; }
   if (d.foto) { const i = $("#pFoto"); if (d.foto === "camara") i.setAttribute("capture", "user"); else i.removeAttribute("capture"); i.click(); return; }

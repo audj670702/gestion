@@ -66,7 +66,9 @@ export function sinCumplir(a) {
   return !Number.isNaN(limite.getTime()) && limite < new Date();
 }
 export const idDe = a => { const i = lista().indexOf(a); return String(a?.id || a?._id || `i${i}`); };
-export const buscarActividad = id => lista().find(a => idDe(a) === String(id)) || null;
+export const buscarActividad = (id, fechaOcurrencia = "") => lista().find(a =>
+  idDe(a) === String(id) && (!fechaOcurrencia || inicio(a).getTime() === Date.parse(fechaOcurrencia))
+) || null;
 const diaClave = d => Number.isNaN(d?.getTime?.()) ? "" : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 export const hora = a => { if (todoDia(a)) return "Todo el día"; const d = inicio(a); return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }); };
 export const colorDe = a => (/^#[0-9a-f]{6}$/i.test(String(a?.color || "")) ? a.color : colorTipo(tipoDe(a)));
@@ -94,7 +96,7 @@ export function listaHtml(L, vacio = "Aún no hay actividades programadas.") {
     const d = inicio(a), k = diaClave(d);
     const cab = k !== ult ? (ult = k, `<div class="prg-ldia">${esc(Number.isNaN(d.getTime()) ? "Sin fecha" : d.toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long", year: d.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined }))}</div>`) : "";
     const sub = [origenDe(a) === "USUARIO" ? "Propia" : "Requerida", tipoDe(a), a.proyectoFolio, lugar(a)].filter(Boolean).join(" · ");
-    return cab + `<button type="button" class="prg-item ${clases(a)}" data-actividad="${esc(idDe(a))}"><span class="prg-hora">${esc(hora(a))}</span><i style="--c:${colorDe(a)}"></i><span class="prg-copy"><b>${marca(a)}${esc(titulo(a))}</b><span>${esc(sub)}</span></span><span class="muted">›</span></button>`;
+    return cab + `<button type="button" class="prg-item ${clases(a)}" data-actividad="${esc(idDe(a))}" data-actividad-inicio="${Number.isNaN(d.getTime()) ? "" : esc(d.toISOString())}"><span class="prg-hora">${esc(hora(a))}</span><i style="--c:${colorDe(a)}"></i><span class="prg-copy"><b>${marca(a)}${esc(titulo(a))}</b><span>${esc(sub)}</span></span><span class="muted">›</span></button>`;
   }).join("")}</div>`;
 }
 

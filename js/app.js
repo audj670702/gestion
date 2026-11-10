@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.22
+// SCaD Gestión · App · v0.13.23
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.13.22";
 
-export const VERSION = "GESTION_APP v0.13.22";
+export const VERSION = "GESTION_APP v0.13.23";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1377,6 +1377,8 @@ const puedeProgramar = () => S.modo === "INSTANCIA"
   : S.ctx?.programacion?.puedeProgramar === true && (esAdm() || misProyectos().length > 0);
 const puedeEditar = a => enEscritura() && !cumplida(a) && flag(a, "puedeEditar");
 const puedeCumplir = a => enEscritura() && programada(a) && flag(a, "puedeCumplir");
+const puedeAnotarActividad = a => Boolean(a?.id && a.proyectoId) && puedeAnotar()
+  && (esAdm() || misProyectos().some(p => p.id === a.proyectoId));
 const puedePromover = a => enEscritura() && esAdm() && origenDe(a) === "USUARIO" && flag(a, "puedePromover");
 const actsDe = pid => actividades(S.ctx).filter(a => a.proyectoId === pid).sort((x, y) => inicio(x) - inicio(y));
 const pendientesAgenda = pid => actsDe(pid).filter(sinCumplir).length;
@@ -1414,6 +1416,7 @@ function dlgActividad(id, fechaOcurrencia = "") {
     && Boolean(a.id) && !isNaN(s) && !todoDia(a) && !cumplida(a);
   const acciones = [
     puedeEnviarGoogle ? `<button type="button" class="btn" data-gcal-piloto>Enviar a Google Calendar</button>` : "",
+    puedeAnotarActividad(a) ? `<button type="button" class="btn" data-act-accion="anotar" data-act-id="${esc(idDe(a))}" data-act-inicio="${isNaN(s) ? "" : esc(s.toISOString())}">Registrar seguimiento</button>` : "",
     puedeCumplir(a) ? `<button class="btn pri" data-act-accion="cumplir" data-act-id="${esc(idDe(a))}">Marcar cumplida</button>` : "",
     puedeEditar(a) ? `<button class="btn" data-act-accion="editar" data-act-id="${esc(idDe(a))}">Editar</button>` : "",
     puedeEditar(a) ? `<button class="btn bad" data-act-accion="eliminar" data-act-id="${esc(idDe(a))}">Eliminar</button>` : "",
@@ -1452,9 +1455,10 @@ function dlgActividad(id, fechaOcurrencia = "") {
   }
 }
 
-function accionActividad(accion, id) {
-  const a = buscarActividad(id);
+function accionActividad(accion, id, fechaOcurrencia = "") {
+  const a = buscarActividad(id, fechaOcurrencia);
   if (!a) return;
+  if (accion === "anotar" && puedeAnotarActividad(a)) return dlgAnotarActividad(a);
   if (accion === "cumplir") return dlgCumplir(a);
   if (accion === "editar") return dlgProgramar(a);
   if (accion === "proyecto") { cerrarDialogo(); S.tab = "agenda"; location.hash = `#/p/${a.proyectoId}`; return; }
@@ -1462,6 +1466,29 @@ function accionActividad(accion, id) {
     () => tarea(() => api("ACT_ELIMINAR", { actividadId: a.id }), { mensajeOk: "Actividad eliminada." }).then(trasActividad), { textoBoton: "Eliminar", clase: "bad" });
   if (accion === "promover") return dialogo(`<h3>Convertir en requerida</h3><p>${esc(titulo(a))}</p><p class="muted sm">La actividad pasa a ser requerida para el proceso del proyecto: su autor ya no podrá editarla ni eliminarla y su cumplimiento corresponde al responsable.</p>`,
     () => tarea(() => api("ACT_PROMOVER", { actividadId: a.id }), { mensajeOk: "La actividad ahora es requerida." }).then(trasActividad), { textoBoton: "Convertir" });
+}
+
+function dlgAnotarActividad(a) {
+  dialogo(`<h3>Registrar seguimiento</h3><p class="muted">${esc(titulo(a))} · ${esc(fechaCorta(a))}</p>
+    <label class="f">Anotación<textarea id="actSegNota" rows="4" maxlength="2000" placeholder="Resultados, acuerdos, responsables y fechas…"></textarea></label>
+    <label class="check"><input type="checkbox" id="actSegVis"> Visible para la instancia</label>
+    <p class="muted xs">La anotación queda vinculada a esta actividad en el Seguimiento del proyecto.</p>`,
+  async () => {
+    const boton = $('#dlgBody [data-dlg="ok"]');
+    if (!boton || boton.disabled) return;
+    const nota = $("#actSegNota").value.trim();
+    if (!nota) { aviso("Escribe la anotación.", "bad"); return; }
+    const visibleCliente = $("#actSegVis").checked;
+    boton.disabled = true;
+    try {
+      const resultado = await tarea(() => api("ANOTAR", { proyectoId: a.proyectoId, actividadId: a.id, nota, visibleCliente }));
+      if (!resultado || !boton.isConnected) return;
+      cerrarDialogo();
+      if (S.det?.proyecto.id === a.proyectoId) await abrirProyecto(a.proyectoId, { silencioso: true });
+    } finally {
+      boton.disabled = false;
+    }
+  }, { textoBoton: "Registrar" });
 }
 
 function dlgCumplir(a) {
@@ -1834,7 +1861,7 @@ document.addEventListener("click", e => {
   if (d.bien) { location.hash = d.bien; return; }
   if (d.actividad) { e.preventDefault(); dlgActividad(d.actividad, d.actividadInicio || d.prgFecha); return; }
   if ("programar" in d) { cerrarDialogo(); dlgProgramar(null, d.programar || S.det?.proyecto?.id || ""); return; }
-  if (d.actAccion) { accionActividad(d.actAccion, d.actId); return; }
+  if (d.actAccion) { accionActividad(d.actAccion, d.actId, d.actInicio); return; }
   if (d.foto) { const i = $("#pFoto"); if (d.foto === "camara") i.setAttribute("capture", "user"); else i.removeAttribute("capture"); i.click(); return; }
   if (d.regnota) { anotarReq(d.regnota); return; }
   if (d.dlg === "cerrar") { cerrarDialogo(); return; }

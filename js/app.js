@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.23
+// SCaD Gestión · App · v0.13.24
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.13.22";
 
-export const VERSION = "GESTION_APP v0.13.23";
+export const VERSION = "GESTION_APP v0.13.24";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -653,7 +653,10 @@ function pintarProyecto() {
       <a class="back" href="#/">‹ ${MODOS[S.modo].lista}</a>
       <div class="row"><span class="folio">${esc(p.folio)}</span><span class="chip ${["PAUSADO", "CANCELADO"].includes(p.estatus) ? "bad" : "info"}">${esc(etiquetaEstatus(p))}</span></div>
       <h1>${esc(p.nombre)}</h1>
-      <p class="muted sm">El administrador actualiza el estatus en el panel.</p>
+      <div class="row wrap">
+        <p class="muted sm">El administrador actualiza el estatus en el panel.</p>
+        ${puedeAnotar() && S.tab !== "seguimiento" ? '<button type="button" class="btn pri sm" data-act="nuevoSeguimiento">Registrar seguimiento</button>' : ""}
+      </div>
     </section>
     ${vistaHitos()}
     <nav class="tabs">${tabs.map(([k, t]) => `<button class="${S.tab === k ? "on" : ""}" data-tab="${k}">${t}</button>`).join("")}</nav>
@@ -1265,7 +1268,7 @@ function vistaSeguimiento() {
   const p = S.det.proyecto;
   const abierto = puedeAnotar();
   return `${abierto ? `<div class="card compose">
-      <textarea id="segNota" rows="3" placeholder="Escribe una anotación del proyecto: gestiones, acuerdos, llamadas…"></textarea>
+      <label class="f">Nuevo seguimiento<textarea id="segNota" rows="3" maxlength="2000" placeholder="Escribe una anotación del proyecto: gestiones, acuerdos, llamadas…"></textarea></label>
       <div class="row wrap">
         <select id="segReq"><option value="">Proyecto en general</option>${S.det.checklist.map(x => `<option value="${esc(x.id)}">${esc(x.etiqueta)}</option>`).join("")}</select>
         ${actsDe(p.id).length ? `<select id="segAct"><option value="">Sin relacionar con actividad</option>${actsDe(p.id).map(a => `<option value="${esc(idDe(a))}" data-cumplible="${puedeCumplir(a) ? 1 : ""}">${esc(fechaCorta(a))} · ${esc(titulo(a))}${cumplida(a) ? " (cumplida)" : ""}</option>`).join("")}</select>` : ""}
@@ -1273,7 +1276,7 @@ function vistaSeguimiento() {
       <div class="row wrap">
         <label class="check" id="segCumpleBox" hidden><input type="checkbox" id="segCumple"> Da por cumplida la actividad</label>
         <label class="check"><input type="checkbox" id="segVis"> <span id="segVisTxt">${esc(etiquetaVisible(""))}</span></label>
-        <button class="btn pri" data-act="anotarGeneral">Registrar</button>
+        <button type="button" class="btn pri" data-act="anotarGeneral">Registrar seguimiento</button>
       </div></div>` : ""}
     ${barraSeg()}
     <div id="segTabla">${tablaSeg()}</div>`;
@@ -1905,6 +1908,12 @@ document.addEventListener("click", e => {
   if (d.subir) { dlgSubir(d.subir); return; }
   if (d.ver) { consultarArchivo(d.ver, "visualizar"); return; }
   if (d.descargar) { consultarArchivo(d.descargar, "descargar"); return; }
+  if (d.act === "nuevoSeguimiento") {
+    S.tab = "seguimiento";
+    pintarProyecto();
+    $("#segNota")?.focus();
+    return;
+  }
   if (d.act === "anotarGeneral") {
     const actividadId = $("#segAct")?.value || "", cumpleActividad = !!actividadId && $("#segCumple").checked;
     tarea(() => api("ANOTAR", { proyectoId: S.det.proyecto.id, prqId: $("#segReq").value, nota: $("#segNota").value, visibleCliente: $("#segVis").checked, actividadId, cumpleActividad }))

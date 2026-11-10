@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.21
+// SCaD Gestión · App · v0.13.22
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -42,9 +42,9 @@ import { documentoLegal } from "./legal.js";
 import {
   abrirProgramacion, repintarProgramacion, setContexto, actividades, buscarActividad, idDe, listaHtml, deHoy,
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
-} from "./programacion.js?v=0.13.21";
+} from "./programacion.js?v=0.13.22";
 
-export const VERSION = "GESTION_APP v0.13.21";
+export const VERSION = "GESTION_APP v0.13.22";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -403,11 +403,18 @@ function montarGoogleCalendar(hash) {
   const boton = document.createElement("button");
   boton.type = "button";
   boton.className = "btn sm";
-  cabecera.append(boton);
+  const sincronizar = document.createElement("button");
+  sincronizar.type = "button";
+  sincronizar.className = "btn sm";
+  sincronizar.textContent = "Sincronizar con Google Calendar";
+  sincronizar.hidden = true;
+  cabecera.classList.add("wrap");
+  cabecera.append(sincronizar, boton);
 
   let conectado = null;
   function mostrarEstado(estado) {
     conectado = estado;
+    sincronizar.hidden = estado !== true;
     boton.textContent = estado === null
       ? "Revisar conexión con Google Calendar"
       : estado ? "Desconectar Google Calendar" : "Conectar Google Calendar";
@@ -442,6 +449,38 @@ function montarGoogleCalendar(hash) {
       boton.disabled = false;
     }
   }
+
+  sincronizar.addEventListener("click", async () => {
+    if (!conectado || sincronizar.disabled || boton.disabled) return;
+    sincronizar.disabled = true;
+    boton.disabled = true;
+    try {
+      const resultado = await tarea(async () => {
+        let pendientes = Infinity;
+        while (sincronizar.isConnected) {
+          const lote = await api("GCAL_SINCRONIZAR");
+          if (!Number.isSafeInteger(lote.pendientes) || lote.pendientes < 0) {
+            throw new Error("No se pudo confirmar el avance en Google Calendar. Puedes reintentar.");
+          }
+          if (lote.pendientes === 0) return lote;
+          if (lote.pendientes >= pendientes) {
+            throw new Error("Quedan actividades por sincronizar. Pulsa Sincronizar para continuar.");
+          }
+          pendientes = lote.pendientes;
+          $("#busyText").textContent = `Sincronizando con Google Calendar… Quedan ${pendientes}.`;
+        }
+      }, { mensajeCarga: "Sincronizando los próximos 30 días con Google Calendar…" });
+
+      if (resultado && sincronizar.isConnected) {
+        aviso(resultado.total === 0
+          ? "No hay actividades con horario para sincronizar en los próximos 30 días."
+          : "Google Calendar está al día para los próximos 30 días.");
+      }
+    } finally {
+      sincronizar.disabled = false;
+      boton.disabled = false;
+    }
+  });
 
   boton.addEventListener("click", async () => {
     if (conectado === null) {

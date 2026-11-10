@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.18
+// SCaD Gestión · App · v0.13.19
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.11.0";
 
-export const VERSION = "GESTION_APP v0.13.18";
+export const VERSION = "GESTION_APP v0.13.19";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -374,6 +374,15 @@ function ruta() {
   if (prg) {
     S.det = null;
     abrirProgramacion($("#view"), S.ctx, { puedeProgramar: puedeProgramar() });
+    const cabecera = $("#view .hero .row");
+    if (cabecera) {
+      const boton = document.createElement("button");
+      boton.type = "button";
+      boton.className = "btn sm";
+      boton.textContent = "Conectar Google Calendar";
+      boton.addEventListener("click", () => conectarGoogleCalendarGestion(boton));
+      cabecera.append(boton);
+    }
     if (prg[1]) dlgActividad(decodeURIComponent(prg[1]));
     return;
   }
@@ -384,6 +393,25 @@ function ruta() {
     if (req && S.det?.checklist?.some(x => x.id === req)) dlgDetalleReq(req);
   });
   else { S.det = null; pintarLista(); }
+}
+async function conectarGoogleCalendarGestion(boton) {
+  boton.disabled = true;
+  try {
+    const resultado = await api("GCAL_CONECTAR");
+    if (resultado.conectado === true) {
+      aviso("Google Calendar ya está autorizado para este contexto.");
+      return;
+    }
+    const url = new URL(resultado.url);
+    if (url.origin !== "https://accounts.google.com" || url.pathname !== "/o/oauth2/v2/auth") {
+      throw new Error("La dirección de autorización de Google no es válida.");
+    }
+    location.assign(url.href);
+  } catch (error) {
+    aviso(error.message || "No se pudo abrir Google Calendar.", "bad");
+  } finally {
+    boton.disabled = false;
+  }
 }
 window.addEventListener("hashchange", () => { if (S.ctx) ruta(); });
 

@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.24
+// SCaD Gestión · App · v0.13.25
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.13.22";
 
-export const VERSION = "GESTION_APP v0.13.24";
+export const VERSION = "GESTION_APP v0.13.25";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -71,7 +71,7 @@ const isoDia = v => { if (!v) return ""; const d = new Date(v); if (isNaN(d)) re
 const pesos = v => (v === null || v === undefined) ? "—" : "$" + Number(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const tamano = b => b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
 
-const S = { indMin: false, segQ: "", segBandera: "", segCols: ["bandera", "fecha", "autor", "ref", "nota"], ctx: null, modo: null, proyectos: [], estatus: "TODOS", resumen: "proyectos", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "", bandera: "" }, reqCols: ["folio", "bandera", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
+const S = { indMin: false, segQ: "", segBandera: "", segCols: ["bandera", "fecha", "autor", "ref", "instancias", "nota"], ctx: null, modo: null, proyectos: [], estatus: "TODOS", resumen: "proyectos", q: "", tipo: "", det: null, tab: "checklist", filtroReq: "TODOS", reqQ: "", reqF: { estado: "", inst: "", cat: "", venc: "", bandera: "" }, reqCols: ["folio", "bandera", "etiqueta", "instancia", "categoria", "compromiso", "estado", "semaforo"], reqSel: null };
 
 const ins = id => (S.ctx?.instancias || []).find(i => i.id === id) || null;
 const insEtq = id => { const i = ins(id); return i ? (i.siglas || i.nombre) : ""; };
@@ -997,6 +997,7 @@ function detalleReqHTML(x) {
     </div>` : (esAdm() ? "" : `<p class="muted sm">Vista de consulta.</p>`);
   const anotar = puedeAnotar() ? `<div class="req-nota">
       <textarea id="rqNota" rows="2" placeholder="Anotación sobre este requerimiento…"></textarea>
+    ${selectorInstanciasSeg("rqInstancias")}
       <div class="req-nota-pie"><label class="check"><input type="checkbox" id="rqVis"> ${esc(etiquetaVisible(x.id))}</label>
       <button class="btn sm pri" data-regnota="${esc(x.id)}">Registrar</button></div>
     </div>` : "";
@@ -1050,7 +1051,7 @@ function dlgDetalleReq(id) {
 async function anotarReq(id) {
   const nota = ($("#rqNota")?.value || "").trim();
   if (!nota) { aviso("Escribe la anotación.", "bad"); return; }
-  const r = await tarea(() => api("ANOTAR", { proyectoId: S.det.proyecto.id, prqId: id, nota, visibleCliente: $("#rqVis")?.checked === true }));
+  const r = await tarea(() => api("ANOTAR", { proyectoId: S.det.proyecto.id, prqId: id, nota, instanciasIds: leerInstanciasSeg("rqInstancias"), visibleCliente: $("#rqVis")?.checked === true }));
   if (!r) return;
   aviso(r.mensaje || "Anotación registrada.");
   await abrirProyecto(S.det.proyecto.id, { silencioso: true });
@@ -1149,12 +1150,51 @@ const SEG_BANDERAS = {
 };
 const banderaSeg = s => Object.hasOwn(SEG_BANDERAS, s.bandera) ? s.bandera : (s.relevante ? "DIFICULTAD" : "NORMAL");
 const iconoBandera = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M5 4h12l-2.5 4L17 12H5z" fill="currentColor"/></svg>';
+const idsInstanciasSeg = s => Array.isArray(s.instanciasIds) ? s.instanciasIds : [];
+const instanciasSeg = s => idsInstanciasSeg(s).map(insEtq).filter(Boolean).join(", ");
+const leerInstanciasSeg = id => Array.from(document.querySelectorAll(`#${id} input[data-seg-inst]:checked`), c => c.value);
+
+function selectorInstanciasSeg(id) {
+  const opciones = instanciasActivas();
+  if (!opciones.length) return "";
+  return `<details class="seg-instancias" id="${id}">
+    <summary>Instancias <span class="muted" data-seg-inst-resumen>Seleccionar</span></summary>
+    <div class="seg-instancias-opciones">
+      <label class="f">Buscar instancia<input type="search" data-seg-inst-buscar placeholder="Nombre o siglas"></label>
+      <div class="seg-instancias-lista">${opciones.map(i => `<label class="check" data-seg-inst-opcion>
+        <input type="checkbox" data-seg-inst value="${esc(i.id)}"> ${esc(etiquetaIns(i))}
+      </label>`).join("")}</div>
+      <p class="muted sm" data-seg-inst-vacio hidden>Sin coincidencias.</p>
+    </div>
+  </details>`;
+}
+
+document.addEventListener("input", e => {
+  if (!e.target.matches("[data-seg-inst-buscar]")) return;
+  const selector = e.target.closest(".seg-instancias");
+  const consulta = norm(e.target.value).trim();
+  let hayCoincidencias = false;
+  for (const opcion of selector.querySelectorAll("[data-seg-inst-opcion]")) {
+    opcion.hidden = !norm(opcion.textContent.trim()).includes(consulta);
+    hayCoincidencias ||= !opcion.hidden;
+  }
+  selector.querySelector("[data-seg-inst-vacio]").hidden = hayCoincidencias;
+});
+
+document.addEventListener("change", e => {
+  if (!e.target.matches("[data-seg-inst]")) return;
+  const selector = e.target.closest(".seg-instancias");
+  selector.querySelector("[data-seg-inst-resumen]").textContent =
+    leerInstanciasSeg(selector.id).map(insEtq).filter(Boolean).join(", ") || "Seleccionar";
+});
+
 const SEG_COLS = [
   { id: "bandera", t: "Bandera", v: s => SEG_BANDERAS[banderaSeg(s)].nombre },
   { id: "fecha", t: "Fecha", v: s => fechaHora(s.fechaRegistro), orden: s => fechaOrden(s.fechaRegistro) },
   { id: "autor", t: "Autor", v: autorSeg },
   { id: "ref", t: "Referencia", v: s => s.referenciaEtiqueta || "Proyecto en general" },
   { id: "actividad", t: "Actividad", v: s => s.actividadEtiqueta || "" },
+  { id: "instancias", t: "Instancias", v: instanciasSeg },
   { id: "visible", t: "Visible para instancia", v: s => s.visibleCliente ? "Sí" : "No" },
   { id: "nota", t: "Anotación", v: s => s.nota || "" }
 ];
@@ -1165,7 +1205,7 @@ function datosTablaSeg(registros) {
 function segFiltrados(lista) {
   const q = norm(S.segQ || "").trim();
   return lista.filter(s => (!S.segBandera || banderaSeg(s) === S.segBandera)
-    && (!q || norm(SEG_COLS.map(c => c.v(s)).join(" ")).includes(q)));
+    && (!q || norm([...SEG_COLS.map(c => c.v(s)), ...idsInstanciasSeg(s).map(id => ins(id)?.nombre)].join(" ")).includes(q)));
 }
 function controlBandera(registro, { soloIcono = false } = {}) {
   const { nombre, clase } = SEG_BANDERAS[banderaSeg(registro)];
@@ -1273,6 +1313,7 @@ function vistaSeguimiento() {
         <select id="segReq"><option value="">Proyecto en general</option>${S.det.checklist.map(x => `<option value="${esc(x.id)}">${esc(x.etiqueta)}</option>`).join("")}</select>
         ${actsDe(p.id).length ? `<select id="segAct"><option value="">Sin relacionar con actividad</option>${actsDe(p.id).map(a => `<option value="${esc(idDe(a))}" data-cumplible="${puedeCumplir(a) ? 1 : ""}">${esc(fechaCorta(a))} · ${esc(titulo(a))}${cumplida(a) ? " (cumplida)" : ""}</option>`).join("")}</select>` : ""}
       </div>
+    ${selectorInstanciasSeg("segInstancias")}
       <div class="row wrap">
         <label class="check" id="segCumpleBox" hidden><input type="checkbox" id="segCumple"> Da por cumplida la actividad</label>
         <label class="check"><input type="checkbox" id="segVis"> <span id="segVisTxt">${esc(etiquetaVisible(""))}</span></label>
@@ -1474,6 +1515,7 @@ function accionActividad(accion, id, fechaOcurrencia = "") {
 function dlgAnotarActividad(a) {
   dialogo(`<h3>Registrar seguimiento</h3><p class="muted">${esc(titulo(a))} · ${esc(fechaCorta(a))}</p>
     <label class="f">Anotación<textarea id="actSegNota" rows="4" maxlength="2000" placeholder="Resultados, acuerdos, responsables y fechas…"></textarea></label>
+    ${selectorInstanciasSeg("actSegInstancias")}
     <label class="check"><input type="checkbox" id="actSegVis"> Visible para la instancia</label>
     <p class="muted xs">La anotación queda vinculada a esta actividad en el Seguimiento del proyecto.</p>`,
   async () => {
@@ -1484,7 +1526,7 @@ function dlgAnotarActividad(a) {
     const visibleCliente = $("#actSegVis").checked;
     boton.disabled = true;
     try {
-      const resultado = await tarea(() => api("ANOTAR", { proyectoId: a.proyectoId, actividadId: a.id, nota, visibleCliente }));
+      const resultado = await tarea(() => api("ANOTAR", { proyectoId: a.proyectoId, actividadId: a.id, nota, instanciasIds: leerInstanciasSeg("actSegInstancias"), visibleCliente }));
       if (!resultado || !boton.isConnected) return;
       cerrarDialogo();
       if (S.det?.proyecto.id === a.proyectoId) await abrirProyecto(a.proyectoId, { silencioso: true });
@@ -1577,6 +1619,7 @@ function dlgDetalleSeg(id) {
       <dt>Autor</dt><dd>${esc(autorSeg(nota))}</dd>
       <dt>Referencia</dt><dd>${esc(nota.referenciaEtiqueta || "Proyecto en general")}</dd>
       ${nota.actividadEtiqueta ? `<dt>Actividad</dt><dd>${esc(nota.actividadEtiqueta)}</dd>` : ""}
+      <dt>Instancias</dt><dd>${esc(instanciasSeg(nota) || "—")}</dd>
       <dt>Visible para instancia</dt><dd>${nota.visibleCliente ? "Sí" : "No"}</dd>
       <dt>Bandera</dt><dd>${controlBandera(nota)}</dd>
     </dl>
@@ -1720,8 +1763,9 @@ function dlgAnotar(id) {
   const x = reqPorId(id);
   dialogo(`<h3>Anotar</h3><p class="muted">${esc(x.etiqueta)}</p>
     <label class="f">Anotación<textarea id="dNota" rows="4"></textarea></label>
+    ${selectorInstanciasSeg("dInstancias")}
     <label class="check"><input type="checkbox" id="dVis"> Visible para la instancia</label>`,
-  () => tarea(() => api("ANOTAR", { proyectoId: S.det.proyecto.id, prqId: id, nota: $("#dNota").value, visibleCliente: $("#dVis").checked })).then(trasCambio),
+  () => tarea(() => api("ANOTAR", { proyectoId: S.det.proyecto.id, prqId: id, nota: $("#dNota").value, instanciasIds: leerInstanciasSeg("dInstancias"), visibleCliente: $("#dVis").checked })).then(trasCambio),
   { textoBoton: "Registrar" });
 }
 
@@ -1916,7 +1960,7 @@ document.addEventListener("click", e => {
   }
   if (d.act === "anotarGeneral") {
     const actividadId = $("#segAct")?.value || "", cumpleActividad = !!actividadId && $("#segCumple").checked;
-    tarea(() => api("ANOTAR", { proyectoId: S.det.proyecto.id, prqId: $("#segReq").value, nota: $("#segNota").value, visibleCliente: $("#segVis").checked, actividadId, cumpleActividad }))
+    tarea(() => api("ANOTAR", { proyectoId: S.det.proyecto.id, prqId: $("#segReq").value, nota: $("#segNota").value, instanciasIds: leerInstanciasSeg("segInstancias"), visibleCliente: $("#segVis").checked, actividadId, cumpleActividad }))
       .then(async r => { if (r && cumpleActividad) await recargarActividades(); return trasCambio(r); });
   }
 });

@@ -580,3 +580,11 @@ button.seg-flag:hover,button.seg-flag:focus-visible{background:var(--bg)}
 .seg-texto{white-space:pre-wrap;overflow-wrap:anywhere}
 .historial-proyecto{margin-top:12px}
 .historial-proyecto summary{cursor:pointer;font-weight:600}
+
+/* Selector de instancias en Seguimiento */
+.seg-instancias{margin-block:8px;min-width:0}
+.seg-instancias summary{cursor:pointer;padding:8px 10px;border:1px solid var(--line);border-radius:8px;overflow-wrap:anywhere}
+.seg-instancias summary span{margin-inline-start:8px}
+.seg-instancias-opciones{padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-top:4px}
+.seg-instancias-lista{display:grid;gap:4px;max-height:180px;overflow:auto}
+.seg-instancias [hidden]{display:none}

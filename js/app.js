@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.27
+// SCaD Gestión · App · v0.13.28
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.13.22";
 
-export const VERSION = "GESTION_APP v0.13.27";
+export const VERSION = "GESTION_APP v0.13.28";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1157,8 +1157,9 @@ const leerInstanciasSeg = id => Array.from(document.querySelectorAll(`#${id} inp
 function selectorInstanciasSeg(id) {
   const opciones = instanciasActivas();
   if (!opciones.length) return "";
-  return `<details class="seg-instancias" id="${id}">
-    <summary>Instancias <span class="muted" data-seg-inst-resumen>Seleccionar</span></summary>
+  return `<div class="seg-instancias" id="${id}">
+    <details>
+    <summary>Instancias <span class="muted">Seleccionar</span></summary>
     <div class="seg-instancias-opciones">
       <label class="f">Buscar instancia<input type="search" data-seg-inst-buscar placeholder="Nombre o siglas"></label>
       <div class="seg-instancias-lista">${opciones.map(i => `<label class="check" data-seg-inst-opcion>
@@ -1166,8 +1167,35 @@ function selectorInstanciasSeg(id) {
       </label>`).join("")}</div>
       <p class="muted sm" data-seg-inst-vacio hidden>Sin coincidencias.</p>
     </div>
-  </details>`;
+    </details>
+    <ul class="seg-instancias-vinculadas" data-seg-inst-vinculadas aria-label="Instancias vinculadas" hidden></ul>
+  </div>`;
 }
+
+function actualizarInstanciasVinculadas(selector) {
+  const lista = selector.querySelector("[data-seg-inst-vinculadas]");
+  const ids = leerInstanciasSeg(selector.id);
+  lista.innerHTML = ids.map(id => {
+    const nombre = esc(insEtq(id) || id);
+    return `<li><span>${nombre}</span><button type="button" data-seg-inst-quitar="${esc(id)}" aria-label="Quitar ${nombre} del seguimiento">×</button></li>`;
+  }).join("");
+  lista.hidden = !ids.length;
+}
+
+document.addEventListener("click", e => {
+  const boton = e.target.closest("[data-seg-inst-quitar]");
+  if (!boton) return;
+  const selector = boton.closest(".seg-instancias");
+  const botones = [...selector.querySelectorAll("[data-seg-inst-quitar]")];
+  const indice = botones.indexOf(boton);
+  const casilla = [...selector.querySelectorAll("[data-seg-inst]:checked")]
+    .find(opcion => opcion.value === boton.dataset.segInstQuitar);
+  if (!casilla) return;
+  casilla.checked = false;
+  casilla.dispatchEvent(new Event("change", { bubbles: true }));
+  const restantes = selector.querySelectorAll("[data-seg-inst-quitar]");
+  (restantes[indice] || restantes[indice - 1] || selector.querySelector("summary")).focus();
+});
 
 document.addEventListener("input", e => {
   if (!e.target.matches("[data-seg-inst-buscar]")) return;
@@ -1184,8 +1212,7 @@ document.addEventListener("input", e => {
 document.addEventListener("change", e => {
   if (!e.target.matches("[data-seg-inst]")) return;
   const selector = e.target.closest(".seg-instancias");
-  selector.querySelector("[data-seg-inst-resumen]").textContent =
-    leerInstanciasSeg(selector.id).map(insEtq).filter(Boolean).join(", ") || "Seleccionar";
+  actualizarInstanciasVinculadas(selector);
   const buscador = selector.querySelector("[data-seg-inst-buscar]");
   if (e.target.checked && buscador.value) {
     buscador.value = "";

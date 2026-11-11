@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.26
+// SCaD Gestión · App · v0.13.27
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.13.22";
 
-export const VERSION = "GESTION_APP v0.13.26";
+export const VERSION = "GESTION_APP v0.13.27";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1186,6 +1186,11 @@ document.addEventListener("change", e => {
   const selector = e.target.closest(".seg-instancias");
   selector.querySelector("[data-seg-inst-resumen]").textContent =
     leerInstanciasSeg(selector.id).map(insEtq).filter(Boolean).join(", ") || "Seleccionar";
+  const buscador = selector.querySelector("[data-seg-inst-buscar]");
+  if (e.target.checked && buscador.value) {
+    buscador.value = "";
+    buscador.dispatchEvent(new Event("input", { bubbles: true }));
+  }
 });
 
 const SEG_COLS = [

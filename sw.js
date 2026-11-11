@@ -1,7 +1,7 @@
-// SCaD Gestión · Service worker · v0.13.25
+// SCaD Gestión · Service worker · v0.13.26
 // Páginas: red primero (siempre la versión nueva). Archivos estáticos (logotipos, CSS, JS, video):
 // caché primero y se actualizan en segundo plano. Las llamadas al backend no pasan por aquí.
-const CACHE_NAME = "gestion-v0.13.25";
+const CACHE_NAME = "gestion-v0.13.26";
 const APP_SHELL = ["./", "./index.html"];
 
 self.addEventListener("install", e => {

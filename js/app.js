@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.25
+// SCaD Gestión · App · v0.13.26
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.13.22";
 
-export const VERSION = "GESTION_APP v0.13.25";
+export const VERSION = "GESTION_APP v0.13.26";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1222,11 +1222,11 @@ function tablaSeg() {
   if (!h.length) return `<div class="empty">Sin anotaciones.</div>`;
   const { cols, lista } = datosTablaSeg(h);
   if (!lista.length) return `<div class="empty">Ninguna anotación coincide con los filtros.</div>`;
-  const filas = lista.map((s, i) => `<tr data-segdetalle="${esc(s.id)}">${celdasSeleccion("seg", s.id, i, `anotación ${i + 1}`)}
+  const filas = lista.map((s, i) => `<tr data-segdetalle="${esc(s.id)}" tabindex="0" aria-description="Abre el detalle de esta anotación">${celdasSeleccion("seg", s.id, i, `anotación ${i + 1}`)}
     ${cols.map(c => `<td class="${c.id === "fecha" ? "t-nw" : ""}${c.id === "nota" ? " t-req" : ""}">${c.id === "bandera" ? controlBandera(s, { soloIcono: true })
       : c.id === "nota" ? `<span class="seg-resumen">${esc(c.v(s))}</span>` : esc(c.v(s))}</td>`).join("")}
-    <td><button type="button" class="btn sm t-nw" data-ver-anotacion="${esc(s.id)}" aria-haspopup="dialog">Ver detalle</button></td></tr>`).join("");
-  return `<div class="rtable"><table>${cabeceraTabla("seg", cols, "Detalle")}<tbody>${filas}</tbody></table></div>
+    </tr>`).join("");
+  return `<div class="rtable"><table>${cabeceraTabla("seg", cols)}<tbody>${filas}</tbody></table></div>
     <p class="rt-pie">${lista.length} de ${h.length} anotaciones</p>`;
 }
 function pintarSegTabla() { repintarTabla("seg", tablaSeg); }
@@ -1880,8 +1880,6 @@ document.addEventListener("click", e => {
   }
   const sr = e.target.closest("[data-segrel]");
   if (sr) { dlgBandera(sr); return; }
-  const verNota = e.target.closest("[data-ver-anotacion]");
-  if (verNota) { dlgDetalleSeg(verNota.dataset.verAnotacion); return; }
   const filaNota = e.target.closest("tr[data-segdetalle]");
   if (filaNota && !e.target.closest("button, a, .rt-casilla")) { dlgDetalleSeg(filaNota.dataset.segdetalle); return; }
   if (e.target.closest("[data-segx]")) { S.segQ = ""; const q = $("#segQ"); if (q) { q.value = ""; q.focus(); } const x = document.querySelector("[data-segx]"); if (x) x.hidden = true; pintarSegTabla(); return; }
@@ -2018,6 +2016,11 @@ document.addEventListener("input", e => {
   if (e.target.id === "fBuscar") { S.q = e.target.value; pintarTarjetas(); }
 });
 document.addEventListener("keydown", e => {
+  if (e.target.matches("tr[data-segdetalle]") && (e.key === "Enter" || e.key === " ")) {
+    e.preventDefault();
+    if (!e.repeat) dlgDetalleSeg(e.target.dataset.segdetalle);
+    return;
+  }
   if (e.key !== "Escape") return;
   const filtro = e.target.closest?.("[data-filtro-bandera][open]");
   if (filtro) {

@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.28
+// SCaD Gestión · App · v0.13.29
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.13.22";
 
-export const VERSION = "GESTION_APP v0.13.28";
+export const VERSION = "GESTION_APP v0.13.29";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -618,13 +618,24 @@ function pintarTarjetas() {
 function tarjetaProyecto(p) {
   const c = p.checklist || {};
   const pct = c.aplicables ? Math.round((c.validados / c.aplicables) * 100) : 0;
-  return `<button class="card pry" data-pry="${esc(p.id)}">
-    <div class="row"><span class="folio">${esc(p.folio)}</span><span class="dot ${p.semaforo === "ROJO" ? "bad" : p.semaforo === "AMARILLO" ? "amber" : "ok"}" title="Semáforo"></span></div>
-    <h3>${esc(p.nombre)}</h3>
-    <div class="row wrap"><span class="chip ${["PAUSADO", "CANCELADO"].includes(p.estatus) ? "bad" : "info"}">${esc(etiquetaEstatus(p))}</span>${S.modo === "DIRECCION" && responsable(p) ? `<span class="muted sm">· ${esc(responsable(p))}</span>` : ""}</div>
-    ${c.total ? `<div class="bar"><span style="width:${pct}%"></span></div>
-      <div class="row sm"><span>${c.validados}/${c.aplicables} validados</span>
-      <span class="badges">${c.entregados ? `<span class="chip warn">${c.entregados} por revisar</span>` : ""}${c.vencidos ? `<span class="chip bad">${c.vencidos} vencidos</span>` : ""}${c.observados ? `<span class="chip">${c.observados} observados</span>` : ""}</span></div>` : `<p class="muted sm">Sin checklist.</p>`}
+  const asignado = S.modo === "DIRECCION" ? responsable(p) : "";
+  return `<button type="button" class="card pry" data-pry="${esc(p.id)}">
+    <span class="pry-titulo">
+      <strong>${esc(p.nombre)}</strong>
+      <span class="chip ${["PAUSADO", "CANCELADO"].includes(p.estatus) ? "bad" : "info"}">${esc(etiquetaEstatus(p))}</span>
+    </span>
+    <span class="pry-datos">
+      <span class="pry-meta">
+        <span class="dot ${p.semaforo === "ROJO" ? "bad" : p.semaforo === "AMARILLO" ? "amber" : "ok"}" role="img" aria-label="Semáforo: ${p.semaforo === "ROJO" ? "rojo" : p.semaforo === "AMARILLO" ? "amarillo" : "verde"}"></span>
+        <span class="folio">${esc(p.folio)}</span>
+        ${asignado ? `<span class="muted">· ${esc(asignado)}</span>` : ""}
+      </span>
+      ${c.total ? `<span class="pry-avance">
+        <span class="bar" aria-hidden="true"><span style="width:${pct}%"></span></span>
+        <span>${c.validados}/${c.aplicables} validados</span>
+      </span>
+      ${c.entregados || c.vencidos || c.observados ? `<span class="badges">${c.entregados ? `<span class="chip warn">${c.entregados} por revisar</span>` : ""}${c.vencidos ? `<span class="chip bad">${c.vencidos} vencidos</span>` : ""}${c.observados ? `<span class="chip">${c.observados} observados</span>` : ""}</span>` : ""}` : '<span class="muted">Sin checklist</span>'}
+    </span>
   </button>`;
 }
 

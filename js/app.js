@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.30
+// SCaD Gestión · App · v0.13.31
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.13.22";
 
-export const VERSION = "GESTION_APP v0.13.30";
+export const VERSION = "GESTION_APP v0.13.31";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -400,29 +400,54 @@ function montarGoogleCalendar(hash) {
     history.replaceState(history.state, "", "#/programacion" + (consulta ? "?" + consulta : ""));
   }
 
-  const boton = document.createElement("button");
-  boton.type = "button";
-  boton.className = "btn sm";
-  const sincronizar = document.createElement("button");
-  sincronizar.type = "button";
-  sincronizar.className = "btn sm";
-  sincronizar.textContent = "Sincronizar con Google Calendar";
-  sincronizar.hidden = true;
-  cabecera.classList.add("wrap");
-  cabecera.append(sincronizar, boton);
+  const menu = document.createElement("details");
+  menu.className = "gcal-menu";
+  menu.innerHTML = `
+    <summary class="gcal-activar" title="Google Calendar" aria-label="Opciones de Google Calendar">
+      <svg viewBox="0 0 48 48" width="21" height="21" aria-hidden="true">
+        <path fill="#4285F4" d="M43.6 20.5H24v8h11.2c-.5 2.6-2 4.8-4.2 6.3v5.2h6.8c4-3.7 6.3-9.1 6.3-15.5 0-1.4-.2-2.7-.5-4z"/>
+        <path fill="#34A853" d="M24 44c5.6 0 10.3-1.9 13.8-5l-6.8-5.2c-1.9 1.3-4.3 2-7 2-5.4 0-10-3.6-11.7-8.5h-7v5.4A20 20 0 0 0 24 44z"/>
+        <path fill="#FBBC05" d="M12.3 27.3a12 12 0 0 1 0-6.6v-5.4h-7a20 20 0 0 0 0 17.4z"/>
+        <path fill="#EA4335" d="M24 12.2c3.1 0 5.9 1.1 8.1 3.2l6.1-6.1A19.2 19.2 0 0 0 24 4 20 20 0 0 0 5.3 15.3l7 5.4c1.7-4.9 6.3-8.5 11.7-8.5z"/>
+      </svg>
+      <span class="gcal-flecha" aria-hidden="true"></span>
+    </summary>
+    <div class="gcal-opciones" role="group" aria-label="Google Calendar">
+      <button type="button" data-gcal-sync hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 4v5h-5M4 20v-5h5M5 9a7.5 7.5 0 0 1 12.4-3L20 9M4 15l2.6 3A7.5 7.5 0 0 0 19 15"/></svg>
+        <span>Sincronizar</span>
+      </button>
+      <button type="button" data-gcal-conexion>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M4 2h14l4 4v12l-4 4H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"/><path fill="#fff" d="M6 6h12v12H6z"/><path fill="#34A853" d="M6 18h12v4H6z"/><path fill="#FBBC05" d="M18 6h4v12h-4z"/><path fill="#EA4335" d="M18 18h4l-4 4z"/><path fill="none" stroke="#4285F4" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" d="M8.5 9.5h2.2v2.4H9.1m1.6 0v2.6H8.5m5-4 1.7-1v5"/></svg>
+        <span></span>
+      </button>
+    </div>`;
+  const activador = menu.querySelector("summary");
+  const sincronizar = menu.querySelector("[data-gcal-sync]");
+  const boton = menu.querySelector("[data-gcal-conexion]");
+  const etiquetaConexion = boton.querySelector("span");
+  const cerrarOpciones = () => { menu.open = false; activador.focus(); };
+  menu.addEventListener("keydown", e => {
+    if (e.key === "Escape" && menu.open) {
+      e.preventDefault();
+      cerrarOpciones();
+    }
+  });
+  cabecera.classList.add("wrap", "gcal-cabecera");
+  cabecera.append(menu);
 
   let conectado = null;
   function mostrarEstado(estado) {
     conectado = estado;
     sincronizar.hidden = estado !== true;
-    boton.textContent = estado === null
-      ? "Revisar conexión con Google Calendar"
+    etiquetaConexion.textContent = estado === null
+      ? "Revisar conexión"
       : estado ? "Desconectar Google Calendar" : "Conectar Google Calendar";
   }
 
   async function consultarEstado() {
     boton.disabled = true;
-    boton.textContent = "Consultando Google Calendar…";
+    etiquetaConexion.textContent = "Consultando conexión…";
     try {
       const resultado = await api("GCAL_ESTADO");
       mostrarEstado(resultado.conectado === true);
@@ -452,6 +477,7 @@ function montarGoogleCalendar(hash) {
 
   sincronizar.addEventListener("click", async () => {
     if (!conectado || sincronizar.disabled || boton.disabled) return;
+    cerrarOpciones();
     sincronizar.disabled = true;
     boton.disabled = true;
     try {
@@ -487,6 +513,7 @@ function montarGoogleCalendar(hash) {
       await consultarEstado();
       return;
     }
+    cerrarOpciones();
     if (conectado) {
       dialogo(
         "<h3>Desconectar Google Calendar</h3><p>Se desconectará para este contexto. El calendario y sus eventos se conservarán en Google.</p>",
@@ -529,6 +556,10 @@ function montarGoogleCalendar(hash) {
     }
   });
 }
+document.addEventListener("click", e => {
+  const menu = document.querySelector(".gcal-menu[open]");
+  if (menu && !menu.contains(e.target)) menu.open = false;
+});
 window.addEventListener("hashchange", () => { if (S.ctx) ruta(); });
 
 // ── Bienvenida (usuario) ─────────────────────────────────────

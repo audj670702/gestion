@@ -606,3 +606,17 @@ button.seg-flag:hover,button.seg-flag:focus-visible{background:var(--bg)}
 .seg-instancias-vinculadas button{flex:none;width:28px;height:28px;padding:0;border:0;border-radius:5px;background:transparent;color:var(--ink);cursor:pointer;font-size:1.15rem;line-height:1}
 .seg-instancias-vinculadas button:hover,.seg-instancias-vinculadas button:focus-visible{background:#dbeafe}
 .seg-instancias [hidden]{display:none}
+
+/* Acciones de Google Calendar en Programación */
+.gcal-cabecera{justify-content:flex-start}
+.gcal-menu{position:relative;margin-inline-start:auto}
+.gcal-activar{display:flex;align-items:center;justify-content:center;gap:7px;min-width:44px;min-height:40px;padding:5px 9px;background:var(--card);border:1px solid var(--line);border-radius:9px;cursor:pointer;list-style:none}
+.gcal-activar::-webkit-details-marker{display:none}
+.gcal-activar:hover,.gcal-activar:focus-visible,.gcal-menu[open] .gcal-activar{background:#edf5ff;border-color:var(--blue)}
+.gcal-flecha{width:6px;height:6px;border:solid var(--muted);border-width:0 1.5px 1.5px 0;transform:rotate(45deg);margin-top:-3px}
+.gcal-opciones{position:absolute;z-index:12;inset-inline-end:0;top:calc(100% + 6px);width:max-content;max-width:calc(100vw - 32px);padding:4px;background:var(--card);border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 24px #15253d26}
+.gcal-opciones button{display:flex;align-items:center;gap:8px;width:100%;min-height:38px;padding:7px 9px;border:0;border-radius:6px;background:transparent;color:var(--ink);font:inherit;font-size:13px;text-align:left;cursor:pointer}
+.gcal-opciones button[hidden]{display:none}
+.gcal-opciones button:enabled:hover,.gcal-opciones button:focus-visible{background:#edf5ff}
+.gcal-opciones button:disabled{opacity:.6;cursor:default}
+.gcal-opciones svg{width:19px;height:19px;flex:none;color:var(--blue)}

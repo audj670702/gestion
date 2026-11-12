@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.29
+// SCaD Gestión · App · v0.13.30
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -44,7 +44,7 @@ import {
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
 } from "./programacion.js?v=0.13.22";
 
-export const VERSION = "GESTION_APP v0.13.29";
+export const VERSION = "GESTION_APP v0.13.30";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -666,7 +666,6 @@ function pintarProyecto() {
       <h1>${esc(p.nombre)}</h1>
       <div class="row wrap">
         <p class="muted sm">El administrador actualiza el estatus en el panel.</p>
-        ${puedeAnotar() && S.tab !== "seguimiento" ? '<button type="button" class="btn pri sm" data-act="nuevoSeguimiento">Registrar seguimiento</button>' : ""}
       </div>
     </section>
     ${vistaHitos()}
@@ -1993,12 +1992,6 @@ document.addEventListener("click", e => {
   if (d.subir) { dlgSubir(d.subir); return; }
   if (d.ver) { consultarArchivo(d.ver, "visualizar"); return; }
   if (d.descargar) { consultarArchivo(d.descargar, "descargar"); return; }
-  if (d.act === "nuevoSeguimiento") {
-    S.tab = "seguimiento";
-    pintarProyecto();
-    $("#segNota")?.focus();
-    return;
-  }
   if (d.act === "anotarGeneral") {
     const actividadId = $("#segAct")?.value || "", cumpleActividad = !!actividadId && $("#segCumple").checked;
     tarea(() => api("ANOTAR", { proyectoId: S.det.proyecto.id, prqId: $("#segReq").value, nota: $("#segNota").value, instanciasIds: leerInstanciasSeg("segInstancias"), visibleCliente: $("#segVis").checked, actividadId, cumpleActividad }))

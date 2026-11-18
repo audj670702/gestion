@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.13.31
+// SCaD Gestión · App · v0.14.0
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -42,9 +42,11 @@ import { documentoLegal } from "./legal.js";
 import {
   abrirProgramacion, repintarProgramacion, setContexto, actividades, buscarActividad, idDe, listaHtml, deHoy,
   inicio, fin, hora, titulo, tipoDe, lugar, detalle, todoDia, origenDe, cumplida, programada, sinCumplir, colorDe
-} from "./programacion.js?v=0.13.22";
+} from "./programacion.js?v=0.14.0";
 
-export const VERSION = "GESTION_APP v0.13.31";
+import { alcanceFormulario, leerAlcance, alcanceTexto } from "./programacionAlcance.js?v=0.14.0";
+
+export const VERSION = "GESTION_APP v0.14.0";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1490,17 +1492,17 @@ const enEscritura = () => S.modo !== "INSTANCIA";
 const misProyectos = () => (S.modo === "INSTANCIA" || S.modo === "OPERACION" || (esAdm() && S.modo === "DIRECCION")) ? S.proyectos : [];
 const tiposActividad = () => S.ctx?.catalogos?.tiposActividad || [];
 const puedeProgramar = () => S.modo === "INSTANCIA"
-  ? S.ctx?.programacion?.puedeProgramarEnInstancia === true && misProyectos().length > 0
-  : S.ctx?.programacion?.puedeProgramar === true && (esAdm() || misProyectos().length > 0);
-const puedeEditar = a => enEscritura() && !cumplida(a) && flag(a, "puedeEditar");
+  ? S.ctx?.programacion?.puedeProgramarEnInstancia === true
+  : S.ctx?.programacion?.puedeProgramar === true;
+const puedeEditar = a => !cumplida(a) && flag(a, "puedeEditar");
 const puedeCumplir = a => enEscritura() && programada(a) && flag(a, "puedeCumplir");
 const puedeAnotarActividad = a => Boolean(a?.id && a.proyectoId) && puedeAnotar()
   && (esAdm() || misProyectos().some(p => p.id === a.proyectoId));
 const puedePromover = a => enEscritura() && esAdm() && origenDe(a) === "USUARIO" && flag(a, "puedePromover");
-const actsDe = pid => actividades(S.ctx).filter(a => a.proyectoId === pid).sort((x, y) => inicio(x) - inicio(y));
+const actsDe = pid => actividades(S.ctx).filter(a => (a.proyectosIds || [a.proyectoId]).includes(pid)).sort((x, y) => inicio(x) - inicio(y));
 const pendientesAgenda = pid => actsDe(pid).filter(sinCumplir).length;
 const fechaCorta = a => { const d = inicio(a); return isNaN(d) ? "Sin fecha" : d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" }) + (todoDia(a) ? "" : " " + hora(a)); };
-const pryEtq = a => { const p = S.proyectos.find(x => x.id === a.proyectoId); return a.proyectoFolio || p?.folio ? `${a.proyectoFolio || p.folio} · ${a.proyectoNombre || p?.nombre || ""}` : (a.proyectoNombre || ""); };
+const pryEtq = a => { if(a.proyectos?.length)return a.proyectos.map(p=>[p.folio,p.nombre].filter(Boolean).join(" · ")).join("; "); const p = S.proyectos.find(x => x.id === a.proyectoId); return a.proyectoFolio || p?.folio ? `${a.proyectoFolio || p.folio} · ${a.proyectoNombre || p?.nombre || ""}` : (a.proyectoNombre || ""); };
 
 async function recargarActividades() {
   try { const c = await contexto(); S.ctx = c; setContexto(c); } catch (_) { /* se conserva lo que había */ }
@@ -1544,6 +1546,8 @@ function dlgActividad(id, fechaOcurrencia = "") {
     <h3>${esc(titulo(a))}</h3>
     <dl class="act-dl">
       ${fila("Proyecto", esc(pryEtq(a)) || (propia ? "" : "General de la EO"))}
+      ${fila("Visible para",esc(alcanceTexto(a.gestionProgramacion)))}
+      ${fila("Participantes",esc((a.participantes||[]).map(x=>x.nombre).join(", ")))}
       ${fila("Inicio", esc(cuando))}
       ${e && !isNaN(e) && !todoDia(a) ? fila("Término", esc(e.toLocaleString("es-MX", { dateStyle: "full", timeStyle: "short" }))) : ""}
       ${fila("Lugar", esc(lugar(a)))}
@@ -1622,17 +1626,18 @@ const hhmm = d => isNaN(d) ? "" : `${String(d.getHours()).padStart(2, "0")}:${St
 function dlgProgramar(a = null, proyectoId = "") {
   const P = misProyectos();
   const tipos = tiposActividad();
-  if (!a && !puedeProgramar()) { aviso("Sólo puedes programar actividades en proyectos que tienes asignados.", "bad"); return; }
+  if (!a && !puedeProgramar()) { aviso("No tienes autorización para programar actividades.", "bad"); return; }
   if (!tipos.length) { aviso("No tienes tipos de actividad autorizados. El administrador los configura en Programación del panel.", "bad"); return; }
   const adm = esAdm();
-  const requiereProyecto = !adm || S.modo === "INSTANCIA";
-  const puedeCompartir = rolApp() !== "CLIENTE";
+  const requiereProyecto = false;
+  const opcionesAlcance = S.ctx?.programacion?.gestionOpciones;
+  if(!opcionesAlcance){aviso("Actualiza la conexión de Programación antes de continuar.","bad");return;}
   const pid = a ? (a.proyectoId || "") : (proyectoId || (P.length === 1 && requiereProyecto ? P[0].id : ""));
   const s = a ? inicio(a) : null, e = a ? fin(a) : null;
   const tipoSel = a ? tipoDe(a) : "";
   dialogo(`<h3>${a ? "Editar actividad" : "Programar actividad"}</h3>
-    <p class="muted xs">${adm ? "Como administrador, la actividad queda como <b>requerida</b>." : "Actividad propia: organiza tu trabajo en el proyecto. Las requeridas las programa el administrador."}</p>
-    <label class="f">Proyecto<select id="aPry" ${a ? "disabled" : ""}>${requiereProyecto ? `<option value="">Elige un proyecto</option>` : `<option value="">General de la EO (sin proyecto)</option>`}${P.map(p => `<option value="${esc(p.id)}" ${p.id === pid ? "selected" : ""}>${esc(p.folio)} · ${esc(p.nombre)}</option>`).join("")}${a && a.proyectoId && !P.some(p => p.id === a.proyectoId) ? `<option selected>${esc(a.proyectoFolio || "Proyecto")}</option>` : ""}</select></label>
+    <p class="muted xs">${adm ? "Como administrador, la actividad queda como <b>requerida</b>." : "Actividad propia: organiza reuniones, visitas y otras actividades."}</p>
+    ${alcanceFormulario(opcionesAlcance, a?.gestionProgramacion || { proyectosIds:a?.proyectosIds || (pid?[pid]:[]), visibilidad:pid?{porProyecto:true}:{usuariosIds:[S.ctx.usuario.usrId]} })}
     <label class="f">Actividad<input id="aTit" maxlength="180" value="${esc(a ? titulo(a) : "")}" placeholder="Ej. Llamada con el enlace de SIOP"></label>
     <label class="f">Tipo<select id="aTipo">${tipos.map(t => `<option value="${esc(t.id)}" ${t.etiqueta === tipoSel ? "selected" : ""}>${esc(t.etiqueta)}</option>`).join("")}</select></label>
     <div class="grid3">
@@ -1644,11 +1649,12 @@ function dlgProgramar(a = null, proyectoId = "") {
     <label class="f">Lugar (opcional)<input id="aLugar" maxlength="240" value="${esc(a ? lugar(a) : "")}"></label>
     <label class="f">Detalle (opcional)<textarea id="aDet" rows="2">${esc(a ? detalle(a) : "")}</textarea></label>
     <label class="f">Enlace (opcional)<input id="aEnl" type="url" maxlength="500" value="${esc(a?.enlace || "")}" placeholder="https://"></label>
-    ${puedeCompartir ? `<label class="check"><input type="checkbox" id="aVis" ${a?.visibleCliente ? "checked" : ""}> Visible para la instancia</label>` : ""}`,
+`,
   () => {
     const fechaV = $("#aFecha").value, todo = $("#aTodo").checked, hi = $("#aHoraIni").value, hf = $("#aHoraFin").value;
+    let alcance;try{alcance=leerAlcance($("#dlgBody"));}catch(error){aviso(error.message,"bad");return;}
     const datos = {
-      actividadId: a?.id || "", proyectoId: a ? (a.proyectoId || "") : $("#aPry").value, titulo: $("#aTit").value.trim(), tipoId: $("#aTipo").value,
+      ...alcance, actividadId: a?.id || "", proyectoId: alcance.proyectosIds[0] || "", titulo: $("#aTit").value.trim(), tipoId: $("#aTipo").value,
       todoElDia: todo, lugar: $("#aLugar").value.trim(), descripcion: $("#aDet").value.trim(), enlace: $("#aEnl").value.trim(),
       vista: S.modo, visibleCliente: $("#aVis")?.checked === true
     };

@@ -1,3 +1,4 @@
+import { alcanceTexto } from "./programacionAlcance.js?v=0.14.0";
 // SCaD Gestión · Programación · v0.6.0 (controles, navegación y resumen)
 // Modelo NEXUS (schedule.js) extendido, compatible hacia atrás:
 //   origen  ADM (requerida, la captura el ADM)  |  USUARIO (propia del colaborador, ligada a un proyecto)
@@ -13,6 +14,7 @@ let q = "";
 let cursor = new Date();
 let caja = null;
 let opciones = {};
+let proyectoFiltro='', participanteFiltro='', visibilidadFiltro='';
 let destino = '';
 const iconos = {
  calendario:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 11h18M7 15h2M13 15h2"/>',
@@ -95,15 +97,18 @@ export function listaHtml(L, vacio = "Aún no hay actividades programadas.") {
   return `<div class="prg-lista">${L.map(a => {
     const d = inicio(a), k = diaClave(d);
     const cab = k !== ult ? (ult = k, `<div class="prg-ldia">${esc(Number.isNaN(d.getTime()) ? "Sin fecha" : d.toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long", year: d.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined }))}</div>`) : "";
-    const sub = [origenDe(a) === "USUARIO" ? "Propia" : "Requerida", tipoDe(a), a.proyectoFolio, lugar(a)].filter(Boolean).join(" · ");
+    const sub = [origenDe(a) === "USUARIO" ? "Propia" : "Requerida", tipoDe(a), (a.proyectos||[]).map(p=>p.folio).join(', ') || a.proyectoFolio, alcanceTexto(a.gestionProgramacion), lugar(a)].filter(Boolean).join(" · ");
     return cab + `<button type="button" class="prg-item ${clases(a)}" data-actividad="${esc(idDe(a))}" data-actividad-inicio="${Number.isNaN(d.getTime()) ? "" : esc(d.toISOString())}"><span class="prg-hora">${esc(hora(a))}</span><i style="--c:${colorDe(a)}"></i><span class="prg-copy"><b>${marca(a)}${esc(titulo(a))}</b><span>${esc(sub)}</span></span><span class="muted">›</span></button>`;
   }).join("")}</div>`;
 }
 
 function filtradas() {
   const n = norm(q);
-  return lista().filter(a => (tipo === "TODAS" || tipoDe(a) === tipo) && (origen === "TODAS" || origenDe(a) === origen)
-    && (!n || norm([titulo(a), tipoDe(a), lugar(a), detalle(a), a.proyectoFolio, a.proyectoNombre].join(" ")).includes(n)))
+  return lista().filter(a => (!proyectoFiltro || (proyectoFiltro==='SIN' ? !(a.proyectosIds||[a.proyectoId].filter(Boolean)).length : (a.proyectosIds||[a.proyectoId]).includes(proyectoFiltro)))
+    && (!participanteFiltro || (a.participantes||[]).some(p=>p.id===participanteFiltro))
+    && (!visibilidadFiltro || (visibilidadFiltro==='TODOS' ? a.gestionProgramacion?.visibilidad?.todos : visibilidadFiltro==='PROYECTO' ? a.gestionProgramacion?.visibilidad?.porProyecto : visibilidadFiltro==='ESPECIFICA' ? (a.gestionProgramacion?.visibilidad?.usuariosIds?.length||a.gestionProgramacion?.visibilidad?.instanciasIds?.length) : a.gestionProgramacion?.visibilidad?.roles?.includes(visibilidadFiltro)))
+    && (tipo === "TODAS" || tipoDe(a) === tipo) && (origen === "TODAS" || origenDe(a) === origen)
+    && (!n || norm([titulo(a), tipoDe(a), lugar(a), detalle(a), a.proyectoFolio, a.proyectoNombre, (a.proyectos||[]).map(p=>[p.folio,p.nombre].join(" ")).join(" "), (a.participantes||[]).map(p=>p.nombre).join(" "), alcanceTexto(a.gestionProgramacion)].join(" ")).includes(n)))
     .slice().sort((a, b) => inicio(a) - inicio(b));
 }
 
@@ -132,6 +137,10 @@ function pintarCalendario() {
 
 function pintar() {
   pintarFiltros();
+  const proys=[...new Map(lista().flatMap(a=>a.proyectos||[]).map(p=>[p.id,p])).values()];
+  const parts=[...new Map(lista().flatMap(a=>a.participantes||[]).map(p=>[p.id,p])).values()];
+  const sel=(id,label,items,value)=>`<label>${label}<select id="${id}"><option value="">Todos</option>${items.map(p=>`<option value="${esc(p.id)}" ${value===p.id?'selected':''}>${esc(p.nombre)}</option>`).join('')}</select></label>`;
+  caja.querySelector('#prgExtras').innerHTML=sel('prgProyecto','Proyecto',[{id:'SIN',nombre:'Sin proyecto'},...proys.map(p=>({...p,nombre:[p.folio,p.nombre].filter(Boolean).join(' · ')}))],proyectoFiltro)+sel('prgParticipante','Participante',parts,participanteFiltro)+sel('prgVisibilidad','Visibilidad',[{id:'TODOS',nombre:'Toda la organización'},{id:'PROYECTO',nombre:'Por proyecto'},{id:'DIRECCION',nombre:'Dirección'},{id:'OPERACION',nombre:'Operación'},{id:'INSTANCIA',nombre:'Instancia'},{id:'ESPECIFICA',nombre:'Selección específica'}],visibilidadFiltro);
   const L = filtradas();
   caja.querySelector('#prgLimpiar').hidden = !q;
   caja.querySelector('#prgResumen').innerHTML = pintarResumen(L);
@@ -146,10 +155,12 @@ function pintar() {
 export function abrirProgramacion(contenedor, contexto, opc = {}) {
   ctx = contexto; caja = contenedor; opciones = opc;
   const h = new Date(); cursor = new Date(h.getFullYear(), h.getMonth(), 1);
+  proyectoFiltro="";participanteFiltro="";visibilidadFiltro="";
   vista = "calendario"; tipo = "TODAS"; origen = "TODAS"; q = ""; destino = "";
   caja.innerHTML = `<section class="hero"><div class="row"><h1>Programación</h1>${opc.puedeProgramar ? `<button type="button" class="btn pri sm" data-programar="">+ Programar</button>` : ""}</div></section>
     <div class="prg-herramientas"><div class="prg-modo"><span>Modo de vista</span><div class="seg-sw" role="group" aria-label="Modo de vista"><button type="button" data-prg-vista="calendario" aria-label="Calendario" title="Calendario">${icono('calendario')}</button><button type="button" data-prg-vista="lista" aria-label="Lista" title="Lista">${icono('lista')}</button></div></div>
       <div class="prg-busqueda">${icono('lupa')}<input type="search" id="prgBuscar" aria-label="Buscar actividades" placeholder="Buscar actividad, tipo, proyecto o lugar…" autocomplete="off" enterkeyhint="search"><button type="button" id="prgLimpiar" data-prg-limpiar aria-label="Limpiar búsqueda" title="Limpiar búsqueda" hidden>${icono('limpiar')}</button></div></div>
+    <div id="prgExtras" class="prg-filtros-extra"></div>
     <nav class="seg sm prg-origen" id="prgOrigen" aria-label="Filtrar por origen"></nav>
     <nav class="seg sm prg-tipos" id="prgTipos" aria-label="Filtrar por tipo"></nav>
     <div class="prg-resumen" id="prgResumen" role="status" aria-live="polite" aria-label="Resumen según filtros: cada repetición cuenta como una actividad"></div>
@@ -182,3 +193,5 @@ document.addEventListener("click", e => {
 document.addEventListener("input", e => {
   if (e.target.id === "prgBuscar") { q = e.target.value; destino=""; pintar(); }
 });
+
+document.addEventListener('change',e=>{if(!caja?.contains(e.target))return;const id=e.target.id;if(id==='prgProyecto')proyectoFiltro=e.target.value;else if(id==='prgParticipante')participanteFiltro=e.target.value;else if(id==='prgVisibilidad')visibilidadFiltro=e.target.value;else return;pintar();});

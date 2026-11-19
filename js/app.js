@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.14.0
+// SCaD Gestión · App · v0.15.0
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -46,7 +46,9 @@ import {
 
 import { alcanceFormulario, leerAlcance, alcanceTexto } from "./programacionAlcance.js?v=0.14.0";
 
-export const VERSION = "GESTION_APP v0.14.0";
+import { minutaEditorHtml, leerMinuta, conectarMinutaEditor, exportarActividadPdf } from "./actividadMinuta.js?v=0.15.0";
+
+export const VERSION = "GESTION_APP v0.15.0";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1390,7 +1392,7 @@ function vistaSeguimiento() {
       </div>
     ${selectorInstanciasSeg("segInstancias")}
       <div class="row wrap">
-        <label class="check" id="segCumpleBox" hidden><input type="checkbox" id="segCumple"> Da por cumplida la actividad</label>
+        <label class="check" id="segCumpleBox" hidden><input type="checkbox" id="segCumple"> Da por cumplida y cierra la actividad (sin modificaciones posteriores)</label>
         <label class="check"><input type="checkbox" id="segVis"> <span id="segVisTxt">${esc(etiquetaVisible(""))}</span></label>
         <button type="button" class="btn pri" data-act="anotarGeneral">Registrar seguimiento</button>
       </div></div>` : ""}
@@ -1495,10 +1497,11 @@ const puedeProgramar = () => S.modo === "INSTANCIA"
   ? S.ctx?.programacion?.puedeProgramarEnInstancia === true
   : S.ctx?.programacion?.puedeProgramar === true;
 const puedeEditar = a => !cumplida(a) && flag(a, "puedeEditar");
-const puedeCumplir = a => enEscritura() && programada(a) && flag(a, "puedeCumplir");
+const puedeEliminar = a => !cumplida(a) && flag(a, "puedeEliminar");
+const puedeCumplir = a => programada(a) && flag(a, "puedeCumplir");
 const puedeAnotarActividad = a => Boolean(a?.id && a.proyectoId) && puedeAnotar()
   && (esAdm() || misProyectos().some(p => p.id === a.proyectoId));
-const puedePromover = a => enEscritura() && esAdm() && origenDe(a) === "USUARIO" && flag(a, "puedePromover");
+const puedePromover = a => !cumplida(a) && esAdm() && origenDe(a) === "USUARIO" && flag(a, "puedePromover");
 const actsDe = pid => actividades(S.ctx).filter(a => (a.proyectosIds || [a.proyectoId]).includes(pid)).sort((x, y) => inicio(x) - inicio(y));
 const pendientesAgenda = pid => actsDe(pid).filter(sinCumplir).length;
 const fechaCorta = a => { const d = inicio(a); return isNaN(d) ? "Sin fecha" : d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" }) + (todoDia(a) ? "" : " " + hora(a)); };
@@ -1530,15 +1533,17 @@ function dlgActividad(id, fechaOcurrencia = "") {
   const s = inicio(a), e = fin(a), propia = origenDe(a) === "USUARIO";
   const cuando = isNaN(s) ? "—" : todoDia(a) ? s.toLocaleDateString("es-MX", { dateStyle: "full" }) + " · Todo el día" : s.toLocaleString("es-MX", { dateStyle: "full", timeStyle: "short" });
   const fila = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : "";
-  const estado = cumplida(a) ? `<span class="chip ok">Cumplida</span>` : sinCumplir(a) ? `<span class="chip bad">Sin cumplir</span>` : programada(a) ? `<span class="chip info">Programada</span>` : "";
+  const estado = cumplida(a) ? `<span class="chip ok">Cumplida · cerrada</span>` : sinCumplir(a) ? `<span class="chip bad">Sin cumplir</span>` : programada(a) ? `<span class="chip info">Programada</span>` : "";
   const puedeEnviarGoogle = /^#\/programacion(?:[/?]|$)/.test(location.hash)
     && Boolean(a.id) && !isNaN(s) && !todoDia(a) && !cumplida(a);
   const acciones = [
     puedeEnviarGoogle ? `<button type="button" class="btn" data-gcal-piloto>Enviar a Google Calendar</button>` : "",
     puedeAnotarActividad(a) ? `<button type="button" class="btn" data-act-accion="anotar" data-act-id="${esc(idDe(a))}" data-act-inicio="${isNaN(s) ? "" : esc(s.toISOString())}">Registrar seguimiento</button>` : "",
+    `<button type="button" class="btn" data-act-pdf aria-label="Exportar actividad a PDF">⇩ PDF</button>`,
+    puedeEditar(a) ? `<button type="button" class="btn" data-act-minuta>Guardar minuta</button>` : "",
     puedeCumplir(a) ? `<button class="btn pri" data-act-accion="cumplir" data-act-id="${esc(idDe(a))}">Marcar cumplida</button>` : "",
     puedeEditar(a) ? `<button class="btn" data-act-accion="editar" data-act-id="${esc(idDe(a))}">Editar</button>` : "",
-    puedeEditar(a) ? `<button class="btn bad" data-act-accion="eliminar" data-act-id="${esc(idDe(a))}">Eliminar</button>` : "",
+    puedeEliminar(a) ? `<button class="btn bad" data-act-accion="eliminar" data-act-id="${esc(idDe(a))}">Eliminar</button>` : "",
     puedePromover(a) ? `<button class="btn" data-act-accion="promover" data-act-id="${esc(idDe(a))}">Convertir en requerida</button>` : "",
     a.proyectoId && S.proyectos.some(p => p.id === a.proyectoId) && S.det?.proyecto?.id !== a.proyectoId ? `<button class="btn ghost" data-act-accion="proyecto" data-act-id="${esc(idDe(a))}">Ver proyecto</button>` : ""
   ].filter(Boolean).join("");
@@ -1547,6 +1552,7 @@ function dlgActividad(id, fechaOcurrencia = "") {
     <dl class="act-dl">
       ${fila("Proyecto", esc(pryEtq(a)) || (propia ? "" : "General de la EO"))}
       ${fila("Visible para",esc(alcanceTexto(a.gestionProgramacion)))}
+      ${fila("Responsable", esc(a.responsableNombre || "Sin responsable designado"))}
       ${fila("Participantes",esc((a.participantes||[]).map(x=>x.nombre).join(", ")))}
       ${fila("Inicio", esc(cuando))}
       ${e && !isNaN(e) && !todoDia(a) ? fila("Término", esc(e.toLocaleString("es-MX", { dateStyle: "full", timeStyle: "short" }))) : ""}
@@ -1558,7 +1564,22 @@ function dlgActividad(id, fechaOcurrencia = "") {
       ${cumplida(a) ? fila("Cumplimiento", esc([fecha(a.fechaCumplimiento), a.cumplidaPorNombre].filter(x => x && x !== "—").join(" · ")) + (a.notaCumplimiento ? `<br><span class="muted">${esc(a.notaCumplimiento)}</span>` : "")) : ""}
     </dl>
 
+    ${minutaEditorHtml(a.minuta, puedeEditar(a))}
+    ${a.minutaFecha ? `<p class="muted xs">Último guardado: ${esc(fechaHora(a.minutaFecha))}${a.minutaPorNombre ? ` · ${esc(a.minutaPorNombre)}` : ""}</p>` : ""}
+    ${cumplida(a) ? `<p class="muted xs">Actividad cerrada: sólo consulta y exportación PDF.</p>` : `<p class="muted xs">Marcar cumplida guarda la minuta y cierra la actividad. Después nadie podrá modificarla ni eliminarla.</p>`}
     ${acciones ? `<div class="act-acciones">${acciones}</div>` : ""}`, null, { textoCerrar: "Cerrar" });
+  conectarMinutaEditor($("#dlgBody"));
+  $("#dlgBody [data-act-pdf]").onclick = () => tarea(() => exportarActividadPdf(a, S.ctx?.eo?.nombre || S.ctx?.enteOperador?.nombre || ""));
+  const guardarMinuta = $("#dlgBody [data-act-minuta]");
+  if (guardarMinuta) guardarMinuta.onclick = async () => {
+    if (guardarMinuta.disabled) return;
+    let minuta; try { minuta = leerMinuta($("#dlgBody")); } catch (error) { aviso(error.message,"bad"); return; }
+    guardarMinuta.disabled = true;
+    try {
+      const r = await tarea(() => api("ACT_MINUTA", { actividadId: a.id, revision: a.revision, minuta }), { mensajeOk: "Minuta guardada." });
+      if (r) { await recargarActividades(); dlgActividad(a.id, fechaOcurrencia); }
+    } finally { guardarMinuta.disabled = false; }
+  };
   const enviarGoogle = $("#dlgBody [data-gcal-piloto]");
   if (enviarGoogle) {
     enviarGoogle.addEventListener("click", async () => {
@@ -1580,7 +1601,11 @@ function accionActividad(accion, id, fechaOcurrencia = "") {
   const a = buscarActividad(id, fechaOcurrencia);
   if (!a) return;
   if (accion === "anotar" && puedeAnotarActividad(a)) return dlgAnotarActividad(a);
-  if (accion === "cumplir") return dlgCumplir(a);
+  if (accion === "cumplir" && puedeCumplir(a)) {
+    let minuta = a.minuta;
+    try { if ($("#dlgBody [data-am-editor]")) minuta = leerMinuta($("#dlgBody")); } catch (error) { aviso(error.message, "bad"); return; }
+    return dlgCumplir(a, minuta);
+  }
   if (accion === "editar") return dlgProgramar(a);
   if (accion === "proyecto") { cerrarDialogo(); S.tab = "agenda"; location.hash = `#/p/${a.proyectoId}`; return; }
   if (accion === "eliminar") return dialogo(`<h3>Eliminar actividad</h3><p>${esc(titulo(a))}</p><p class="muted sm">Se elimina de la programación. Esta acción no se puede deshacer.</p>`,
@@ -1613,19 +1638,25 @@ function dlgAnotarActividad(a) {
   }, { textoBoton: "Registrar" });
 }
 
-function dlgCumplir(a) {
+function dlgCumplir(a, minuta = a.minuta) {
   dialogo(`<h3>Marcar cumplida</h3><p class="muted">${esc(titulo(a))} · ${esc(fechaCorta(a))}</p>
-    <label class="f">Anotación (opcional)<textarea id="cNota" rows="3" placeholder="Resultado, acuerdos, asistentes…"></textarea></label>
-    <label class="check"><input type="checkbox" id="cVis"> Visible para la instancia</label>
-    <p class="muted xs">Queda registrada en el Seguimiento del proyecto.</p>`,
-  () => tarea(() => api("ACT_CUMPLIR", { actividadId: a.id, nota: $("#cNota").value, visibleCliente: $("#cVis").checked }), { mensajeOk: "Actividad cumplida." }).then(trasActividad),
-  { textoBoton: "Marcar cumplida" });
+    ${minutaEditorHtml(minuta, true)}
+    <p class="am-cierre">Al confirmar, se guarda esta minuta y la actividad queda cumplida y cerrada. Nadie podrá modificarla ni eliminarla, incluido el administrador.</p>`,
+  async () => {
+    const boton = $('#dlgBody [data-dlg="ok"]');
+    if (!boton || boton.disabled) return;
+    let minuta; try { minuta = leerMinuta($("#dlgBody")); } catch (error) { aviso(error.message,"bad"); return; }
+    boton.disabled = true;
+    try { await tarea(() => api("ACT_CUMPLIR", { actividadId: a.id, revision: a.revision, minuta }), { mensajeOk: "Actividad cumplida y cerrada." }).then(trasActividad); }
+    finally { boton.disabled = false; }
+  }, { textoBoton: "Guardar y marcar cumplida" });
+  conectarMinutaEditor($("#dlgBody"));
 }
 
 const hhmm = d => isNaN(d) ? "" : `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 function dlgProgramar(a = null, proyectoId = "") {
   const P = misProyectos();
-  const tipos = tiposActividad();
+  const tipos = tiposActividad().filter(t => t.autorizado !== false || (a && t.etiqueta === tipoDe(a)));
   if (!a && !puedeProgramar()) { aviso("No tienes autorización para programar actividades.", "bad"); return; }
   if (!tipos.length) { aviso("No tienes tipos de actividad autorizados. El administrador los configura en Programación del panel.", "bad"); return; }
   const adm = esAdm();
@@ -1638,6 +1669,8 @@ function dlgProgramar(a = null, proyectoId = "") {
   dialogo(`<h3>${a ? "Editar actividad" : "Programar actividad"}</h3>
     <p class="muted xs">${adm ? "Como administrador, la actividad queda como <b>requerida</b>." : "Actividad propia: organiza reuniones, visitas y otras actividades."}</p>
     ${alcanceFormulario(opcionesAlcance, a?.gestionProgramacion || { proyectosIds:a?.proyectosIds || (pid?[pid]:[]), visibilidad:pid?{porProyecto:true}:{usuariosIds:[S.ctx.usuario.usrId]} })}
+    ${a?.vinculosRestringidos ? `<p class="muted xs">La actividad incluye proyectos fuera de tu acceso; sus vínculos se conservarán al guardar.</p>` : ""}
+    <label class="f">Responsable<select id="aResponsable"><option value="">Sin responsable designado</option>${(opcionesAlcance.usuarios || []).map(u => `<option value="${esc(u.id)}" ${a?.responsableId === u.id ? "selected" : ""}>${esc(u.nombre)}</option>`).join("")}</select></label>
     <label class="f">Actividad<input id="aTit" maxlength="180" value="${esc(a ? titulo(a) : "")}" placeholder="Ej. Llamada con el enlace de SIOP"></label>
     <label class="f">Tipo<select id="aTipo">${tipos.map(t => `<option value="${esc(t.id)}" ${t.etiqueta === tipoSel ? "selected" : ""}>${esc(t.etiqueta)}</option>`).join("")}</select></label>
     <div class="grid3">
@@ -1652,8 +1685,9 @@ function dlgProgramar(a = null, proyectoId = "") {
 `,
   () => {
     const fechaV = $("#aFecha").value, todo = $("#aTodo").checked, hi = $("#aHoraIni").value, hf = $("#aHoraFin").value;
-    let alcance;try{alcance=leerAlcance($("#dlgBody"));}catch(error){aviso(error.message,"bad");return;}
+    let alcance;try{alcance=a?.vinculosRestringidos ? {...a.gestionProgramacion} : leerAlcance($("#dlgBody"));}catch(error){aviso(error.message,"bad");return;}
     const datos = {
+      revision: a?.revision || "", responsableId: $("#aResponsable").value,
       ...alcance, actividadId: a?.id || "", proyectoId: alcance.proyectosIds[0] || "", titulo: $("#aTit").value.trim(), tipoId: $("#aTipo").value,
       todoElDia: todo, lugar: $("#aLugar").value.trim(), descripcion: $("#aDet").value.trim(), enlace: $("#aEnl").value.trim(),
       vista: S.modo, visibleCliente: $("#aVis")?.checked === true
@@ -1669,6 +1703,7 @@ function dlgProgramar(a = null, proyectoId = "") {
     datos.fin = fn ? fn.toISOString() : "";
     return tarea(() => api("ACT_GUARDAR", datos), { mensajeOk: a ? "Actividad actualizada." : "Actividad programada." }).then(trasActividad);
   }, { textoBoton: a ? "Guardar" : "Programar" });
+  if (a?.vinculosRestringidos) $("#dlgBody").querySelectorAll(".prg-alcance input, .prg-alcance select").forEach(x => x.disabled = true);
 }
 
 // ── Diálogos ─────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.15.0
+// SCaD Gestión · App · v0.15.1
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -46,9 +46,9 @@ import {
 
 import { alcanceFormulario, leerAlcance, alcanceTexto } from "./programacionAlcance.js?v=0.14.0";
 
-import { minutaEditorHtml, leerMinuta, conectarMinutaEditor, exportarActividadPdf } from "./actividadMinuta.js?v=0.15.0";
+import { minutaEditorHtml, leerMinuta, conectarMinutaEditor, exportarActividadPdf } from "./actividadMinuta.js?v=0.15.1";
 
-export const VERSION = "GESTION_APP v0.15.0";
+export const VERSION = "GESTION_APP v0.15.1";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1539,11 +1539,11 @@ function dlgActividad(id, fechaOcurrencia = "") {
   const acciones = [
     puedeEnviarGoogle ? `<button type="button" class="btn" data-gcal-piloto>Enviar a Google Calendar</button>` : "",
     puedeAnotarActividad(a) ? `<button type="button" class="btn" data-act-accion="anotar" data-act-id="${esc(idDe(a))}" data-act-inicio="${isNaN(s) ? "" : esc(s.toISOString())}">Registrar seguimiento</button>` : "",
-    `<button type="button" class="btn" data-act-pdf aria-label="Exportar actividad a PDF">⇩ PDF</button>`,
-    puedeEditar(a) ? `<button type="button" class="btn" data-act-minuta>Guardar minuta</button>` : "",
+    `<button type="button" class="btn act-icon" data-act-pdf title="Exportar actividad a PDF" aria-label="Exportar actividad a PDF"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><rect x="1" y="12" width="22" height="9" rx="2" fill="#c2413a" stroke="none"/><text x="12" y="18.5" text-anchor="middle" font-family="Arial,sans-serif" font-size="7" font-weight="700" fill="white" stroke="none">PDF</text></svg></button>`,
+    puedeEditar(a) ? `<button type="button" class="btn act-icon" data-act-minuta title="Guardar minuta" aria-label="Guardar minuta"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z"/><path d="M7 3v6h10V3M7 21v-8h10v8M14 5v2"/></svg></button>` : "",
     puedeCumplir(a) ? `<button class="btn pri" data-act-accion="cumplir" data-act-id="${esc(idDe(a))}">Marcar cumplida</button>` : "",
-    puedeEditar(a) ? `<button class="btn" data-act-accion="editar" data-act-id="${esc(idDe(a))}">Editar</button>` : "",
-    puedeEliminar(a) ? `<button class="btn bad" data-act-accion="eliminar" data-act-id="${esc(idDe(a))}">Eliminar</button>` : "",
+    puedeEditar(a) ? `<button class="btn act-icon" data-act-accion="editar" data-act-id="${esc(idDe(a))}" title="Editar" aria-label="Editar"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5M4 16 16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-5 1z"/></svg></button>` : "",
+    puedeEliminar(a) ? `<button class="btn bad act-icon" data-act-accion="eliminar" data-act-id="${esc(idDe(a))}" title="Eliminar" aria-label="Eliminar"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg></button>` : "",
     puedePromover(a) ? `<button class="btn" data-act-accion="promover" data-act-id="${esc(idDe(a))}">Convertir en requerida</button>` : "",
     a.proyectoId && S.proyectos.some(p => p.id === a.proyectoId) && S.det?.proyecto?.id !== a.proyectoId ? `<button class="btn ghost" data-act-accion="proyecto" data-act-id="${esc(idDe(a))}">Ver proyecto</button>` : ""
   ].filter(Boolean).join("");

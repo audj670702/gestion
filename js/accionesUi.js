@@ -1,0 +1,15 @@
+const svg = body => `<svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">${body}</svg>`;
+export const iconoGuardar = svg('<path fill="currentColor" d="M5 3h20l4 4v21a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path fill="#eaf3ff" d="M8 3h15v10H8zM8 19h16v11H8z"/><path fill="currentColor" d="M18 5h3v6h-3z"/><path stroke="#aac6e5" d="M11 23h10M11 26h10"/>');
+export const iconoEditar = svg('<path fill="#dce8f5" d="M5 5h18v24H5z"/><path stroke="#a9bfd6" d="M8 10h10M8 14h10M8 18h7M8 24h8"/><g transform="rotate(42 21 14)"><path fill="#e45a78" d="M18 2h6v5h-6z"/><path fill="#b5c3d0" d="M18 7h6v3h-6z"/><path fill="#f9b92d" d="M18 10h6v15h-6z"/><path fill="#ffe198" d="M18 10h2v15h-2z"/><path fill="#e3bd8b" d="m18 25 3 6 3-6z"/><path fill="#34475b" d="m20 29 1 2 1-2z"/></g>');
+export const iconoEliminar = svg('<path fill="#d8e1ea" d="m7 9 2 20h14l2-20z"/><path fill="#a3b4c6" d="m21 9-2 20h4l2-20z"/><path stroke="#8499ad" stroke-width="2" stroke-linecap="round" d="m12 13 1 12m4-12v12m4-12-1 12"/><path fill="#e85c55" d="M5 6h22v4H5z"/><path fill="#bb413d" d="M12 3h8v3h-2V5h-4v1h-2z"/>');
+export const iconoPdf = svg('<path fill="#edf2f8" stroke="#aab8c8" d="M7 2h13l6 6v22H7z"/><path fill="#c3d1df" d="M20 2v7h6z"/><path stroke="#b7c5d4" d="M11 12h11M11 15h9M11 25h11"/><rect x="2" y="16" width="28" height="10" rx="2" fill="#dc4545"/><text x="16" y="23.5" text-anchor="middle" font-family="Arial,sans-serif" font-size="8" font-weight="700" fill="white">PDF</text>');
+export const iconoGoogle = '<svg viewBox="0 0 48 48" width="21" height="21" aria-hidden="true"><path fill="#4285F4" d="M43.6 20.5H24v8h11.2c-.5 2.6-2 4.8-4.2 6.3v5.2h6.8c4-3.7 6.3-9.1 6.3-15.5 0-1.4-.2-2.7-.5-4z"/><path fill="#34A853" d="M24 44c5.6 0 10.3-1.9 13.8-5l-6.8-5.2c-1.9 1.3-4.3 2-7 2-5.4 0-10-3.6-11.7-8.5h-7v5.4A20 20 0 0 0 24 44z"/><path fill="#FBBC05" d="M12.3 27.3a12 12 0 0 1 0-6.6v-5.4h-7a20 20 0 0 0 0 17.4z"/><path fill="#EA4335" d="M24 12.2c3.1 0 5.9 1.1 8.1 3.2l6.1-6.1A19.2 19.2 0 0 0 24 4 20 20 0 0 0 5.3 15.3l7 5.4c1.7-4.9 6.3-8.5 11.7-8.5z"/></svg>';
+export const marcaCal = `${iconoGoogle}<span>Cal</span>`;
+export function vigilarGuardado(root, boton, leer) {
+  if (!boton) return;
+  const valor = leer || (() => JSON.stringify([...root.querySelectorAll('input:not([type="search"]),select,textarea,[contenteditable="true"]')].map(e => e.isContentEditable ? e.innerHTML : e.type === 'file' ? [...e.files].map(f => [f.name,f.size,f.lastModified]) : ['checkbox','radio'].includes(e.type) ? [e.value,e.checked] : e.value)));
+  const inicial = valor();
+  const actualizar = () => { let pendiente; try { pendiente = valor() !== inicial; } catch { pendiente = true; } boton.disabled = !pendiente || boton.dataset.guardando === 'true'; boton.classList.toggle('save-pending', pendiente); boton.setAttribute('aria-label', pendiente ? 'Guardar cambios pendientes' : 'Sin cambios para guardar'); boton.title = pendiente ? 'Guardar cambios pendientes' : 'Sin cambios para guardar'; };
+  root.addEventListener('input', actualizar); root.addEventListener('change', actualizar); actualizar();
+  return actualizar;
+}

@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.15.1
+// SCaD Gestión · App · v0.15.2
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -46,9 +46,11 @@ import {
 
 import { alcanceFormulario, leerAlcance, alcanceTexto } from "./programacionAlcance.js?v=0.14.0";
 
-import { minutaEditorHtml, leerMinuta, conectarMinutaEditor, exportarActividadPdf } from "./actividadMinuta.js?v=0.15.1";
+import { minutaEditorHtml, leerMinuta, conectarMinutaEditor, exportarActividadPdf } from "./actividadMinuta.js?v=0.15.2";
 
-export const VERSION = "GESTION_APP v0.15.1";
+import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaCal, vigilarGuardado } from "./accionesUi.js?v=0.15.2";
+
+export const VERSION = "GESTION_APP v0.15.2";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -408,12 +410,7 @@ function montarGoogleCalendar(hash) {
   menu.className = "gcal-menu";
   menu.innerHTML = `
     <summary class="gcal-activar" title="Google Calendar" aria-label="Opciones de Google Calendar">
-      <svg viewBox="0 0 48 48" width="21" height="21" aria-hidden="true">
-        <path fill="#4285F4" d="M43.6 20.5H24v8h11.2c-.5 2.6-2 4.8-4.2 6.3v5.2h6.8c4-3.7 6.3-9.1 6.3-15.5 0-1.4-.2-2.7-.5-4z"/>
-        <path fill="#34A853" d="M24 44c5.6 0 10.3-1.9 13.8-5l-6.8-5.2c-1.9 1.3-4.3 2-7 2-5.4 0-10-3.6-11.7-8.5h-7v5.4A20 20 0 0 0 24 44z"/>
-        <path fill="#FBBC05" d="M12.3 27.3a12 12 0 0 1 0-6.6v-5.4h-7a20 20 0 0 0 0 17.4z"/>
-        <path fill="#EA4335" d="M24 12.2c3.1 0 5.9 1.1 8.1 3.2l6.1-6.1A19.2 19.2 0 0 0 24 4 20 20 0 0 0 5.3 15.3l7 5.4c1.7-4.9 6.3-8.5 11.7-8.5z"/>
-      </svg>
+      ${marcaCal}
       <span class="gcal-flecha" aria-hidden="true"></span>
     </summary>
     <div class="gcal-opciones" role="group" aria-label="Google Calendar">
@@ -422,14 +419,14 @@ function montarGoogleCalendar(hash) {
         <span>Sincronizar</span>
       </button>
       <button type="button" data-gcal-conexion>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M4 2h14l4 4v12l-4 4H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"/><path fill="#fff" d="M6 6h12v12H6z"/><path fill="#34A853" d="M6 18h12v4H6z"/><path fill="#FBBC05" d="M18 6h4v12h-4z"/><path fill="#EA4335" d="M18 18h4l-4 4z"/><path fill="none" stroke="#4285F4" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" d="M8.5 9.5h2.2v2.4H9.1m1.6 0v2.6H8.5m5-4 1.7-1v5"/></svg>
+        ${marcaCal}
         <span></span>
       </button>
     </div>`;
   const activador = menu.querySelector("summary");
   const sincronizar = menu.querySelector("[data-gcal-sync]");
   const boton = menu.querySelector("[data-gcal-conexion]");
-  const etiquetaConexion = boton.querySelector("span");
+  const etiquetaConexion = boton.querySelector("span:last-child");
   const cerrarOpciones = () => { menu.open = false; activador.focus(); };
   menu.addEventListener("keydown", e => {
     if (e.key === "Escape" && menu.open) {
@@ -446,7 +443,7 @@ function montarGoogleCalendar(hash) {
     sincronizar.hidden = estado !== true;
     etiquetaConexion.textContent = estado === null
       ? "Revisar conexión"
-      : estado ? "Desconectar Google Calendar" : "Conectar Google Calendar";
+      : estado ? "Desconectar" : "Conectar";
   }
 
   async function consultarEstado() {
@@ -1537,17 +1534,17 @@ function dlgActividad(id, fechaOcurrencia = "") {
   const puedeEnviarGoogle = /^#\/programacion(?:[/?]|$)/.test(location.hash)
     && Boolean(a.id) && !isNaN(s) && !todoDia(a) && !cumplida(a);
   const acciones = [
-    puedeEnviarGoogle ? `<button type="button" class="btn" data-gcal-piloto>Enviar a Google Calendar</button>` : "",
+    puedeEnviarGoogle ? `<button type="button" class="btn cal-compact" data-gcal-piloto title="Enviar a Google Calendar" aria-label="Enviar a Google Calendar">${marcaCal}</button>` : "",
     puedeAnotarActividad(a) ? `<button type="button" class="btn" data-act-accion="anotar" data-act-id="${esc(idDe(a))}" data-act-inicio="${isNaN(s) ? "" : esc(s.toISOString())}">Registrar seguimiento</button>` : "",
-    `<button type="button" class="btn act-icon" data-act-pdf title="Exportar actividad a PDF" aria-label="Exportar actividad a PDF"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><rect x="1" y="12" width="22" height="9" rx="2" fill="#c2413a" stroke="none"/><text x="12" y="18.5" text-anchor="middle" font-family="Arial,sans-serif" font-size="7" font-weight="700" fill="white" stroke="none">PDF</text></svg></button>`,
-    puedeEditar(a) ? `<button type="button" class="btn act-icon" data-act-minuta title="Guardar minuta" aria-label="Guardar minuta"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z"/><path d="M7 3v6h10V3M7 21v-8h10v8M14 5v2"/></svg></button>` : "",
-    puedeCumplir(a) ? `<button class="btn pri" data-act-accion="cumplir" data-act-id="${esc(idDe(a))}">Marcar cumplida</button>` : "",
-    puedeEditar(a) ? `<button class="btn act-icon" data-act-accion="editar" data-act-id="${esc(idDe(a))}" title="Editar" aria-label="Editar"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5M4 16 16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-5 1z"/></svg></button>` : "",
-    puedeEliminar(a) ? `<button class="btn bad act-icon" data-act-accion="eliminar" data-act-id="${esc(idDe(a))}" title="Eliminar" aria-label="Eliminar"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg></button>` : "",
+    `<button type="button" class="btn act-icon" data-act-pdf title="Exportar actividad a PDF" aria-label="Exportar actividad a PDF">${iconoPdf}</button>`,
+    puedeEditar(a) ? `<button type="button" class="btn act-icon save-icon" data-act-minuta title="Guardar minuta" aria-label="Guardar minuta">${iconoGuardar}</button>` : "",
+    puedeCumplir(a) ? `<button class="btn complete-compact" data-act-accion="cumplir" data-act-id="${esc(idDe(a))}" title="Marcar cumplida" aria-label="Marcar cumplida">✓ <span>Cumplir</span></button>` : "",
+    puedeEditar(a) ? `<button class="btn act-icon" data-act-accion="editar" data-act-id="${esc(idDe(a))}" title="Editar" aria-label="Editar">${iconoEditar}</button>` : "",
+    puedeEliminar(a) ? `<button class="btn bad act-icon" data-act-accion="eliminar" data-act-id="${esc(idDe(a))}" title="Eliminar" aria-label="Eliminar">${iconoEliminar}</button>` : "",
     puedePromover(a) ? `<button class="btn" data-act-accion="promover" data-act-id="${esc(idDe(a))}">Convertir en requerida</button>` : "",
     a.proyectoId && S.proyectos.some(p => p.id === a.proyectoId) && S.det?.proyecto?.id !== a.proyectoId ? `<button class="btn ghost" data-act-accion="proyecto" data-act-id="${esc(idDe(a))}">Ver proyecto</button>` : ""
   ].filter(Boolean).join("");
-  dialogo(`<div class="row wrap"><span class="chip ${propia ? "propia" : "req"}">${propia ? "Propia" : "Requerida"}</span><span class="chip" style="background:color-mix(in srgb,${colorDe(a)} 14%,#fff);color:${colorDe(a)}">${esc(tipoDe(a))}</span>${estado}</div>
+  dialogo(`${acciones ? `<div class="act-acciones">${acciones}</div>` : ""}<div class="row wrap"><span class="chip ${propia ? "propia" : "req"}">${propia ? "Propia" : "Requerida"}</span><span class="chip" style="background:color-mix(in srgb,${colorDe(a)} 14%,#fff);color:${colorDe(a)}">${esc(tipoDe(a))}</span>${estado}</div>
     <h3>${esc(titulo(a))}</h3>
     <dl class="act-dl">
       ${fila("Proyecto", esc(pryEtq(a)) || (propia ? "" : "General de la EO"))}
@@ -1567,18 +1564,21 @@ function dlgActividad(id, fechaOcurrencia = "") {
     ${minutaEditorHtml(a.minuta, puedeEditar(a))}
     ${a.minutaFecha ? `<p class="muted xs">Último guardado: ${esc(fechaHora(a.minutaFecha))}${a.minutaPorNombre ? ` · ${esc(a.minutaPorNombre)}` : ""}</p>` : ""}
     ${cumplida(a) ? `<p class="muted xs">Actividad cerrada: sólo consulta y exportación PDF.</p>` : `<p class="muted xs">Marcar cumplida guarda la minuta y cierra la actividad. Después nadie podrá modificarla ni eliminarla.</p>`}
-    ${acciones ? `<div class="act-acciones">${acciones}</div>` : ""}`, null, { textoCerrar: "Cerrar" });
+    `, null, { textoCerrar: "Cerrar" });
   conectarMinutaEditor($("#dlgBody"));
   $("#dlgBody [data-act-pdf]").onclick = () => tarea(() => exportarActividadPdf(a, S.ctx?.eo?.nombre || S.ctx?.enteOperador?.nombre || ""));
+  $("#dlg").classList.add("actividad");
   const guardarMinuta = $("#dlgBody [data-act-minuta]");
+  const refrescarGuardado = vigilarGuardado($("#dlgBody"), guardarMinuta, () => JSON.stringify(leerMinuta($("#dlgBody"))));
   if (guardarMinuta) guardarMinuta.onclick = async () => {
     if (guardarMinuta.disabled) return;
     let minuta; try { minuta = leerMinuta($("#dlgBody")); } catch (error) { aviso(error.message,"bad"); return; }
+    guardarMinuta.dataset.guardando = "true";
     guardarMinuta.disabled = true;
     try {
       const r = await tarea(() => api("ACT_MINUTA", { actividadId: a.id, revision: a.revision, minuta }), { mensajeOk: "Minuta guardada." });
       if (r) { await recargarActividades(); dlgActividad(a.id, fechaOcurrencia); }
-    } finally { guardarMinuta.disabled = false; }
+    } finally { delete guardarMinuta.dataset.guardando; if (guardarMinuta.isConnected) refrescarGuardado?.(); }
   };
   const enviarGoogle = $("#dlgBody [data-gcal-piloto]");
   if (enviarGoogle) {
@@ -1709,7 +1709,11 @@ function dlgProgramar(a = null, proyectoId = "") {
 // ── Diálogos ─────────────────────────────────────────────────
 let alEnviar = null;
 function dialogo(html, enviar, { textoBoton = "Guardar", clase = "pri", textoCerrar = "Cancelar", sinPie = false } = {}) {
-  $("#dlgBody").innerHTML = sinPie ? html : `${html}<div class="dlg-acts"><button class="btn" data-dlg="cerrar">${esc(textoCerrar)}</button>${enviar ? `<button class="btn ${clase}" data-dlg="ok">${esc(textoBoton)}</button>` : ""}</div>`;
+  $("#dlg").classList.remove("actividad");
+  const guardar = textoBoton === "Guardar";
+  const accion = enviar ? `<div class="dlg-acts"><button class="btn ${guardar ? "act-icon save-icon" : clase}" data-dlg="ok" ${guardar ? 'title="Guardar" aria-label="Guardar"' : ""}>${guardar ? iconoGuardar : textoBoton === "Guardar y marcar cumplida" ? iconoGuardar + "<span>Cumplir</span>" : esc(textoBoton)}</button></div>` : "";
+  $("#dlgBody").innerHTML = sinPie ? html : `${accion}${html}`;
+  if (guardar && enviar) vigilarGuardado($("#dlgBody"), $('#dlgBody [data-dlg="ok"]'));
   alEnviar = enviar;
   if (!$("#dlg").open) $("#dlg").showModal();
   $("#dlgBody").scrollTop = 0;
@@ -1763,10 +1767,11 @@ function dlgBandera(boton) {
     <fieldset class="seg-opciones"><legend>Elige un estado</legend>${opciones}</fieldset>
     <p class="seg-error" role="alert" hidden></p>
     <div class="dlg-acts"><button class="btn" value="cancelar">Cancelar</button>
-      <button class="btn pri" value="guardar">Guardar</button></div>
+      <button class="btn act-icon save-icon" value="guardar" title="Guardar" aria-label="Guardar">${iconoGuardar}</button></div>
   </form>`;
   const form = modal.querySelector("form");
   const guardar = form.querySelector('[value="guardar"]');
+  const refrescarBandera = vigilarGuardado(form, guardar);
   const error = form.querySelector(".seg-error");
   form.addEventListener("submit", async e => {
     if (e.submitter?.value === "cancelar") return;
@@ -1779,7 +1784,7 @@ function dlgBandera(boton) {
     const r = await tarea(() => api("SEG_RELEVANCIA", {
       segId: id, bandera, relevante: bandera === "DIFICULTAD", vista: S.modo
     }));
-    guardar.disabled = false;
+    refrescarBandera();
     if (!r) {
       error.textContent = "No se pudo guardar la bandera. Inténtalo de nuevo.";
       error.hidden = false;

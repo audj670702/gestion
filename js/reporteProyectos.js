@@ -47,3 +47,14 @@ export async function generarReporteProyectos(tipo, m, { base, entidad, autor, v
   });
   doc.save(`${base}.pdf`);
 }
+
+export async function generarExcelTabla(m, { nombre, hoja, titulo, autor, filtros, descargar }) {
+  const XLSX = await cargarExcel();
+  const ws = XLSX.utils.aoa_to_sheet([m.headers, ...m.rows]);
+  ws['!cols'] = m.headers.map((h,i) => ({wch:Math.min(65,Math.max(12,String(h).length+3,...m.rows.map(r=>Math.min(65,String(r[i]??'').length+2))))}));
+  ws['!autofilter'] = {ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:m.rows.length,c:m.headers.length-1}})};
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,hoja);
+  const meta=XLSX.utils.aoa_to_sheet([['Reporte',titulo],['Generó',autor],['Generado',new Date().toLocaleString('es-MX')],['Filtros',filtros||'Sin filtros'],['Registros',m.rows.length]]);
+  meta['!cols']=[{wch:18},{wch:100}];XLSX.utils.book_append_sheet(wb,meta,'Información');
+  descargar(new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`${nombre}.xlsx`);
+}

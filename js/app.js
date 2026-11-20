@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.15.5
+// SCaD Gestión · App · v0.15.6
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -46,13 +46,13 @@ import {
 
 import { alcanceFormulario, leerAlcance, alcanceTexto } from "./programacionAlcance.js?v=0.14.0";
 
-import { minutaEditorHtml, leerMinuta, conectarMinutaEditor, exportarActividadPdf } from "./actividadMinuta.js?v=0.15.5";
+import { minutaEditorHtml, leerMinuta, conectarMinutaEditor, exportarActividadPdf } from "./actividadMinuta.js?v=0.15.6";
 
-import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaCal, vigilarGuardado } from "./accionesUi.js?v=0.15.5";
+import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaCal, vigilarGuardado } from "./accionesUi.js?v=0.15.6";
 
-import { matrizProyectos, generarReporteProyectos } from "./reporteProyectos.js?v=0.15.5";
+import { matrizProyectos, generarReporteProyectos, generarExcelTabla } from "./reporteProyectos.js?v=0.15.6";
 
-export const VERSION = "GESTION_APP v0.15.5";
+export const VERSION = "GESTION_APP v0.15.6";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1153,14 +1153,8 @@ async function exportarReq(tipo) {
   const filtros = textoFiltroReq();
   const base = `Requerimientos_${p.folio}_${hoyYmd()}`;
   if (tipo === "xls") {
-    const n = m.headers.length;
-    const tr = r => `<tr>${r.map((v, k) => `<td${(k === 0 || m.cols[k - 1]?.n) ? ' style="text-align:right"' : ""}>${esc(v)}</td>`).join("")}</tr>`;
-    const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table>
-      <tr><th colspan="${n}" style="font-size:14pt;text-align:left">${esc(titulo)}</th></tr>
-      <tr><td colspan="${n}">Generado por ${esc(usr().nombreVisible || usr().nombre || "")} · ${esc(new Date().toLocaleString("es-MX"))}</td></tr>
-      <tr><td colspan="${n}">${esc(filtros || "Sin filtros")}</td></tr>
-      <tr>${m.headers.map(h => `<th style="background:#15253d;color:#fff">${esc(h)}</th>`).join("")}</tr>${m.rows.map(tr).join("")}</table></body></html>`;
-    descargarArchivo(new Blob(["", html], { type: "application/vnd.ms-excel;charset=utf-8" }), `${base}.xls`);
+    try { await generarExcelTabla(m, { nombre: base, hoja: "Requerimientos", titulo, autor: usr().nombreVisible || usr().nombre || "", filtros, descargar: descargarArchivo }); }
+    catch(error) { aviso(error.message || "No fue posible generar el archivo Excel.", "bad"); }
     return;
   }
   try {
@@ -1374,14 +1368,8 @@ async function exportarSeg(tipo) {
     TABLAS.seg.vista && VISTAS_SELECCION[TABLAS.seg.vista]].filter(Boolean).join(" · ");
   const base = `Seguimiento_${p.folio}_${hoyYmd()}`;
   if (tipo === "xls") {
-    const n = m.headers.length;
-    const tr = r => `<tr>${r.map(v => `<td>${esc(v)}</td>`).join("")}</tr>`;
-    const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table>
-      <tr><th colspan="${n}" style="font-size:14pt;text-align:left">${esc(titulo)}</th></tr>
-      <tr><td colspan="${n}">Generado por ${esc(usr().nombreVisible || usr().nombre || "")} · ${esc(new Date().toLocaleString("es-MX"))}</td></tr>
-      <tr><td colspan="${n}">${esc(filtros || "Sin filtros")}</td></tr>
-      <tr>${m.headers.map(h => `<th style="background:#15253d;color:#fff">${esc(h)}</th>`).join("")}</tr>${m.rows.map(tr).join("")}</table></body></html>`;
-    descargarArchivo(new Blob(["", html], { type: "application/vnd.ms-excel;charset=utf-8" }), `${base}.xls`);
+    try { await generarExcelTabla(m, { nombre: base, hoja: "Seguimiento", titulo, autor: usr().nombreVisible || usr().nombre || "", filtros, descargar: descargarArchivo }); }
+    catch(error) { aviso(error.message || "No fue posible generar el archivo Excel.", "bad"); }
     return;
   }
   try {

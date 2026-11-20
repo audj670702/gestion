@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.15.7
+// SCaD Gestión · App · v0.15.8
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -52,7 +52,7 @@ import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaC
 
 import { matrizProyectos, generarReporteProyectos, generarExcelTabla } from "./reporteProyectos.js?v=0.15.6";
 
-export const VERSION = "GESTION_APP v0.15.7";
+export const VERSION = "GESTION_APP v0.15.8";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1052,7 +1052,7 @@ function detalleReqHTML(x) {
   const anotar = puedeAnotar() ? `<div class="req-nota">
       <textarea id="rqNota" rows="2" placeholder="Anotación sobre este requerimiento…"></textarea>
     ${selectorInstanciasSeg("rqInstancias")}
-      <div class="req-nota-pie"><label class="check"><input type="checkbox" id="rqVis"> ${esc(etiquetaVisible(x.id))}</label>
+      <div class="req-nota-pie"><label class="check"><input type="checkbox" id="rqVis" checked> ${esc(etiquetaVisible(x.id))}</label>
       <button class="btn sm pri" data-regnota="${esc(x.id)}">Registrar</button></div>
     </div>` : "";
   const hist = seg.map(s => `<li><div class="row wrap req-seg-meta"><span class="muted xs">${fechaHora(s.fechaRegistro)} · ${esc(s.autorNombre)}${s.autorTipo === "CLIENTE" ? " (instancia)" : ""}${s.registradoEnNombreDe ? ` · en nombre de ${esc(s.registradoEnNombreDe)}` : ""}</span>${controlBandera(s)}</div><p>${esc(s.nota)}</p></li>`).join("");
@@ -1824,12 +1824,25 @@ function dlgBandera(boton) {
   modal.showModal();
 }
 
+async function validarReq(id, boton) {
+  if (boton.disabled) return;
+  const nota = ($("#rqNota")?.value || "").trim();
+  const visibleCliente = $("#rqVis")?.checked === true;
+  boton.disabled = true;
+  boton.setAttribute("aria-busy", "true");
+  try {
+    const r = await tarea(() => api("REQ_ESTADO", { prqId: id, estado: "VALIDADO", nota, visibleCliente }));
+    if (r) await trasCambio(r);
+  } finally {
+    if (boton.isConnected) { boton.disabled = false; boton.removeAttribute("aria-busy"); }
+  }
+}
+
 function dlgEstado(id, estado) {
   const x = reqPorId(id);
   const obligatoria = ["OBSERVADO", "NO_APLICA"].includes(estado);
   const textos = {
     SOLICITADO: "Confirma que ya solicitaste este requerimiento a la instancia.",
-    VALIDADO: "Marca el requisito como cumplido. No requiere documento; si no hay documento, conviene dejar la razón en el seguimiento.",
     OBSERVADO: "Describe lo que falta o se debe corregir. La observación será visible para la instancia.",
     NO_APLICA: "Justifica por qué no aplica. Deja de contar para el avance.",
     PENDIENTE: "El requerimiento vuelve a contar para el avance."
@@ -2081,7 +2094,7 @@ document.addEventListener("click", e => {
   }
   if (d.tab) { S.tab = d.tab; pintarProyecto(); return; }
   if (d.indmin !== undefined) { S.indMin = d.indmin === "1"; pintarProyecto(); return; }
-  if (d.estado) { dlgEstado(d.req, d.estado); return; }
+  if (d.estado) { if (d.estado === "VALIDADO") validarReq(d.req, t); else dlgEstado(d.req, d.estado); return; }
   if (d.espera !== undefined) { tarea(() => api("REQ_ESPERA_DOC", { prqId: d.req, espera: d.espera === "1" })).then(trasCambio); return; }
   if (d.editar) { dlgEditar(d.editar); return; }
   if ("nuevoreq" in d) { dlgNuevoReq(); return; }

@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.15.9
+// SCaD Gestión · App · v0.15.10
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -52,7 +52,7 @@ import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaC
 
 import { matrizProyectos, generarReporteProyectos, generarExcelTabla } from "./reporteProyectos.js?v=0.15.6";
 
-export const VERSION = "GESTION_APP v0.15.9";
+export const VERSION = "GESTION_APP v0.15.10";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -597,14 +597,21 @@ function resumenProyectos(desdeInicio = false) {
   const suma = k => P.reduce((n, p) => n + (p.checklist?.[k] || 0), 0);
   const indicadores = [
     ["proyectos", "Proyectos", P.length, ""],
+    ["enProceso", "En proceso", P.filter(p => p.estatus === "EN_PROCESO").length, ""],
     ["entregados", "Por revisar", suma("entregados"), "warn"],
     ["vencidos", "Vencidos", suma("vencidos"), "bad"],
     ["porVencer", `Vencen en ${S.ctx.reglas?.diasRiesgo || 3} días`, suma("porVencer"), "amber"]
   ];
-  return `<div class="kpis" role="group" aria-label="Filtrar proyectos por resumen">
-    ${indicadores.map(([clave, etiqueta, total, clase]) => `<button type="button" class="kpi ${clase}" data-resumen="${clave}"
-      ${desdeInicio ? "" : `aria-pressed="${S.resumen === clave}" aria-controls="cards"`}><b>${total}</b><span>${etiqueta}</span></button>`).join("")}
+  const filtro = desdeInicio ? `<details class="kpi-filtro">
+    <summary aria-label="Filtrar proyectos por estatus" title="Filtrar proyectos por estatus"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16l-6 7v6l-4 2v-8z"/></svg></summary>
+    <div class="kpi-estatus" role="group" aria-label="Estatus de proyectos">${[["TODOS", "Todos"], ...Object.entries(ESTATUS), ["SIN_ASIGNAR", "Sin asignar"]].map(([valor, etiqueta]) => `<button type="button" data-proestatus="${esc(valor)}">${esc(etiqueta)}</button>`).join("")}</div>
+  </details>` : "";
+  return `<div class="kpis${desdeInicio ? " con-filtro" : ""}" role="group" aria-label="Filtrar proyectos por resumen">
+    ${indicadores.map(([clave, etiqueta, total, clase]) => `<button type="button" class="kpi ${clase}" ${clave === "enProceso" ? 'data-proestatus="EN_PROCESO"' : `data-resumen="${clave}"`}
+      ${desdeInicio ? "" : `aria-pressed="${clave === "enProceso" ? S.estatus === "EN_PROCESO" && S.resumen === "proyectos" : S.resumen === clave && (clave !== "proyectos" || S.estatus === "TODOS")}" aria-controls="cards"`}><b>${total}</b><span>${etiqueta}</span></button>`).join("")}
+    ${filtro}
   </div>`;
+
 }
 
 function pintarLista() {
@@ -2088,14 +2095,21 @@ document.addEventListener("click", e => {
   if (d.regnota) { anotarReq(d.regnota); return; }
   if (d.dlg === "cerrar") { cerrarDialogo(); return; }
   if (d.dlg === "ok") { alEnviar && alEnviar(); return; }
+  if (d.proestatus) {
+    Object.assign(S, { estatus: d.proestatus, resumen: "proyectos", q: "", tipo: "" });
+    if (location.hash === "#/inicio") location.hash = "#/";
+    else pintarLista();
+    return;
+  }
   if (d.resumen) {
     S.resumen = d.resumen;
+    if (d.resumen === "proyectos") { S.estatus = "TODOS"; if ($("#fEstatus")) $("#fEstatus").value = "TODOS"; }
     if (location.hash === "#/inicio") {
       Object.assign(S, { estatus: "TODOS", q: "", tipo: "" });
       location.hash = "#/";
       return;
     }
-    document.querySelectorAll("[data-resumen]").forEach(b => b.setAttribute("aria-pressed", String(b === t)));
+    document.querySelectorAll(".kpis .kpi").forEach(b => b.setAttribute("aria-pressed", String(b === t)));
     pintarTarjetas();
     return;
   }

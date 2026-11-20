@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.15.2
+// SCaD Gestión · App · v0.15.3
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -46,11 +46,11 @@ import {
 
 import { alcanceFormulario, leerAlcance, alcanceTexto } from "./programacionAlcance.js?v=0.14.0";
 
-import { minutaEditorHtml, leerMinuta, conectarMinutaEditor, exportarActividadPdf } from "./actividadMinuta.js?v=0.15.2";
+import { minutaEditorHtml, leerMinuta, conectarMinutaEditor, exportarActividadPdf } from "./actividadMinuta.js?v=0.15.3";
 
-import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaCal, vigilarGuardado } from "./accionesUi.js?v=0.15.2";
+import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaCal, vigilarGuardado } from "./accionesUi.js?v=0.15.3";
 
-export const VERSION = "GESTION_APP v0.15.2";
+export const VERSION = "GESTION_APP v0.15.3";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1493,7 +1493,11 @@ const tiposActividad = () => S.ctx?.catalogos?.tiposActividad || [];
 const puedeProgramar = () => S.modo === "INSTANCIA"
   ? S.ctx?.programacion?.puedeProgramarEnInstancia === true
   : S.ctx?.programacion?.puedeProgramar === true;
-const puedeEditar = a => !cumplida(a) && flag(a, "puedeEditar");
+const esEncargadoActividad = a => {
+  const uid = String(usr().usrId || "");
+  return Boolean(uid && (String(a?.creadoPorId || "") === uid || String(a?.responsableId || "") === uid));
+};
+const puedeEditar = a => !cumplida(a) && esEncargadoActividad(a) && flag(a, "puedeEditar");
 const puedeEliminar = a => !cumplida(a) && flag(a, "puedeEliminar");
 const puedeCumplir = a => programada(a) && flag(a, "puedeCumplir");
 const puedeAnotarActividad = a => Boolean(a?.id && a.proyectoId) && puedeAnotar()
@@ -1544,7 +1548,7 @@ function dlgActividad(id, fechaOcurrencia = "") {
     puedePromover(a) ? `<button class="btn" data-act-accion="promover" data-act-id="${esc(idDe(a))}">Convertir en requerida</button>` : "",
     a.proyectoId && S.proyectos.some(p => p.id === a.proyectoId) && S.det?.proyecto?.id !== a.proyectoId ? `<button class="btn ghost" data-act-accion="proyecto" data-act-id="${esc(idDe(a))}">Ver proyecto</button>` : ""
   ].filter(Boolean).join("");
-  dialogo(`${acciones ? `<div class="act-acciones">${acciones}</div>` : ""}<div class="row wrap"><span class="chip ${propia ? "propia" : "req"}">${propia ? "Propia" : "Requerida"}</span><span class="chip" style="background:color-mix(in srgb,${colorDe(a)} 14%,#fff);color:${colorDe(a)}">${esc(tipoDe(a))}</span>${estado}</div>
+  dialogo(`${acciones ? `<div class="act-acciones">${acciones}</div>` : ""}<div class="row wrap"><span class="chip" style="background:color-mix(in srgb,${colorDe(a)} 14%,#fff);color:${colorDe(a)}">${esc(tipoDe(a))}</span>${estado}</div>
     <h3>${esc(titulo(a))}</h3>
     <dl class="act-dl">
       ${fila("Proyecto", esc(pryEtq(a)) || (propia ? "" : "General de la EO"))}
@@ -1556,7 +1560,7 @@ function dlgActividad(id, fechaOcurrencia = "") {
       ${fila("Lugar", esc(lugar(a)))}
       ${fila("Detalle", esc(detalle(a)))}
       ${a.enlace ? fila("Enlace", `<a href="${esc(a.enlace)}" target="_blank" rel="noopener noreferrer">Abrir ↗</a>`) : ""}
-      ${fila(propia ? "Programó" : "Capturó", esc(a.creadoPorNombre || ""))}
+      ${fila("Programó", esc(a.creadoPorNombre || "Sin información registrada"))}
       ${propia && a.visibleCliente && S.modo !== "INSTANCIA" ? fila("Visibilidad", "Visible para la instancia") : ""}
       ${cumplida(a) ? fila("Cumplimiento", esc([fecha(a.fechaCumplimiento), a.cumplidaPorNombre].filter(x => x && x !== "—").join(" · ")) + (a.notaCumplimiento ? `<br><span class="muted">${esc(a.notaCumplimiento)}</span>` : "")) : ""}
     </dl>
@@ -1606,7 +1610,7 @@ function accionActividad(accion, id, fechaOcurrencia = "") {
     try { if ($("#dlgBody [data-am-editor]")) minuta = leerMinuta($("#dlgBody")); } catch (error) { aviso(error.message, "bad"); return; }
     return dlgCumplir(a, minuta);
   }
-  if (accion === "editar") return dlgProgramar(a);
+  if (accion === "editar" && puedeEditar(a)) return dlgProgramar(a);
   if (accion === "proyecto") { cerrarDialogo(); S.tab = "agenda"; location.hash = `#/p/${a.proyectoId}`; return; }
   if (accion === "eliminar") return dialogo(`<h3>Eliminar actividad</h3><p>${esc(titulo(a))}</p><p class="muted sm">Se elimina de la programación. Esta acción no se puede deshacer.</p>`,
     () => tarea(() => api("ACT_ELIMINAR", { actividadId: a.id }), { mensajeOk: "Actividad eliminada." }).then(trasActividad), { textoBoton: "Eliminar", clase: "bad" });
@@ -1655,6 +1659,7 @@ function dlgCumplir(a, minuta = a.minuta) {
 
 const hhmm = d => isNaN(d) ? "" : `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 function dlgProgramar(a = null, proyectoId = "") {
+  if (a && !puedeEditar(a)) { aviso("Sólo quien programó o el responsable puede editar esta actividad abierta.", "bad"); return; }
   const P = misProyectos();
   const tipos = tiposActividad().filter(t => t.autorizado !== false || (a && t.etiqueta === tipoDe(a)));
   if (!a && !puedeProgramar()) { aviso("No tienes autorización para programar actividades.", "bad"); return; }
@@ -1667,7 +1672,7 @@ function dlgProgramar(a = null, proyectoId = "") {
   const s = a ? inicio(a) : null, e = a ? fin(a) : null;
   const tipoSel = a ? tipoDe(a) : "";
   dialogo(`<h3>${a ? "Editar actividad" : "Programar actividad"}</h3>
-    <p class="muted xs">${adm ? "Como administrador, la actividad queda como <b>requerida</b>." : "Actividad propia: organiza reuniones, visitas y otras actividades."}</p>
+    <p class="muted xs">Quien programa queda registrado en «Programó». El responsable se designa por separado.</p>
     ${alcanceFormulario(opcionesAlcance, a?.gestionProgramacion || { proyectosIds:a?.proyectosIds || (pid?[pid]:[]), visibilidad:pid?{porProyecto:true}:{usuariosIds:[S.ctx.usuario.usrId]} })}
     ${a?.vinculosRestringidos ? `<p class="muted xs">La actividad incluye proyectos fuera de tu acceso; sus vínculos se conservarán al guardar.</p>` : ""}
     <label class="f">Responsable<select id="aResponsable"><option value="">Sin responsable designado</option>${(opcionesAlcance.usuarios || []).map(u => `<option value="${esc(u.id)}" ${a?.responsableId === u.id ? "selected" : ""}>${esc(u.nombre)}</option>`).join("")}</select></label>

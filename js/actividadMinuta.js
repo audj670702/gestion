@@ -58,7 +58,7 @@ export async function exportarActividadPdf(a,eo='') {
   doc.setFillColor(36,120,210);doc.rect(0,0,210,5,'F');texto('SCaD GESTIÓN',16,true);texto(eo,10,false,[116,128,150]);y+=4;texto(a.titulo||'Actividad',14,true);texto(cerrada?'CUMPLIDA · CERRADA':'PENDIENTE · ABIERTA',10,true,cerrada?[31,157,106]:[201,138,18]);y+=4;
   const proyectos=a.proyectos?.map(p=>[p.folio,p.nombre].filter(Boolean).join(' · ')).join('; ')||a.proyectoNombre||'Sin proyecto';
   const participantes=a.participantes?.map(p=>p.nombre).join(', ')||'Sin participantes registrados';
-  const meta=[['Inicio',fecha(a.inicio||a.fecha)],['Término',fecha(a.fin)],['Proyectos',proyectos],['Responsable',a.responsableNombre],['Participantes',participantes],['Lugar',a.lugar||a.ubicacion],['Detalle',a.descripcion||a.observaciones],['Registró',a.creadoPorNombre],['Cumplimiento',cerrada?[fecha(a.fechaCumplimiento||a.cumplimiento?.fecha),a.cumplidaPorNombre||a.cumplimiento?.porNombre].filter(Boolean).join(' · '):'Pendiente']];
+  const meta=[['Inicio',fecha(a.inicio||a.fecha)],['Término',fecha(a.fin)],['Proyectos',proyectos],['Responsable',a.responsableNombre],['Participantes',participantes],['Lugar',a.lugar||a.ubicacion],['Detalle',a.descripcion||a.observaciones],['Programó',a.creadoPorNombre],['Cumplimiento',cerrada?[fecha(a.fechaCumplimiento||a.cumplimiento?.fecha),a.cumplidaPorNombre||a.cumplimiento?.porNombre].filter(Boolean).join(' · '):'Pendiente']];
   for(const [k,v] of meta)if(v)texto(`${k}: ${v}`);
   y+=4;texto('MINUTA',12,true);let num=0;
   const bloques=a.minuta?.bloques||[];

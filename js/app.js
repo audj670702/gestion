@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.15.10
+// SCaD Gestión · App · v0.15.11
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -52,14 +52,16 @@ import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaC
 
 import { matrizProyectos, generarReporteProyectos, generarExcelTabla } from "./reporteProyectos.js?v=0.15.6";
 
-export const VERSION = "GESTION_APP v0.15.10";
+export const VERSION = "GESTION_APP v0.15.11";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
   PREVISION: "Previsión", AUTORIZADO: "Autorizado", EN_PROCESO: "En proceso",
-  PAUSADO: "Pausado", CONCLUIDO: "Concluido", CANCELADO: "Cancelado"
+  DETENIDO: "Detenido", CONCLUIDO: "Concluido", CANCELADO: "Cancelado"
 };
-const etiquetaEstatus = p => ESTATUS[p.estatus] || "Sin asignar";
+const claveEstatus = p => p.estatus === "PAUSADO" ? "DETENIDO" : (Object.hasOwn(ESTATUS, p.estatus) ? p.estatus : "SIN_ASIGNAR");
+const etiquetaEstatus = p => ESTATUS[claveEstatus(p)] || "Sin asignar";
+const chipEstatus = p => `<span class="chip estatus" data-estatus="${claveEstatus(p)}">${esc(etiquetaEstatus(p))}</span>`;
 const ESTADOS = {
   PENDIENTE: { t: "Pendiente", c: "" }, SOLICITADO: { t: "Solicitado", c: "info" }, ENTREGADO: { t: "Entregado · por revisar", c: "warn" },
   OBSERVADO: { t: "Observado", c: "bad" }, VALIDADO: { t: "Validado", c: "ok" }, NO_APLICA: { t: "No aplica", c: "mute" }
@@ -579,7 +581,7 @@ function pintarBienvenida() {
 }
 
 // ── Lista de proyectos (según la vista) ──────────────────────
-const enEstatus = p => S.estatus === "TODOS" || (p.estatus || "SIN_ASIGNAR") === S.estatus;
+const enEstatus = p => S.estatus === "TODOS" || claveEstatus(p) === S.estatus;
 const enResumen = p => S.resumen === "proyectos" || p.checklist?.[S.resumen] > 0;
 const responsable = p => p.responsableNombre || p.responsable?.nombre || "";
 const otorgantesDe = p => (p.otorgantes?.length ? p.otorgantes.map(o => o.instanciaId) : [p.instanciaOtorganteId]).filter(Boolean);
@@ -604,7 +606,7 @@ function resumenProyectos(desdeInicio = false) {
   ];
   const filtro = desdeInicio ? `<details class="kpi-filtro">
     <summary aria-label="Filtrar proyectos por estatus" title="Filtrar proyectos por estatus"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16l-6 7v6l-4 2v-8z"/></svg></summary>
-    <div class="kpi-estatus" role="group" aria-label="Estatus de proyectos">${[["TODOS", "Todos"], ...Object.entries(ESTATUS), ["SIN_ASIGNAR", "Sin asignar"]].map(([valor, etiqueta]) => `<button type="button" data-proestatus="${esc(valor)}">${esc(etiqueta)}</button>`).join("")}</div>
+    <div class="kpi-estatus" role="group" aria-label="Estatus de proyectos">${[["TODOS", "Todos"], ...Object.entries(ESTATUS), ["SIN_ASIGNAR", "Sin asignar"]].map(([valor, etiqueta]) => `<button type="button" data-proestatus="${esc(valor)}" data-estatus="${esc(valor)}">${esc(etiqueta)}</button>`).join("")}</div>
   </details>` : "";
   return `<div class="kpis${desdeInicio ? " con-filtro" : ""}" role="group" aria-label="Filtrar proyectos por resumen">
     ${indicadores.map(([clave, etiqueta, total, clase]) => `<button type="button" class="kpi ${clase}" ${clave === "enProceso" ? 'data-proestatus="EN_PROCESO"' : `data-resumen="${clave}"`}
@@ -664,7 +666,7 @@ function tarjetaProyecto(p) {
   return `<button type="button" class="card pry" data-pry="${esc(p.id)}">
     <span class="pry-titulo">
       <strong>${esc(p.nombre)}</strong>
-      <span class="chip ${["PAUSADO", "CANCELADO"].includes(p.estatus) ? "bad" : "info"}">${esc(etiquetaEstatus(p))}</span>
+      ${chipEstatus(p)}
     </span>
     <span class="pry-datos">
       <span class="pry-meta">
@@ -704,7 +706,7 @@ function pintarProyecto() {
   $("#view").innerHTML = `
     <section class="pry-head">
       <a class="back" href="#/">‹ ${MODOS[S.modo].lista}</a>
-      <div class="row"><span class="folio">${esc(p.folio)}</span><span class="chip ${["PAUSADO", "CANCELADO"].includes(p.estatus) ? "bad" : "info"}">${esc(etiquetaEstatus(p))}</span></div>
+      <div class="row"><span class="folio">${esc(p.folio)}</span>${chipEstatus(p)}</div>
       <h1>${esc(p.nombre)}</h1>
       <div class="row wrap">
         <p class="muted sm">El administrador actualiza el estatus en el panel.</p>
@@ -1521,7 +1523,7 @@ function vistaFicha() {
     <dl>
       <dt>Tipo de proyecto</dt><dd>${esc(tipoPry(p.tipoProyectoClave) || "—")}</dd>
       <dt>Valor</dt><dd>${pesos(p.valor)}</dd>
-      <dt>Estatus</dt><dd>${esc(etiquetaEstatus(p))}</dd>
+      <dt>Estatus</dt><dd>${chipEstatus(p)}</dd>
       <dt>Alta</dt><dd>${fecha(p.fechaAlta)}</dd>
     </dl>
     <h3 class="sub-h">${otorgantes.length > 1 ? "Instancias otorgantes" : "Instancia otorgante"}</h3>

@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.15.3
+// SCaD Gestión · App · v0.15.4
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -46,11 +46,13 @@ import {
 
 import { alcanceFormulario, leerAlcance, alcanceTexto } from "./programacionAlcance.js?v=0.14.0";
 
-import { minutaEditorHtml, leerMinuta, conectarMinutaEditor, exportarActividadPdf } from "./actividadMinuta.js?v=0.15.3";
+import { minutaEditorHtml, leerMinuta, conectarMinutaEditor, exportarActividadPdf } from "./actividadMinuta.js?v=0.15.4";
 
-import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaCal, vigilarGuardado } from "./accionesUi.js?v=0.15.3";
+import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaCal, vigilarGuardado } from "./accionesUi.js?v=0.15.4";
 
-export const VERSION = "GESTION_APP v0.15.3";
+import { matrizProyectos, generarReporteProyectos } from "./reporteProyectos.js?v=0.15.4";
+
+export const VERSION = "GESTION_APP v0.15.4";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -611,7 +613,8 @@ function pintarLista() {
   const tipos = S.ctx.catalogos?.tiposProyecto || [];
   $("#view").innerHTML = `
     <section class="hero">
-      <h1>${M.lista}</h1>
+      <div class="row wrap"><h1 style="margin-right:auto">${M.lista}</h1><div class="proyectos-exportar" role="group" aria-label="Exportar todos los proyectos">${botonesExportar("data-proexp")}</div></div>
+      <p class="muted xs">Excel / PDF: todos los proyectos disponibles en esta vista, sin filtros.</p>
       ${M.sub ? `<p class="muted">${M.sub}</p>` : ""}
       ${resumenProyectos()}
     </section>
@@ -1098,6 +1101,20 @@ async function anotarReq(id) {
   aviso(r.mensaje || "Anotación registrada.");
   await abrirProyecto(S.det.proyecto.id, { silencioso: true });
   dlgDetalleReq(id);
+}
+
+async function exportarProyectos(tipo, boton) {
+  if (boton?.disabled) return;
+  const proyectos = [...S.proyectos];
+  if (!proyectos.length) { aviso("No hay proyectos para exportar.", "bad"); return; }
+  const vista = MODOS[S.modo]?.lista || S.modo;
+  const autor = usr().nombreVisible || usr().nombre || "";
+  const entidad = S.ctx?.eo?.nombre || S.ctx?.enteOperador?.nombre || "";
+  const matriz = matrizProyectos(proyectos, { estatus: etiquetaEstatus, responsable, instancias: p => otorgantesDe(p).map(insEtq).filter(Boolean).join("; "), fecha: v => v ? fecha(v) : "" });
+  if (boton) boton.disabled = true;
+  try { await generarReporteProyectos(tipo, matriz, { base: `Proyectos_GESTION_${hoyYmd()}`, entidad, autor, vista, cargarPdf: cargarJsPdfApp, descargar: descargarArchivo }); }
+  catch(error) { aviso(error.message || "No fue posible generar el reporte de proyectos.", "bad"); }
+  finally { if (boton?.isConnected) boton.disabled = false; }
 }
 
 // ── Exportar requerimientos (Excel y PDF) ────────────────────
@@ -2009,6 +2026,7 @@ document.addEventListener("click", e => {
   if (e.target.closest("[data-segx]")) { S.segQ = ""; const q = $("#segQ"); if (q) { q.value = ""; q.focus(); } const x = document.querySelector("[data-segx]"); if (x) x.hidden = true; pintarSegTabla(); return; }
   if (e.target.closest("[data-scols]")) { const r = $("#scols"); if (r) r.hidden = !r.hidden; return; }
   const sx = e.target.closest("[data-sexp]"); if (sx) { exportarSeg(sx.dataset.sexp); return; }
+  const px = e.target.closest("[data-proexp]"); if (px) { exportarProyectos(px.dataset.proexp, px); return; }
   const rx = e.target.closest("[data-rexp]"); if (rx) { exportarReq(rx.dataset.rexp); return; }
   const t = e.target.closest("button, a");
   if (!t || !t.closest("#accountMenu, #account, #navOptions")) cerrarMenu();

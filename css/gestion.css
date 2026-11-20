@@ -647,3 +647,13 @@ button.seg-flag:hover,button.seg-flag:focus-visible{background:var(--bg)}
 .kpi-estatus button{border:0;border-radius:6px;padding:8px 10px;background:transparent;color:var(--ink);font:inherit;font-size:13px;text-align:left;cursor:pointer}
 .kpi-estatus button:hover,.kpi-estatus button:focus-visible{background:#edf5ff}
 @media(max-width:480px){.kpis,.kpis.con-filtro{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi-filtro{width:36px;justify-self:end}}
+
+.chip.estatus{color:var(--estatus-color,#9AA6B6);border:1px solid var(--estatus-color,#9AA6B6);background:var(--estatus-fondo,#f3f5f7)}
+[data-estatus="PREVISION"]{--estatus-color:#748096;--estatus-fondo:#f1f3f6}
+[data-estatus="AUTORIZADO"]{--estatus-color:#7654C6;--estatus-fondo:#f1eef9}
+[data-estatus="EN_PROCESO"]{--estatus-color:#2478D2;--estatus-fondo:#edf5fc}
+[data-estatus="DETENIDO"]{--estatus-color:#C98A12;--estatus-fondo:#faf3e7}
+[data-estatus="CANCELADO"]{--estatus-color:#C2413A;--estatus-fondo:#faeeed}
+[data-estatus="CONCLUIDO"]{--estatus-color:#1F9D6A;--estatus-fondo:#e8f5ef}
+[data-estatus="SIN_ASIGNAR"]{--estatus-color:#9AA6B6;--estatus-fondo:#f3f5f7}
+.kpi-estatus button[data-estatus]::before{content:"";display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%;background:var(--estatus-color,transparent)}

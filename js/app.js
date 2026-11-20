@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.15.6
+// SCaD Gestión · App · v0.15.7
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -52,7 +52,7 @@ import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaC
 
 import { matrizProyectos, generarReporteProyectos, generarExcelTabla } from "./reporteProyectos.js?v=0.15.6";
 
-export const VERSION = "GESTION_APP v0.15.6";
+export const VERSION = "GESTION_APP v0.15.7";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1038,17 +1038,20 @@ function vistaChecklist() {
 function detalleReqHTML(x) {
   const e = ESTADOS[x.estado] || { t: x.estado, c: "" };
   const documentos = x.archivos || [];
-  const trans = editable() ? (S.ctx.reglas?.transiciones?.[x.estado] || []) : [];
+  const puedeValidarFund = Number(x.categoria) === 1 && (esAdm() || editable());
+  const accionFund = puedeValidarFund ? (x.estado === "VALIDADO" ? "PENDIENTE" : "VALIDADO") : "";
+  const trans = (editable() ? (S.ctx.reglas?.transiciones?.[x.estado] || []) : []).filter(t => t !== accionFund);
   const puedeSubir = (editable() || esAdm()) && !["VALIDADO", "NO_APLICA"].includes(x.estado);
   const i = S.det.checklist.indexOf(x);
   const folio = folioRegistro(x.folio, i);
   const plazo = x.semaforo === "VENCIDO" ? "Vencido" : x.semaforo === "POR_VENCER" ? "Por vencer" : "En tiempo";
   const seg = anotacionesSeg().filter(s => s.referenciaId === x.id);
-  const acciones = editable() ? `<div class="req-acc">
+  const acciones = (editable() || puedeValidarFund) ? `<div class="req-acc">
+      ${accionFund ? `<button class="btn sm ${accionFund === "VALIDADO" ? "pri" : ""}" data-estado="${accionFund}" data-req="${esc(x.id)}">${accionFund === "VALIDADO" ? "Validar cumplimiento" : "Revertir cumplimiento"}</button>` : ""}
       ${trans.map(t => `<button class="btn sm ${ACCION[t]?.c || ""}" data-estado="${t}" data-req="${esc(x.id)}">${esc(ACCION[t]?.t || t)}</button>`).join("")}
-      <button class="btn sm ${x.esperaDocumento ? "" : "ghost"}" data-espera="${x.esperaDocumento ? "0" : "1"}" data-req="${esc(x.id)}">${x.esperaDocumento ? "Quitar espera de documento" : "Espera documento"}</button>
-      <button class="btn sm ghost" data-editar="${esc(x.id)}">Editar</button>
-    </div>` : (esAdm() ? "" : `<p class="muted sm">Vista de consulta.</p>`);
+      ${editable() ? `<button class="btn sm ${x.esperaDocumento ? "" : "ghost"}" data-espera="${x.esperaDocumento ? "0" : "1"}" data-req="${esc(x.id)}">${x.esperaDocumento ? "Quitar espera de documento" : "Espera documento"}</button>
+      <button class="btn sm ghost" data-editar="${esc(x.id)}">Editar</button>` : ""}
+    </div>` : `<p class="muted sm">Vista de consulta.</p>`;
   const anotar = puedeAnotar() ? `<div class="req-nota">
       <textarea id="rqNota" rows="2" placeholder="Anotación sobre este requerimiento…"></textarea>
     ${selectorInstanciasSeg("rqInstancias")}

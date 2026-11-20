@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.15.6
+// SCaD Gestión · App · v0.15.7
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -52,7 +52,7 @@ import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaC
 
 import { matrizProyectos, generarReporteProyectos, generarExcelTabla } from "./reporteProyectos.js?v=0.15.6";
 
-export const VERSION = "GESTION_APP v0.15.6";
+export const VERSION = "GESTION_APP v0.15.7";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1834,9 +1834,9 @@ function dlgEstado(id, estado) {
     NO_APLICA: "Justifica por qué no aplica. Deja de contar para el avance.",
     PENDIENTE: "El requerimiento vuelve a contar para el avance."
   };
-  dialogo(`<h3>${esc(ACCION[estado]?.t || estado)}</h3><p class="muted">${esc(x.etiqueta)}</p><p>${esc(textos[estado] || "")}</p>
+  dialogo(`<h3>${esc(x.etiqueta)}</h3><p class="muted sm">${esc(textos[estado] || "")}</p>
     <label class="f">${obligatoria ? "Anotación (obligatoria)" : "Anotación (opcional)"}<textarea id="dNota" rows="3"></textarea></label>
-    ${!obligatoria ? `<label class="check"><input type="checkbox" id="dVis"> Visible para la instancia</label>` : ""}`,
+    ${!obligatoria ? `<label class="check"><input type="checkbox" id="dVis" checked> Visible para la instancia</label>` : ""}`,
   () => tarea(() => api("REQ_ESTADO", { prqId: id, estado, nota: $("#dNota").value, visibleCliente: $("#dVis")?.checked === true })).then(trasCambio),
   { textoBoton: ACCION[estado]?.t || "Guardar", clase: ACCION[estado]?.c === "bad" ? "bad" : "pri" });
 }

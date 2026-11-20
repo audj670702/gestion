@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.15.8
+// SCaD Gestión · App · v0.15.9
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -52,7 +52,7 @@ import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaC
 
 import { matrizProyectos, generarReporteProyectos, generarExcelTabla } from "./reporteProyectos.js?v=0.15.6";
 
-export const VERSION = "GESTION_APP v0.15.8";
+export const VERSION = "GESTION_APP v0.15.9";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1219,20 +1219,44 @@ const leerInstanciasSeg = id => Array.from(document.querySelectorAll(`#${id} inp
 function selectorInstanciasSeg(id) {
   const opciones = instanciasActivas();
   if (!opciones.length) return "";
-  return `<div class="seg-instancias" id="${id}">
-    <details>
-    <summary>Instancias <span class="muted">Seleccionar</span></summary>
-    <div class="seg-instancias-opciones">
-      <label class="f">Buscar instancia<input type="search" data-seg-inst-buscar placeholder="Nombre o siglas"></label>
+  const directa = id === "rqInstancias";
+  const buscar = `<label class="f">${directa ? "Instancias" : "Buscar instancia"}<input type="search" data-seg-inst-buscar placeholder="Buscar por nombre o siglas…" autocomplete="off"${directa ? ` aria-expanded="false" aria-controls="${id}Opciones"` : ""}></label>`;
+  return `<div class="seg-instancias" id="${id}"${directa ? " data-seg-inst-directo" : ""}>
+    ${directa ? buscar : '<details><summary>Instancias <span class="muted">Seleccionar</span></summary>'}
+    <div class="seg-instancias-opciones" id="${id}Opciones"${directa ? " hidden" : ""}>
+      ${directa ? "" : buscar}
       <div class="seg-instancias-lista">${opciones.map(i => `<label class="check" data-seg-inst-opcion>
         <input type="checkbox" data-seg-inst value="${esc(i.id)}"> ${esc(etiquetaIns(i))}
       </label>`).join("")}</div>
       <p class="muted sm" data-seg-inst-vacio hidden>Sin coincidencias.</p>
     </div>
-    </details>
+    ${directa ? "" : "</details>"}
     <ul class="seg-instancias-vinculadas" data-seg-inst-vinculadas aria-label="Instancias vinculadas" hidden></ul>
   </div>`;
 }
+
+function desplegarInstancias(selector, abierto) {
+  if (!selector?.hasAttribute("data-seg-inst-directo")) return;
+  selector.querySelector(".seg-instancias-opciones").hidden = !abierto;
+  selector.querySelector("[data-seg-inst-buscar]").setAttribute("aria-expanded", String(abierto));
+}
+
+document.addEventListener("focusin", e => {
+  if (e.target.matches("[data-seg-inst-directo] [data-seg-inst-buscar]")) desplegarInstancias(e.target.closest(".seg-instancias"), true);
+});
+document.addEventListener("click", e => {
+  document.querySelectorAll("[data-seg-inst-directo]").forEach(selector => {
+    if (!selector.contains(e.target)) desplegarInstancias(selector, false);
+  });
+});
+document.addEventListener("keydown", e => {
+  const selector = e.target.closest?.("[data-seg-inst-directo]");
+  if (e.key === "Escape" && selector && !selector.querySelector(".seg-instancias-opciones").hidden) {
+    e.preventDefault();
+    selector.querySelector("[data-seg-inst-buscar]").focus();
+    desplegarInstancias(selector, false);
+  }
+});
 
 function actualizarInstanciasVinculadas(selector) {
   const lista = selector.querySelector("[data-seg-inst-vinculadas]");
@@ -1256,12 +1280,13 @@ document.addEventListener("click", e => {
   casilla.checked = false;
   casilla.dispatchEvent(new Event("change", { bubbles: true }));
   const restantes = selector.querySelectorAll("[data-seg-inst-quitar]");
-  (restantes[indice] || restantes[indice - 1] || selector.querySelector("summary")).focus();
+  (restantes[indice] || restantes[indice - 1] || selector.querySelector("[data-seg-inst-buscar]")).focus();
 });
 
 document.addEventListener("input", e => {
   if (!e.target.matches("[data-seg-inst-buscar]")) return;
   const selector = e.target.closest(".seg-instancias");
+  desplegarInstancias(selector, true);
   const consulta = norm(e.target.value).trim();
   let hayCoincidencias = false;
   for (const opcion of selector.querySelectorAll("[data-seg-inst-opcion]")) {

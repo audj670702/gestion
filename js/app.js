@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.15.4
+// SCaD Gestión · App · v0.15.5
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -46,13 +46,13 @@ import {
 
 import { alcanceFormulario, leerAlcance, alcanceTexto } from "./programacionAlcance.js?v=0.14.0";
 
-import { minutaEditorHtml, leerMinuta, conectarMinutaEditor, exportarActividadPdf } from "./actividadMinuta.js?v=0.15.4";
+import { minutaEditorHtml, leerMinuta, conectarMinutaEditor, exportarActividadPdf } from "./actividadMinuta.js?v=0.15.5";
 
-import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaCal, vigilarGuardado } from "./accionesUi.js?v=0.15.4";
+import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaCal, vigilarGuardado } from "./accionesUi.js?v=0.15.5";
 
-import { matrizProyectos, generarReporteProyectos } from "./reporteProyectos.js?v=0.15.4";
+import { matrizProyectos, generarReporteProyectos } from "./reporteProyectos.js?v=0.15.5";
 
-export const VERSION = "GESTION_APP v0.15.4";
+export const VERSION = "GESTION_APP v0.15.5";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -733,7 +733,7 @@ function curvaDatos(items, fechaProy) {
   if (ts[ts.length - 1] !== fin) ts.push(fin);
   const cuenta = (lista, t) => lista.filter(v => v <= t).length;
   const serie = ts.map(t => ({ t, plan: cuenta(plan, t), real: t <= hoy ? cuenta(real, t) : null }));
-  return { N, ini, fin, hoy, pf, serie, items: aplic, W: 640, H: 210, L: 36, R: 12, T: 14, B: 26 };
+  return { N, ini, fin, hoy, pf, serie, items: aplic, W: Math.max(260, ($("#tabBody")?.clientWidth || $("#view")?.clientWidth || window.innerWidth) - 26), H: 130, L: 30, R: 10, T: 14, B: 22 };
 }
 
 function curvaHTML(items, p) {
@@ -764,9 +764,9 @@ function curvaHTML(items, p) {
     <text x="${c.L - 6}" y="${(Y(n) + 3).toFixed(1)}" text-anchor="end" font-size="10" fill="#748096">${Math.round(n)}</text>`).join("");
   const etqX = `<text x="${c.L}" y="${c.H - 8}" font-size="10" fill="#748096">${esc(fecha(c.ini))}</text>
     <text x="${xDer}" y="${c.H - 8}" text-anchor="end" font-size="10" fill="#748096">${esc(fecha(c.fin))}</text>`;
-  const pct = Math.round(c.serie[c.serie.length - 1].real / c.N * 100);
+  const pct = Math.round(c.items.filter(x => x.estado === "VALIDADO").length / c.N * 100);
   return `<div class="curva-box">
-    <div class="row"><b>Avance del expediente</b><span class="muted sm">Planificado vs. real · ${c.N} requerimientos aplicables</span></div>
+    <div class="curva-cabecera"><b>Avance del expediente</b><span class="muted">Planificado vs. real · ${c.N} aplicables</span><strong>${pct}% validado</strong></div>
     <div class="curva-wrap" id="curvaWrap">
       <svg viewBox="0 0 ${c.W} ${c.H}" class="curva" role="img" aria-label="Curva de avance">
         ${ejes}${banda}${linea}
@@ -778,10 +778,19 @@ function curvaHTML(items, p) {
       </svg>
       <div class="curva-tip" id="curvaTip" hidden></div>
     </div>
-    <div class="curva-leyenda sm muted"><span><i class="sw sw-plan"></i>Planificado (fecha compromiso)</span><span><i class="sw sw-real"></i>Real (fecha de validación)</span><span><i class="sw sw-exp"></i>Expediente (${esc(fecha(p.fechaCompromiso))})</span><span>${pct}% validado hoy</span></div>
+    <div class="curva-leyenda sm muted"><span><i class="sw sw-plan"></i>Planificado</span><span><i class="sw sw-real"></i>Real</span><span><i class="sw sw-exp"></i>Expediente (${esc(fecha(p.fechaCompromiso))})</span></div>
     <div id="curvaDet">${curvaDetalle()}</div>
   </div>`;
 }
+
+let curvaResize;
+window.addEventListener("resize", () => {
+  clearTimeout(curvaResize);
+  curvaResize = setTimeout(() => {
+    const box = document.querySelector(".curva-box");
+    if (box && S.det?.proyecto) box.outerHTML = curvaHTML(S.det.checklist, S.det.proyecto);
+  }, 120);
+});
 
 function curvaPunto(e) {
   const c = CURVA.d, svg = e.currentTarget.ownerSVGElement, r = svg.getBoundingClientRect();

@@ -633,3 +633,5 @@ button.seg-flag:hover,button.seg-flag:focus-visible{background:var(--bg)}
 @media(prefers-reduced-motion:reduce){.btn.save-icon.save-pending:enabled{animation:none}}
 
 .proyectos-exportar{display:flex;align-items:center;gap:6px}.proyectos-exportar button:disabled{opacity:.4;cursor:wait}
+
+.curva-box{width:100%;box-sizing:border-box;padding:7px 10px;margin-bottom:8px}.curva-cabecera{display:flex;align-items:center;flex-wrap:wrap;gap:3px 10px;font-size:11px;line-height:1.3}.curva-cabecera b{font-size:12px}.curva-cabecera strong{margin-left:auto;color:var(--blue);font-size:12px;white-space:nowrap}.curva-wrap{margin-top:2px}.curva{width:100%;height:130px}.curva-leyenda{gap:3px 12px;margin-top:2px;font-size:10px;line-height:1.3}.curva-det{max-height:160px;overflow:auto;font-size:12px;margin-top:5px;padding-top:5px}

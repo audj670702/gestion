@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.15.11
+// SCaD Gestión · App · v0.15.12
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -52,7 +52,7 @@ import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaC
 
 import { matrizProyectos, generarReporteProyectos, generarExcelTabla } from "./reporteProyectos.js?v=0.15.6";
 
-export const VERSION = "GESTION_APP v0.15.11";
+export const VERSION = "GESTION_APP v0.15.12";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -255,6 +255,20 @@ async function instalar() {
 }
 window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); promptInstalar = window.__gestionInstallPrompt = e; pintarInstalar(); });
 window.addEventListener("appinstalled", () => { promptInstalar = window.__gestionInstallPrompt = null; pintarInstalar(); });
+
+// Enlace de instalación (?install=1, p. ej. botón INSTALAR del SCaD HUB).
+// El navegador sólo permite abrir la instalación tras un toque del usuario: se ofrece en un diálogo.
+function instalarDesdeEnlace() {
+  const url = new URL(location.href);
+  if (url.searchParams.get("install") !== "1") return;
+  url.searchParams.delete("install");
+  history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+  if (instalada()) return;
+  if (esIOS()) { instalar(); return; }
+  dialogo(`<h3>Instalar SCaD Gestión</h3><p class="muted sm">Agrega la app a este dispositivo para abrirla directamente.</p>`,
+    () => { cerrarDialogo(); instalar(); }, { textoBoton: "Instalar", clase: "pri", textoCerrar: "Ahora no" });
+}
+window.addEventListener("load", () => setTimeout(instalarDesdeEnlace, 1200));
 
 // ── Editar perfil (sysPwaProfile, igual que en las demás apps SYS) ──
 const leerFoto = f => new Promise((ok, mal) => { const r = new FileReader(); r.onload = () => ok(String(r.result || "")); r.onerror = () => mal(new Error("No fue posible leer la fotografía.")); r.readAsDataURL(f); });

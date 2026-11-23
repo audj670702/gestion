@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.15.12
+// SCaD Gestión · App · v0.15.13
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -52,7 +52,7 @@ import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaC
 
 import { matrizProyectos, generarReporteProyectos, generarExcelTabla } from "./reporteProyectos.js?v=0.15.6";
 
-export const VERSION = "GESTION_APP v0.15.12";
+export const VERSION = "GESTION_APP v0.15.13";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1058,6 +1058,8 @@ function vistaChecklist() {
     <div id="reqTabla">${tablaReq()}</div>`;
 }
 
+const AYUDA_NO_APLICA = "Úsalo si este requerimiento no se exige para el expediente. El renglón permanece en la parrilla y se excluye del cálculo de avance.";
+
 function detalleReqHTML(x) {
   const e = ESTADOS[x.estado] || { t: x.estado, c: "" };
   const documentos = x.archivos || [];
@@ -1068,9 +1070,10 @@ function detalleReqHTML(x) {
   const plazo = x.semaforo === "VENCIDO" ? "Vencido" : x.semaforo === "POR_VENCER" ? "Por vencer" : "En tiempo";
   const seg = anotacionesSeg().filter(s => s.referenciaId === x.id);
   const acciones = editable() ? `<div class="req-acc">
-      ${trans.map(t => `<button class="btn sm ${ACCION[t]?.c || ""}" data-estado="${t}" data-req="${esc(x.id)}">${esc(ACCION[t]?.t || t)}</button>`).join("")}
+      ${trans.map(t => `<button class="btn sm ${ACCION[t]?.c || ""}" data-estado="${t}" data-req="${esc(x.id)}"${t === "NO_APLICA" ? ' aria-describedby="reqAyudaNoAplica"' : ""}>${esc(ACCION[t]?.t || t)}</button>`).join("")}
       <button class="btn sm ${x.esperaDocumento ? "" : "ghost"}" data-espera="${x.esperaDocumento ? "0" : "1"}" data-req="${esc(x.id)}">${x.esperaDocumento ? "Quitar espera de documento" : "Espera documento"}</button>
       <button class="btn sm ghost" data-editar="${esc(x.id)}">Editar</button>
+      ${trans.includes("NO_APLICA") ? `<p id="reqAyudaNoAplica" class="req-accion-ayuda">${esc(AYUDA_NO_APLICA)}</p>` : ""}
     </div>` : (esAdm() ? "" : `<p class="muted sm">Vista de consulta.</p>`);
   const anotar = puedeAnotar() ? `<div class="req-nota">
       <textarea id="rqNota" rows="2" placeholder="Anotación sobre este requerimiento…"></textarea>
@@ -1892,11 +1895,11 @@ function dlgEstado(id, estado) {
   const textos = {
     SOLICITADO: "Confirma que ya solicitaste este requerimiento a la instancia.",
     OBSERVADO: "Describe lo que falta o se debe corregir. La observación será visible para la instancia.",
-    NO_APLICA: "Justifica por qué no aplica. Deja de contar para el avance.",
+    NO_APLICA: AYUDA_NO_APLICA,
     PENDIENTE: "El requerimiento vuelve a contar para el avance."
   };
   dialogo(`<h3>${esc(x.etiqueta)}</h3><p class="muted sm">${esc(textos[estado] || "")}</p>
-    <label class="f">${obligatoria ? "Anotación (obligatoria)" : "Anotación (opcional)"}<textarea id="dNota" rows="3"></textarea></label>
+    <label class="f">${estado === "NO_APLICA" ? "Motivo (obligatorio)" : obligatoria ? "Anotación (obligatoria)" : "Anotación (opcional)"}<textarea id="dNota" rows="3"></textarea></label>
     ${!obligatoria ? `<label class="check"><input type="checkbox" id="dVis" checked> Visible para la instancia</label>` : ""}`,
   () => tarea(() => api("REQ_ESTADO", { prqId: id, estado, nota: $("#dNota").value, visibleCliente: $("#dVis")?.checked === true })).then(trasCambio),
   { textoBoton: ACCION[estado]?.t || "Guardar", clase: ACCION[estado]?.c === "bad" ? "bad" : "pri" });

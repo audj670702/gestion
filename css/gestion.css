@@ -447,6 +447,11 @@ dialog.req{width:min(1080px,96vw);max-width:96vw}
 .req-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
 .req-head h3{margin:2px 0 0;font-size:18px}
 .req-acc{display:flex;flex-wrap:wrap;gap:6px;padding:10px 0 12px;border-bottom:1px solid #eef2f7;margin-bottom:12px}
+.req-accion-ayuda{display:none;flex-basis:100%;margin:2px 0 0;padding:8px 10px;border-radius:6px;background:#eef4fb;color:#243950;font-size:.875rem}
+.req-acc:has([aria-describedby="reqAyudaNoAplica"]:focus-visible) .req-accion-ayuda{display:block}
+@media (hover:hover){
+  .req-acc:has([aria-describedby="reqAyudaNoAplica"]:hover) .req-accion-ayuda{display:block}
+}
 .req-cols{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:18px;align-items:start}
 @media(max-width:820px){.req-cols{grid-template-columns:1fr}}
 .req-doc{display:grid;gap:8px;align-content:start}

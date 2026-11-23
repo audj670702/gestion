@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.15.14
+// SCaD Gestión · App · v0.15.15
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -50,9 +50,9 @@ import { minutaEditorHtml, leerMinuta, conectarMinutaEditor, exportarActividadPd
 
 import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaCal, vigilarGuardado } from "./accionesUi.js?v=0.15.6";
 
-import { matrizProyectos, generarReporteProyectos, generarExcelTabla } from "./reporteProyectos.js?v=0.15.6";
+import { generarReporteProyectos, generarExcelTabla } from "./reporteProyectos.js?v=0.15.15";
 
-export const VERSION = "GESTION_APP v0.15.14";
+export const VERSION = "GESTION_APP v0.15.15";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -127,6 +127,8 @@ async function cambiarModo(m) {
   pintarTarjetaIdentidad();
   try { localStorage.setItem(claveModo(), m); } catch (_) { /* sin almacenamiento */ }
   Object.assign(S, { estatus: "TODOS", resumen: "proyectos", q: "", tipo: "", det: null });
+  TABLAS.pro.ids.clear();
+  TABLAS.pro.vista = "";
   pintarModo();
   history.replaceState({}, "", "#/inicio");
   marcarSeccion("");
@@ -630,27 +632,88 @@ function resumenProyectos(desdeInicio = false) {
 
 }
 
+const COLS_PRO = [
+  { id: "folio", t: "Folio", valor: p => p.folio },
+  { id: "nombre", t: "Proyecto", valor: p => p.nombre },
+  { id: "estatus", t: "Estatus", valor: etiquetaEstatus },
+  { id: "tipo", t: "Tipo", valor: p => tipoPry(p.tipoProyectoClave) },
+  { id: "responsable", t: "Responsable", valor: p => responsable(p) || "Sin asignar" },
+  { id: "instancias", t: "Instancias otorgantes", valor: p => otorgantesDe(p).map(insEtq).filter(Boolean).join("; ") },
+  { id: "alta", t: "Fecha de alta", valor: p => p.fechaAlta ? fecha(p.fechaAlta) : "", orden: p => fechaOrden(p.fechaAlta) },
+  { id: "compromiso", t: "Fecha compromiso", valor: p => p.fechaCompromiso ? fecha(p.fechaCompromiso) : "", orden: p => fechaOrden(p.fechaCompromiso) },
+  { id: "monto", t: "Monto (MXN)", valor: p => Number.isFinite(p.valor) ? p.valor : "", orden: p => Number(p.valor) || 0, n: true },
+  { id: "avance", t: "Avance (%)", valor: p => p.checklist?.aplicables ? Math.round((p.checklist.validados || 0) / p.checklist.aplicables * 100) : "", n: true },
+  ...[["aplicables", "Req. aplicables"], ["validados", "Validados"], ["entregados", "Por revisar"], ["vencidos", "Vencidos"]].map(([id, t]) =>
+    ({ id, t, n: true, valor: p => Number(p.checklist?.[id]) || 0 })),
+  { id: "semaforo", t: "Semáforo", valor: p => ({ ROJO: "Rojo", AMARILLO: "Amarillo", VERDE: "Verde" })[p.semaforo] || "" }
+];
+const configuracionPro = {
+  modo: "tarjetas", columnas: [...COLS_PRO],
+  visibles: new Set(["folio", "nombre", "estatus", "responsable", "avance", "vencidos"])
+};
+const columnasPro = () => configuracionPro.columnas.filter(c => configuracionPro.visibles.has(c.id));
+const valorPro = (c, p) => c.valor(p) ?? "";
+const proyectosVisibles = () => filasTabla("pro", S.proyectos.filter(p => enEstatus(p) && enResumen(p) && coincide(p)), columnasPro(), valorPro);
+const proyectosExportables = lista => TABLAS.pro.ids.size && !TABLAS.pro.vista ? lista.filter(p => TABLAS.pro.ids.has(p.id)) : lista;
+
+function selectorColumnasPro() {
+  const { columnas, visibles } = configuracionPro;
+  return columnas.map(({ id, t }, i) => `<li>
+    <label class="check"><input type="checkbox" data-pro-col="${id}" ${visibles.has(id) ? "checked" : ""} ${visibles.has(id) && visibles.size === 1 ? "disabled" : ""}> ${esc(t)}</label>
+    <button type="button" class="rt-btn" data-pro-mover="${id}" data-paso="-1" aria-label="Subir ${esc(t)}" ${i ? "" : "disabled"}>↑</button>
+    <button type="button" class="rt-btn" data-pro-mover="${id}" data-paso="1" aria-label="Bajar ${esc(t)}" ${i < columnas.length - 1 ? "" : "disabled"}>↓</button></li>`).join("");
+}
+
+function tablaProyectos(lista) {
+  const columnas = columnasPro();
+  const abrir = columnas.find(c => c.id === "nombre") || columnas.find(c => c.id === "folio") || columnas[0];
+  return `<div class="rtable proyectos-tabla" tabindex="0" role="region" aria-label="Tabla de proyectos"><table aria-label="Proyectos">
+    ${cabeceraTabla("pro", columnas)}
+    <tbody>${lista.map((p, i) => `<tr data-pro-fila="${esc(p.id)}" class="${TABLAS.pro.ids.has(p.id) ? "sel" : ""}">
+      ${celdasSeleccion("pro", p.id, i, p.nombre || p.folio)}
+      ${columnas.map(c => {
+        const valor = valorPro(c, p);
+        const texto = valor === "" ? "—" : c.id === "monto" ? pesos(valor) : c.id === "avance" ? `${valor}%` : valor;
+        const contenido = c.id === "estatus" ? chipEstatus(p) : esc(texto);
+        return `<td class="${c.n ? "num" : c.id === "nombre" ? "pro-tabla-nombre" : ""}">${c === abrir ? `<button type="button" class="pro-tabla-abrir" data-pry="${esc(p.id)}" aria-label="Abrir ${esc(p.nombre || p.folio)}">${contenido}</button>` : contenido}</td>`;
+      }).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+
+function actualizarAlcancePro(lista = proyectosVisibles()) {
+  const n = proyectosExportables(lista).length;
+  const marcados = lista.filter(p => TABLAS.pro.ids.has(p.id)).length;
+  $("#proAlcance").textContent = `${marcados ? `${marcados} seleccionados · ` : ""}${n} para exportar`;
+  document.querySelectorAll("[data-proexp]").forEach(b => b.disabled = n === 0);
+}
+
 function pintarLista() {
+  document.querySelector("main")?.classList.toggle("ancho", configuracionPro.modo === "tabla");
   const P = S.proyectos, M = MODOS[S.modo];
   const filtros = [["TODOS", "Todos"], ...Object.entries(ESTATUS), ["SIN_ASIGNAR", "Sin asignar"]];
   const tipos = S.ctx.catalogos?.tiposProyecto || [];
   $("#view").innerHTML = `
     <section class="hero">
-      <div class="row wrap"><h1 style="margin-right:auto">${M.lista}</h1><div class="proyectos-exportar" role="group" aria-label="Exportar todos los proyectos">${botonesExportar("data-proexp")}</div></div>
-      <p class="muted xs">Excel / PDF: todos los proyectos disponibles en esta vista, sin filtros.</p>
+      <div class="row wrap"><h1 style="margin-right:auto">${M.lista}</h1><div class="proyectos-exportar" role="group" aria-label="Exportar proyectos de la consulta">${botonesExportar("data-proexp")}</div></div>
       ${M.sub ? `<p class="muted">${M.sub}</p>` : ""}
       ${resumenProyectos()}
     </section>
     ${bloqueHoy()}
     <div class="buscar">
-      ${P.length ? `<input type="search" id="fBuscar" placeholder="Buscar folio, nombre, instancia${S.modo === "DIRECCION" ? ", responsable" : ""}…" value="${esc(S.q)}" autocomplete="off" enterkeyhint="search" aria-label="Buscar proyectos">
+      ${P.length ? `<div class="rt-search pro-buscar"><input type="search" id="fBuscar" placeholder="Buscar folio, nombre, instancia${S.modo === "DIRECCION" ? ", responsable" : ""}…" value="${esc(S.q)}" autocomplete="off" enterkeyhint="search" aria-label="Buscar proyectos"><button type="button" class="rt-clear" data-pro-limpiar aria-label="Limpiar búsqueda" ${S.q ? "" : "hidden"}>×</button></div>
       <select id="fEstatus" aria-label="Estatus del proyecto">
         ${filtros.map(([k, t]) => `<option value="${esc(k)}" ${S.estatus === k ? "selected" : ""}>${esc(t)}</option>`).join("")}
       </select>
       ${tipos.length > 1 ? `<select id="fTipo" aria-label="Tipo de proyecto"><option value="">Todos los tipos</option>${tipos.map(t => `<option value="${esc(t.clave)}" ${S.tipo === t.clave ? "selected" : ""}>${esc(t.etiqueta)}</option>`).join("")}</select>` : ""}` : ""}
-      <span id="conteo" class="conteo" aria-live="polite"></span>
     </div>
-    <section class="cards" id="cards"></section>`;
+    <div class="pro-tabla-bar">
+      <div role="group" aria-label="Vista de proyectos" class="pro-tabla-vistas">
+        ${["tarjetas", "tabla"].map(v => `<button type="button" class="rt-btn" data-pro-vista="${v}" aria-pressed="${configuracionPro.modo === v}">${v === "tabla" ? "Tabla" : "Tarjetas"}</button>`).join("")}
+      </div>
+      ${configuracionPro.modo === "tabla" ? `${filtroSeleccionHTML("pro")} <button type="button" class="rt-btn" data-pro-columnas aria-controls="proColumnas" aria-expanded="false">Columnas</button>` : ""}
+      <span id="conteo" class="conteo" aria-live="polite"></span><span id="proAlcance" class="muted xs" aria-live="polite"></span>
+    </div>
+    ${configuracionPro.modo === "tabla" ? `<section class="pro-columnas" id="proColumnas" aria-label="Mostrar y ordenar columnas" hidden><p class="muted xs">Marca las columnas que quieres mostrar. Usa las flechas para cambiar su orden.</p><ul>${selectorColumnasPro()}</ul></section>` : ""}
+    <section class="cards" id="cards"><div id="proTabla"></div></section>`;
   pintarTarjetas();
 }
 
@@ -664,13 +727,11 @@ function bloqueHoy() {
 }
 
 function pintarTarjetas() {
-  const P = S.proyectos;
-  const enF = P.filter(p => enEstatus(p) && enResumen(p)), lista = enF.filter(coincide);
-  const filtrando = !!(S.q.trim() || S.tipo);
-  $("#conteo").textContent = filtrando ? `${lista.length} de ${enF.length} proyectos` : `${enF.length} proyecto${enF.length === 1 ? "" : "s"}`;
-  $("#cards").innerHTML = lista.length ? lista.map(tarjetaProyecto).join("")
-    : `<div class="empty">${!P.length ? (S.modo === "OPERACION" ? "Aún no tienes proyectos asignados. El administrador te los asigna desde el panel." : "No hay proyectos para mostrar.")
-      : filtrando ? "Ningún proyecto coincide con la búsqueda." : "Sin proyectos en este filtro."}</div>`;
+  const lista = proyectosVisibles();
+  $("#conteo").textContent = `${lista.length} proyecto${lista.length === 1 ? "" : "s"}`;
+  repintarTabla("pro", () => lista.length ? (configuracionPro.modo === "tabla" ? tablaProyectos(lista) : lista.map(tarjetaProyecto).join(""))
+    : `<div class="empty">${!S.proyectos.length ? (S.modo === "OPERACION" ? "Aún no tienes proyectos asignados. El administrador te los asigna desde el panel." : "No hay proyectos para mostrar.") : "Sin proyectos en este filtro."}</div>`);
+  actualizarAlcancePro(lista);
 }
 
 function tarjetaProyecto(p) {
@@ -850,7 +911,7 @@ function curvaDetalle() {
 // ── Controles compartidos de las tablas del proyecto ─────────
 const VISTAS_SELECCION = { "": "Todos los registros", seleccionados: "Seleccionados", restantes: "No seleccionados" };
 const FILTROS_RAPIDOS_REQ = { TODOS: "Todos", REVISAR: "Por revisar", VENCIDOS: "Vencidos", ABIERTOS: "Sin validar" };
-const TABLAS = { req: {}, seg: {} };
+const TABLAS = { req: {}, seg: {}, pro: { ids: new Set(), vista: "", columna: "", sentido: 1 } };
 const ordenTexto = new Intl.Collator("es-MX", { numeric: true, sensitivity: "base" });
 let contextoTablas;
 
@@ -858,7 +919,7 @@ function prepararTablasProyecto(id) {
   const contexto = JSON.stringify([S.modo, id]);
   if (contexto === contextoTablas) return;
   contextoTablas = contexto;
-  for (const tabla of Object.values(TABLAS)) {
+  for (const tabla of [TABLAS.req, TABLAS.seg]) {
     Object.assign(tabla, { ids: new Set(), vista: "", columna: "", sentido: 1 });
   }
 }
@@ -1140,14 +1201,20 @@ async function anotarReq(id) {
 
 async function exportarProyectos(tipo, boton) {
   if (boton?.disabled) return;
-  const proyectos = [...S.proyectos];
+  const proyectos = proyectosExportables(proyectosVisibles());
   if (!proyectos.length) { aviso("No hay proyectos para exportar.", "bad"); return; }
   const vista = MODOS[S.modo]?.lista || S.modo;
   const autor = usr().nombreVisible || usr().nombre || "";
   const entidad = S.ctx?.eo?.nombre || S.ctx?.enteOperador?.nombre || "";
-  const matriz = matrizProyectos(proyectos, { estatus: etiquetaEstatus, responsable, instancias: p => otorgantesDe(p).map(insEtq).filter(Boolean).join("; "), fecha: v => v ? fecha(v) : "" });
+  const columnas = columnasPro();
+  const matriz = { headers: ["No.", ...columnas.map(c => c.t)], rows: proyectos.map((p, i) => [i + 1, ...columnas.map(c => valorPro(c, p))]) };
+  const alcance = [`${proyectos.length} proyectos`, S.estatus !== "TODOS" && (ESTATUS[S.estatus] || "Sin asignar"),
+    S.tipo && (tipoPry(S.tipo) || S.tipo), S.q.trim() && `Búsqueda: ${S.q.trim()}`,
+    { entregados: "Por revisar", vencidos: "Vencidos", porVencer: "Por vencer" }[S.resumen],
+    TABLAS.pro.vista ? VISTAS_SELECCION[TABLAS.pro.vista] : TABLAS.pro.ids.size ? "Renglones seleccionados" : ""
+  ].filter(Boolean).join(" · ");
   if (boton) boton.disabled = true;
-  try { await generarReporteProyectos(tipo, matriz, { base: `Proyectos_GESTION_${hoyYmd()}`, entidad, autor, vista, cargarPdf: cargarJsPdfApp, descargar: descargarArchivo }); }
+  try { await generarReporteProyectos(tipo, matriz, { base: `Proyectos_GESTION_${hoyYmd()}`, entidad, autor, vista, alcance, cargarPdf: cargarJsPdfApp, descargar: descargarArchivo }); }
   catch(error) { aviso(error.message || "No fue posible generar el reporte de proyectos.", "bad"); }
   finally { if (boton?.isConnected) boton.disabled = false; }
 }
@@ -2087,7 +2154,7 @@ document.addEventListener("click", e => {
     const tabla = TABLAS[tipo];
     tabla.sentido = tabla.columna === columna ? -tabla.sentido : 1;
     tabla.columna = columna;
-    (tipo === "req" ? pintarReqTabla : pintarSegTabla)();
+    (tipo === "pro" ? pintarTarjetas : tipo === "req" ? pintarReqTabla : pintarSegTabla)();
     $(`[data-tabla-orden="${tipo}"][data-columna="${columna}"]`)?.focus({ preventScroll: true });
     return;
   }
@@ -2119,6 +2186,43 @@ document.addEventListener("click", e => {
   if (e.target.closest("[data-segx]")) { S.segQ = ""; const q = $("#segQ"); if (q) { q.value = ""; q.focus(); } const x = document.querySelector("[data-segx]"); if (x) x.hidden = true; pintarSegTabla(); return; }
   if (e.target.closest("[data-scols]")) { const r = $("#scols"); if (r) r.hidden = !r.hidden; return; }
   const sx = e.target.closest("[data-sexp]"); if (sx) { exportarSeg(sx.dataset.sexp); return; }
+  const proVista = e.target.closest("[data-pro-vista]");
+  if (proVista) {
+    configuracionPro.modo = proVista.dataset.proVista;
+    pintarLista();
+    $('[data-pro-vista][aria-pressed="true"]')?.focus({ preventScroll: true });
+    return;
+  }
+  const proColumnas = e.target.closest("[data-pro-columnas]");
+  if (proColumnas) {
+    const panel = $("#proColumnas");
+    panel.hidden = !panel.hidden;
+    proColumnas.setAttribute("aria-expanded", String(!panel.hidden));
+    return;
+  }
+  const mover = e.target.closest("[data-pro-mover]");
+  if (mover) {
+    const { proMover, paso } = mover.dataset, columnas = configuracionPro.columnas;
+    const origen = columnas.findIndex(c => c.id === proMover), destino = origen + Number(paso);
+    if (destino < 0 || destino >= columnas.length) return;
+    [columnas[origen], columnas[destino]] = [columnas[destino], columnas[origen]];
+    $("#proColumnas ul").innerHTML = selectorColumnasPro();
+    ($(`[data-pro-mover="${proMover}"][data-paso="${paso}"]:enabled`) || $(`[data-pro-mover="${proMover}"]:enabled`))?.focus();
+    pintarTarjetas();
+    return;
+  }
+  if (e.target.closest("[data-pro-limpiar]")) {
+    const buscar = $("#fBuscar");
+    buscar.value = "";
+    buscar.dispatchEvent(new Event("input", { bubbles: true }));
+    buscar.focus();
+    return;
+  }
+  const filaProyecto = e.target.closest("[data-pro-fila]");
+  if (filaProyecto && !e.target.closest("button, input, label, a, .rt-casilla")) {
+    filaProyecto.querySelector("[data-pry]")?.click();
+    return;
+  }
   const px = e.target.closest("[data-proexp]"); if (px) { exportarProyectos(px.dataset.proexp, px); return; }
   const rx = e.target.closest("[data-rexp]"); if (rx) { exportarReq(rx.dataset.rexp); return; }
   const t = e.target.closest("button, a");
@@ -2203,7 +2307,7 @@ document.addEventListener("change", e => {
   const { tablaVista, tablaFila, tablaTodas } = control.dataset;
   if (tablaVista) {
     TABLAS[tablaVista].vista = control.value;
-    (tablaVista === "req" ? pintarReqTabla : pintarSegTabla)();
+    (tablaVista === "pro" ? pintarTarjetas : tablaVista === "req" ? pintarReqTabla : pintarSegTabla)();
     return;
   }
   const tipo = tablaFila || tablaTodas;
@@ -2217,11 +2321,24 @@ document.addEventListener("change", e => {
       else ids.delete(fila.value);
     }
     if (vista) {
-      (tipo === "req" ? pintarReqTabla : pintarSegTabla)();
+      (tipo === "pro" ? pintarTarjetas : tipo === "req" ? pintarReqTabla : pintarSegTabla)();
       $(`[data-tabla-vista="${tipo}"]`)?.focus({ preventScroll: true });
     } else {
       actualizarCasillaCabecera(contenedor);
+      if (tipo === "pro") {
+        for (const fila of filas) fila.closest("tr").classList.toggle("sel", fila.checked);
+        actualizarAlcancePro();
+      }
     }
+    return;
+  }
+  if (control.dataset.proCol) {
+    const id = control.dataset.proCol, visibles = configuracionPro.visibles;
+    if (control.checked) visibles.add(id);
+    else visibles.delete(id);
+    if (TABLAS.pro.columna === id && !control.checked) TABLAS.pro.columna = "";
+    $("#proColumnas").querySelectorAll("[data-pro-col]").forEach(x => x.disabled = x.checked && visibles.size === 1);
+    pintarTarjetas();
     return;
   }
   if (control.id === "filtroReqRapido") { S.filtroReq = control.value; pintarReqTabla(); return; }
@@ -2249,7 +2366,7 @@ document.addEventListener("change", e => {
 document.addEventListener("input", e => {
   if (e.target.id === "reqQ") { S.reqQ = e.target.value; pintarReqTabla(); }
   if (e.target.id === "segQ") { S.segQ = e.target.value; const x = document.querySelector("[data-segx]"); if (x) x.hidden = !S.segQ; pintarSegTabla(); }
-  if (e.target.id === "fBuscar") { S.q = e.target.value; pintarTarjetas(); }
+  if (e.target.id === "fBuscar") { S.q = e.target.value; $("[data-pro-limpiar]").hidden = !S.q; pintarTarjetas(); }
 });
 document.addEventListener("keydown", e => {
   if (e.target.matches("tr[data-segdetalle]") && (e.key === "Enter" || e.key === " ")) {

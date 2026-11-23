@@ -691,3 +691,27 @@ dialog.programar .dlg-x:hover{background:rgba(255,255,255,.3)}
 .prg-form .prg-alcance>.check{margin:2px 0;padding:5px 0}
 @media(max-width:480px){.prg-form{padding:10px;gap:8px}.prg-form .f :is(input,select,textarea){font-size:16px}}
 @media(max-width:360px){.prg-form-pair{grid-template-columns:minmax(0,1fr)}}
+
+/* Tabla inicial de Proyectos */
+.pro-buscar{flex:1 1 225px;min-width:0}
+.buscar .pro-buscar input{flex:1;width:100%;padding:0;border:0;background:transparent;outline:0;font-size:14px}
+.pro-buscar .rt-clear{flex:none;width:30px;height:30px;border:0;border-radius:7px;background:transparent;color:var(--muted);font:21px/1 system-ui;cursor:pointer}
+.pro-buscar .rt-clear:hover{background:#eaf3ff;color:var(--ink)}
+.pro-buscar input::-webkit-search-cancel-button{display:none}
+.pro-tabla-bar,.pro-tabla-vistas{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pro-tabla-bar{margin:0 0 10px}
+.pro-tabla-bar .conteo{margin-left:auto}
+.pro-tabla-vistas .rt-btn[aria-pressed="true"]{background:#eaf3ff;border-color:var(--blue);color:#165b9d;font-weight:700}
+.pro-columnas{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:10px;padding:10px}
+.pro-columnas p{margin:0 0 8px}
+.pro-columnas ul{list-style:none;max-height:235px;overflow:auto;margin:0;padding:0}
+.pro-columnas li{display:flex;align-items:center;gap:6px;border-top:1px solid var(--line);padding:4px}
+.pro-columnas li label{flex:1;margin:0}
+.pro-columnas li button{min-width:32px;min-height:30px;padding:3px 6px}
+#proTabla:has(.pry){display:grid;gap:8px}
+.rtable.proyectos-tabla{max-height:min(66vh,760px)}
+.proyectos-tabla .pro-tabla-nombre{min-width:210px}
+.pro-tabla-abrir{font:inherit;font-weight:700;text-align:left;color:#185c9e;background:none;border:0;padding:0;cursor:pointer}
+.pro-tabla-abrir:hover{text-decoration:underline}
+
+#cards > #proTabla{min-width:0}

@@ -662,3 +662,32 @@ button.seg-flag:hover,button.seg-flag:focus-visible{background:var(--bg)}
 [data-estatus="CONCLUIDO"]{--estatus-color:#1F9D6A;--estatus-fondo:#e8f5ef}
 [data-estatus="SIN_ASIGNAR"]{--estatus-color:#9AA6B6;--estatus-fondo:#f3f5f7}
 .kpi-estatus button[data-estatus]::before{content:"";display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%;background:var(--estatus-color,transparent)}
+
+/* Formulario de Programación */
+dialog.programar{width:min(720px,calc(100vw - 20px))}
+dialog.programar #dlgBody{display:block;padding:0;max-height:85vh;max-height:85dvh}
+dialog.programar .dlg-acts{top:0;margin:0;min-height:60px;padding:9px 58px 9px 16px;align-items:center;justify-content:space-between;border:0;background:linear-gradient(105deg,var(--cyan),var(--blue));color:#fff;gap:8px}
+dialog.programar #dlgBody .dlg-acts h3{margin:0;font-size:clamp(16px,4vw,21px);line-height:1.15;color:inherit}
+dialog.programar .dlg-acts .btn{flex:none;background:#fff;color:#184b82;border-color:#fff;min-height:38px;padding:7px 12px}
+dialog.programar .dlg-acts .btn:hover:enabled{background:#eaf3ff}
+dialog.programar .dlg-acts .save-icon{padding:6px 8px}
+dialog.programar .dlg-x{top:10px;right:10px;z-index:5;background:rgba(255,255,255,.18);color:#fff;width:38px;height:38px}
+dialog.programar .dlg-x:hover{background:rgba(255,255,255,.3)}
+.prg-form{display:grid;gap:10px;padding:14px 16px 16px;background:var(--bg)}
+.prg-form-main,.prg-form-panel{min-width:0;margin:0;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.prg-form-main,.prg-form-panel-body{display:grid;gap:10px;padding:12px}
+.prg-form-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.prg-form .f,.prg-form .f :is(input,select,textarea){min-width:0}
+.prg-form .f :is(input,select,textarea){font-size:14px;padding:7px 9px;min-height:38px}
+.prg-form-schedule{min-width:0;margin:1px 0 0;padding:4px 10px 10px;border:1px solid var(--line);border-radius:9px;background:#f7faff}
+.prg-form-schedule legend{padding:0 4px;font-size:13px;font-weight:700;color:var(--ink)}
+.prg-form-schedule .check{margin:0 0 5px;min-height:28px}
+.prg-form-panel>summary{padding:10px 12px;cursor:pointer;color:var(--ink);font-size:13px}
+.prg-form-panel>summary::marker,.prg-form .prg-seleccion summary::marker{color:var(--blue)}
+.prg-form-summary{display:block;margin-left:15px;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.prg-form-panel[open]>summary{border-bottom:1px solid var(--line)}
+.prg-form .prg-alcance{margin:0;padding:7px 9px 9px;font-size:13px}
+.prg-form .prg-seleccion{margin:5px 0 0;padding:7px 8px;background:#f7faff}
+.prg-form .prg-alcance>.check{margin:2px 0;padding:5px 0}
+@media(max-width:480px){.prg-form{padding:10px;gap:8px}.prg-form .f :is(input,select,textarea){font-size:16px}}
+@media(max-width:360px){.prg-form-pair{grid-template-columns:minmax(0,1fr)}}

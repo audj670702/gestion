@@ -1,4 +1,4 @@
-// SCaD Gestión · App · v0.15.13
+// SCaD Gestión · App · v0.15.14
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -52,7 +52,7 @@ import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaC
 
 import { matrizProyectos, generarReporteProyectos, generarExcelTabla } from "./reporteProyectos.js?v=0.15.6";
 
-export const VERSION = "GESTION_APP v0.15.13";
+export const VERSION = "GESTION_APP v0.15.14";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1736,22 +1736,42 @@ function dlgProgramar(a = null, proyectoId = "") {
   const pid = a ? (a.proyectoId || "") : (proyectoId || (P.length === 1 && requiereProyecto ? P[0].id : ""));
   const s = a ? inicio(a) : null, e = a ? fin(a) : null;
   const tipoSel = a ? tipoDe(a) : "";
-  dialogo(`<h3>${a ? "Editar actividad" : "Programar actividad"}</h3>
-    <p class="muted xs">Quien programa queda registrado en «Programó». El responsable se designa por separado.</p>
-    ${alcanceFormulario(opcionesAlcance, a?.gestionProgramacion || { proyectosIds:a?.proyectosIds || (pid?[pid]:[]), visibilidad:pid?{porProyecto:true}:{usuariosIds:[S.ctx.usuario.usrId]} })}
-    ${a?.vinculosRestringidos ? `<p class="muted xs">La actividad incluye proyectos fuera de tu acceso; sus vínculos se conservarán al guardar.</p>` : ""}
-    <label class="f">Responsable<select id="aResponsable"><option value="">Sin responsable designado</option>${(opcionesAlcance.usuarios || []).map(u => `<option value="${esc(u.id)}" ${a?.responsableId === u.id ? "selected" : ""}>${esc(u.nombre)}</option>`).join("")}</select></label>
-    <label class="f">Actividad<input id="aTit" maxlength="180" value="${esc(a ? titulo(a) : "")}" placeholder="Ej. Llamada con el enlace de SIOP"></label>
-    <label class="f">Tipo<select id="aTipo">${tipos.map(t => `<option value="${esc(t.id)}" ${t.etiqueta === tipoSel ? "selected" : ""}>${esc(t.etiqueta)}</option>`).join("")}</select></label>
-    <div class="grid3">
-      <label class="f">Fecha<input type="date" id="aFecha" value="${s ? isoDia(s) : ""}"></label>
-      <label class="f">Inicio<input type="time" id="aHoraIni" value="${s && !todoDia(a) ? hhmm(s) : ""}" ${a && todoDia(a) ? "disabled" : ""}></label>
-      <label class="f">Término<input type="time" id="aHoraFin" value="${e && !todoDia(a) ? hhmm(e) : ""}" ${a && todoDia(a) ? "disabled" : ""}></label>
-    </div>
-    <label class="check"><input type="checkbox" id="aTodo" ${a && todoDia(a) ? "checked" : ""}> Todo el día</label>
-    <label class="f">Lugar (opcional)<input id="aLugar" maxlength="240" value="${esc(a ? lugar(a) : "")}"></label>
-    <label class="f">Detalle (opcional)<textarea id="aDet" rows="2">${esc(a ? detalle(a) : "")}</textarea></label>
-    <label class="f">Enlace (opcional)<input id="aEnl" type="url" maxlength="500" value="${esc(a?.enlace || "")}" placeholder="https://"></label>
+  const permisos = a?.gestionProgramacion || { proyectosIds: a?.proyectosIds || (pid ? [pid] : []), visibilidad: pid ? { porProyecto: true } : { usuariosIds: [S.ctx.usuario.usrId] } };
+  dialogo(`<div class="prg-form">
+    <section class="prg-form-main" aria-label="Datos de la actividad">
+      <label class="f">Actividad<input id="aTit" maxlength="180" value="${esc(a ? titulo(a) : "")}" placeholder="Ej. Llamada con el enlace de SIOP"></label>
+      <div class="prg-form-pair">
+        <label class="f">Tipo<select id="aTipo">${tipos.map(t => `<option value="${esc(t.id)}" ${t.etiqueta === tipoSel ? "selected" : ""}>${esc(t.etiqueta)}</option>`).join("")}</select></label>
+        <label class="f">Responsable<select id="aResponsable"><option value="">Sin asignar</option>${(opcionesAlcance.usuarios || []).map(u => `<option value="${esc(u.id)}" ${a?.responsableId === u.id ? "selected" : ""}>${esc(u.nombre)}</option>`).join("")}</select></label>
+      </div>
+      <fieldset class="prg-form-schedule">
+        <legend>Horario</legend>
+        <label class="check"><input type="checkbox" id="aTodo" ${a && todoDia(a) ? "checked" : ""}> Todo el día</label>
+        <div class="grid3">
+          <label class="f">Fecha<input type="date" id="aFecha" value="${s ? isoDia(s) : ""}"></label>
+          <label class="f">Inicio<input type="time" id="aHoraIni" value="${s && !todoDia(a) ? hhmm(s) : ""}" ${a && todoDia(a) ? "disabled" : ""}></label>
+          <label class="f">Término<input type="time" id="aHoraFin" value="${e && !todoDia(a) ? hhmm(e) : ""}" ${a && todoDia(a) ? "disabled" : ""}></label>
+        </div>
+      </fieldset>
+    </section>
+    <details class="prg-form-panel"${a?.vinculosRestringidos ? " open" : ""}>
+      <summary><strong>Proyectos, visibilidad y participantes</strong><span class="prg-form-summary">Visibilidad · <span id="aVisResumen">${esc(alcanceTexto(permisos) || "Selecciona quién puede ver la actividad")}</span></span></summary>
+      <div class="prg-form-panel-body">
+        ${a?.vinculosRestringidos ? `<p class="muted xs">La actividad incluye proyectos fuera de tu acceso; sus vínculos se conservarán al guardar.</p>` : ""}
+        ${alcanceFormulario(opcionesAlcance, permisos)}
+      </div>
+    </details>
+    <details class="prg-form-panel">
+      <summary><strong>Lugar, detalle y enlace</strong><span class="prg-form-summary">Opcional</span></summary>
+      <div class="prg-form-panel-body">
+        <div class="prg-form-pair">
+          <label class="f">Lugar<input id="aLugar" maxlength="240" value="${esc(a ? lugar(a) : "")}"></label>
+          <label class="f">Enlace<input id="aEnl" type="url" maxlength="500" value="${esc(a?.enlace || "")}" placeholder="https://"></label>
+        </div>
+        <label class="f">Detalle<textarea id="aDet" rows="2">${esc(a ? detalle(a) : "")}</textarea></label>
+      </div>
+    </details>
+  </div>
 `,
   () => {
     const fechaV = $("#aFecha").value, todo = $("#aTodo").checked, hi = $("#aHoraIni").value, hf = $("#aHoraFin").value;
@@ -1772,23 +1792,35 @@ function dlgProgramar(a = null, proyectoId = "") {
     datos.inicio = ini.toISOString();
     datos.fin = fn ? fn.toISOString() : "";
     return tarea(() => api("ACT_GUARDAR", datos), { mensajeOk: a ? "Actividad actualizada." : "Actividad programada." }).then(trasActividad);
-  }, { textoBoton: a ? "Guardar" : "Programar" });
+  }, { textoBoton: a ? "Guardar" : "Programar", tituloProgramacion: a ? "Editar actividad" : "Programar actividad" });
   if (a?.vinculosRestringidos) $("#dlgBody").querySelectorAll(".prg-alcance input, .prg-alcance select").forEach(x => x.disabled = true);
+  const resumen = $("#aVisResumen");
+  resumen.closest("details").addEventListener("change", () => {
+    try {
+      resumen.textContent = alcanceTexto(leerAlcance($("#dlgBody")));
+    } catch (error) {
+      resumen.textContent = error.message;
+    }
+  });
 }
 
 // ── Diálogos ─────────────────────────────────────────────────
 let alEnviar = null;
-function dialogo(html, enviar, { textoBoton = "Guardar", clase = "pri", textoCerrar = "Cancelar", sinPie = false } = {}) {
-  $("#dlg").classList.remove("actividad");
+function dialogo(html, enviar, { textoBoton = "Guardar", clase = "pri", textoCerrar = "Cancelar", sinPie = false, tituloProgramacion = "" } = {}) {
+  const modal = $("#dlg");
+  modal.classList.remove("actividad");
+  modal.classList.toggle("programar", Boolean(tituloProgramacion));
+  if (tituloProgramacion) modal.setAttribute("aria-labelledby", "aModalTitulo");
+  else modal.removeAttribute("aria-labelledby");
   const guardar = textoBoton === "Guardar";
-  const accion = enviar ? `<div class="dlg-acts"><button class="btn ${guardar ? "act-icon save-icon" : clase}" data-dlg="ok" ${guardar ? 'title="Guardar" aria-label="Guardar"' : ""}>${guardar ? iconoGuardar : textoBoton === "Guardar y marcar cumplida" ? iconoGuardar + "<span>Cumplir</span>" : esc(textoBoton)}</button></div>` : "";
+  const accion = enviar ? `<div class="dlg-acts">${tituloProgramacion ? `<h3 id="aModalTitulo">${esc(tituloProgramacion)}</h3>` : ""}<button class="btn ${guardar ? "act-icon save-icon" : clase}" data-dlg="ok" ${guardar ? 'title="Guardar" aria-label="Guardar"' : ""}>${guardar ? iconoGuardar : textoBoton === "Guardar y marcar cumplida" ? iconoGuardar + "<span>Cumplir</span>" : esc(textoBoton)}</button></div>` : "";
   $("#dlgBody").innerHTML = sinPie ? html : `${accion}${html}`;
   if (guardar && enviar) vigilarGuardado($("#dlgBody"), $('#dlgBody [data-dlg="ok"]'));
   alEnviar = enviar;
   if (!$("#dlg").open) $("#dlg").showModal();
   $("#dlgBody").scrollTop = 0;
 }
-function cerrarDialogo() { if ($("#dlg").open) $("#dlg").close(); $("#dlg").classList.remove("req"); alEnviar = null; }
+function cerrarDialogo() { if ($("#dlg").open) $("#dlg").close(); $("#dlg").classList.remove("req", "programar"); $("#dlg").removeAttribute("aria-labelledby"); alEnviar = null; }
 const reqPorId = id => S.det.checklist.find(x => x.id === id);
 
 async function trasCambio(r) {

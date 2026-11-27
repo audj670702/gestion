@@ -271,7 +271,7 @@ em.ok{color:var(--ok)} em.bad{color:var(--bad)}
 .account-menu.from-nav{position:fixed;right:max(12px,calc((100vw - 520px)/2));top:auto;bottom:calc(90px + env(safe-area-inset-bottom));width:min(340px,calc(100vw - 24px));max-height:calc(100dvh - 120px - env(safe-area-inset-bottom))}
 .menu-acts button,.menu-modo{min-height:44px;font-weight:400}
 .mode-band{max-width:760px;margin:12px auto 0;border:1px solid var(--line);border-left:3px solid var(--mode);border-radius:8px;padding:8px 12px;font-weight:600;letter-spacing:.08em}
-.secciones{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom));z-index:20;width:min(calc(100% - 24px),520px);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:6px;background:var(--navy);border:0;border-radius:20px;box-shadow:0 10px 32px #123f6d40;overflow:visible}
+.secciones{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom));z-index:20;width:min(calc(100% - 24px),520px);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;padding:6px;background:var(--navy);border:0;border-radius:20px;box-shadow:0 10px 32px #123f6d40;overflow:visible}
 .secciones a,.secciones button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:56px;min-width:0;padding:5px;border:0;border-radius:14px;background:transparent;color:#edf4fc;text-decoration:none;font:500 11px/1.2 system-ui;cursor:pointer;white-space:nowrap}
 .secciones svg{width:22px;height:22px;flex:none}
 .secciones a.on{background:#fff;color:var(--navy);border:0}
@@ -718,3 +718,10 @@ dialog.programar .dlg-x:hover{background:rgba(255,255,255,.3)}
 
 /* Reporte por hitos · v0.15.16 */
 .rh-table table{min-width:1100px;width:100%;table-layout:fixed}.rh-table th:nth-child(1){width:38px}.rh-table th:nth-child(2){width:34px}.rh-table th:nth-child(3){width:105px}.rh-table th:nth-child(4){width:185px}.rh-table th:nth-child(5){width:112px}.rh-table td{vertical-align:middle}.rh-table td:last-child{overflow:auto}.rh-chain{display:grid;grid-auto-flow:column;grid-auto-columns:116px;justify-content:start;padding:6px 0;list-style:none;margin:0}.rh-step{text-align:center;position:relative;padding:0 4px;color:var(--hc)}.rh-step:before{content:"";position:absolute;top:10px;left:0;right:0;height:2px;background:var(--hc);opacity:.5}.rh-step:first-child:before{left:50%}.rh-step:last-child:before{right:50%}.rh-dot{position:relative;display:block;margin:0 auto 5px;width:22px;height:22px;border:2px solid var(--hc);border-radius:50%;background:var(--hb)}.rh-label{display:block;color:var(--ink);font-weight:650;line-height:1.2;min-height:27px;font-size:11px}.rh-date{display:block;font-size:10px;line-height:1.2;margin-top:2px}.rh-status{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--hc)}.rh-status:before{content:"";width:10px;height:10px;border-radius:50%;background:var(--hc);flex-shrink:0}
+
+/* Reporte de seguimientos */
+.reporte-seg-filtros { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin-bottom: 14px; }
+.reporte-seg-filtros select { max-width: min(100%, 290px); }
+.reporte-seg-filtros .f { min-width: 0; }
+.reporte-seg-tabla .t-req { min-width: 240px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.reporte-seg-tabla td { vertical-align: top; }

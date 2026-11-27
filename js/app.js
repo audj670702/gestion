@@ -55,7 +55,10 @@ import { generarReporteProyectos, generarExcelTabla } from "./reporteProyectos.j
 
 import { cadenaHitosReporte, COLORES_HITOS, estatusHitos, consultarHitosPermitidos, prepararReporteHitos, generarReporteHitos, ConsultaHitosCancelada } from "./reporteHitos.js?v=0.15.16";
 
-export const VERSION = "GESTION_APP v0.15.16";
+import { consultarSeguimientos, fechaSeguimiento, filtrarSeguimientos, COLUMNAS_SEGUIMIENTO,
+  valorSeguimiento, generarReporteSeguimientos, verificarConsultaSeguimientos } from "./reporteSeguimientos.js?v=0.15.17";
+
+export const VERSION = "GESTION_APP v0.15.17";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -398,11 +401,17 @@ async function cargarLista() {
 }
 
 function ruta() {
-  document.querySelector("main")?.classList.toggle("ancho", /^#\/p\//.test(location.hash));
   const h = location.hash || "";
+  const reporte = h === "#/seguimientos";
+  document.querySelector("main")?.classList.toggle("ancho", reporte || /^#\/p\//.test(h));
   const prg = /^#\/programacion(?:\/([^/]+))?/.exec(h);
   cerrarMenu();
-  marcarSeccion(prg ? "programacion" : "proyectos");
+  marcarSeccion(reporte ? "seguimientos" : prg ? "programacion" : "proyectos");
+  if (reporte) {
+    S.det = null;
+    pintarReporteSeguimientos();
+    return;
+  }
   if (prg) {
     S.det = null;
     abrirProgramacion($("#view"), S.ctx, { puedeProgramar: puedeProgramar() });
@@ -820,7 +829,9 @@ function tarjetaProyecto(p) {
 // ── Proyecto ─────────────────────────────────────────────────
 async function abrirProyecto(id, { silencioso = false } = {}) {
   if (!silencioso) $("#view").innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
-  const r = await tarea(() => api("PROYECTO", { proyectoId: id, vista: S.modo }));
+  const vista = S.modo, rutaProyecto = location.hash;
+  const r = await tarea(() => api("PROYECTO", { proyectoId: id, vista }));
+  if (rutaProyecto !== location.hash || vista !== S.modo) return;
   if (!r) { location.hash = "#/"; return; }
   prepararTablasProyecto(r.proyecto.id);
   S.det = r;
@@ -1568,6 +1579,147 @@ async function exportarSeg(tipo) {
     });
     doc.save(`${base}.pdf`);
   } catch (e) { aviso(e.message || "No fue posible generar el PDF.", "bad"); }
+}
+
+function filasReporteSeguimientos(detalle, resumen) {
+  const p = { ...resumen, ...detalle.proyecto };
+  const responsableNombre = responsable(p);
+  return detalle.seguimiento.filter(esAnotacionSeg).map(s => {
+    const bandera = banderaSeg(s);
+    return {
+      ...fechaSeguimiento(s.fechaRegistro),
+      proyectoId: p.id, proyecto: [p.folio, p.nombre].filter(Boolean).join(" · "),
+      estatusId: claveEstatus(p), estatus: etiquetaEstatus(p),
+      banderaId: bandera, bandera: SEG_BANDERAS[bandera].nombre,
+      instancias: [...new Set(idsInstanciasSeg(s))].map(id => ({ id, nombre: ins(id)?.nombre || insEtq(id) || "Instancia vinculada" })),
+      responsableId: p.responsableId || p.responsable?.id || responsableNombre || "sin-asignar",
+      responsable: responsableNombre || "Sin asignar",
+      autor: autorSeg(s),
+      referencia: [s.referenciaEtiqueta, s.actividadEtiqueta].filter(Boolean).join(" · ") || "Proyecto en general",
+      nota: s.nota || ""
+    };
+  });
+}
+
+function pintarReporteSeguimientos() {
+  $("#view").innerHTML = `<section id="reporteSeguimientos">
+    <header class="hero"><div class="row wrap"><h1 style="margin-right:auto">Reporte de seguimientos</h1>
+      <button type="button" class="rt-btn" data-seg-reporte-actualizar>Actualizar</button>
+      ${botonesExportar("data-seg-reporte-exportar")}</div></header>
+    <form class="reporte-seg-filtros" hidden>
+      ${[["proyecto", "Proyecto", "Todos"], ["estatus", "Estatus del proyecto", "Todos"],
+        ["bandera", "Bandera", "Todas"], ["instancia", "Instancia vinculada", "Todas"],
+        ["responsable", "Responsable del proyecto", "Todos"]].map(([id, etiqueta, opcion]) =>
+          `<label class="f">${etiqueta}<select name="${id}" data-opcion-todos="${opcion}"></select></label>`).join("")}
+      <label class="f">Desde<input name="desde" type="date"></label>
+      <label class="f">Hasta<input name="hasta" type="date"></label>
+      <button type="reset" class="rt-btn">Limpiar filtros</button>
+    </form>
+    <p class="muted sm" role="status"></p>
+    <div data-seg-reporte-resultados></div>
+  </section>`;
+  const panel = $("#reporteSeguimientos"), form = panel.querySelector("form");
+  const estado = panel.querySelector("[role=status]"), salida = panel.querySelector("[data-seg-reporte-resultados]");
+  const actualizar = panel.querySelector("[data-seg-reporte-actualizar]");
+  const exportar = [...panel.querySelectorAll("[data-seg-reporte-exportar]")];
+  const contextoVista = claveReporteHitos(), vista = S.modo;
+  const vigente = () => panel.isConnected && location.hash === "#/seguimientos" && hasToken() && contextoVista === claveReporteHitos();
+  const consultar = (proyectoId = "") => consultarSeguimientos({ consultar: api, vista, vigente, preparar: filasReporteSeguimientos, proyectoId });
+  let registros = [], listaCargada = false, exportando = false;
+
+  const filtros = () => Object.fromEntries(new FormData(form));
+  const periodoValido = f => !f.desde || !f.hasta || f.desde <= f.hasta;
+  function pintar() {
+    if (!listaCargada) return;
+    const f = filtros();
+    const filas = periodoValido(f) ? filtrarSeguimientos(registros, f) : [];
+    for (const boton of exportar) boton.disabled = exportando || !filas.length;
+    estado.textContent = periodoValido(f) ? `${filas.length} de ${registros.length} seguimientos` : "La fecha Desde debe ser anterior o igual a Hasta.";
+    salida.innerHTML = filas.length ? `<div class="rtable reporte-seg-tabla" tabindex="0" role="region" aria-label="Seguimientos de la consulta"><table>
+      <thead><tr><th scope="col" class="rt-numero">No.</th>${COLUMNAS_SEGUIMIENTO.map(([, etiqueta]) => `<th scope="col">${etiqueta}</th>`).join("")}</tr></thead>
+      <tbody>${filas.map((r, i) => `<tr><td class="rt-numero">${i + 1}</td>${COLUMNAS_SEGUIMIENTO.map(([campo]) => {
+        const valor = esc(valorSeguimiento(r, campo) || "—");
+        if (campo === "proyecto") return `<td><button type="button" class="pro-tabla-abrir" data-pry="${esc(r.proyectoId)}">${valor}</button></td>`;
+        if (campo === "bandera") return `<td>${etiquetaFiltroBandera(r.banderaId)}</td>`;
+        return `<td${campo === "nota" ? ' class="t-req"' : ""}>${valor}</td>`;
+      }).join("")}</tr>`).join("")}</tbody></table></div>`
+      : `<div class="empty">${registros.length ? "Sin seguimientos en esta consulta." : "No hay seguimientos en los proyectos de esta vista."}</div>`;
+  }
+
+  function llenarFiltros() {
+    const opciones = {
+      proyecto: registros.map(r => [r.proyectoId, r.proyecto]),
+      estatus: registros.map(r => [r.estatusId, r.estatus]),
+      bandera: registros.map(r => [r.banderaId, r.bandera]),
+      instancia: registros.flatMap(r => r.instancias.map(i => [i.id, i.nombre])),
+      responsable: registros.map(r => [r.responsableId, r.responsable])
+    };
+    for (const [campo, pares] of Object.entries(opciones)) {
+      const select = form.elements[campo], anterior = select.value;
+      const valores = [...new Map(pares)].sort((a, b) => a[1].localeCompare(b[1], "es", { numeric: true }));
+      select.replaceChildren(new Option(select.dataset.opcionTodos, ""), ...valores.map(([id, etiqueta]) => new Option(etiqueta, id)));
+      if (valores.some(([id]) => String(id) === anterior)) select.value = anterior;
+    }
+  }
+
+  async function cargar() {
+    listaCargada = false;
+    registros = [];
+    form.hidden = true;
+    actualizar.disabled = true;
+    exportar.forEach(b => { b.disabled = true; });
+    salida.replaceChildren();
+    estado.textContent = "Consultando seguimientos…";
+    try {
+      registros = await consultar();
+      llenarFiltros();
+      listaCargada = true;
+      form.hidden = false;
+      pintar();
+    } catch (error) {
+      if (error instanceof ApiError && contextoVista === claveReporteHitos() && panel.isConnected && error.code === "AUTH_REQUIRED") pantalla("login");
+      if (vigente()) estado.textContent = "No se pudo completar la consulta de seguimientos. Usa Actualizar para reintentar.";
+    } finally { actualizar.disabled = false; }
+  }
+
+  form.addEventListener("submit", e => e.preventDefault());
+  form.addEventListener("change", pintar);
+  form.addEventListener("reset", () => queueMicrotask(pintar));
+  actualizar.addEventListener("click", cargar);
+  for (const boton of exportar) boton.addEventListener("click", async () => {
+    if (exportando || !listaCargada) return;
+    const f = filtros();
+    if (!periodoValido(f)) return;
+    const criterios = [...form.querySelectorAll("select")].filter(el => el.value)
+      .map(el => `${el.labels[0].firstChild.textContent} · ${el.selectedOptions[0].textContent}`);
+    if (f.desde) criterios.push(`Desde ${f.desde}`);
+    if (f.hasta) criterios.push(`Hasta ${f.hasta}`);
+    exportando = true;
+    actualizar.disabled = true;
+    pintar();
+    try {
+      await tarea(async () => {
+        const filas = filtrarSeguimientos(await consultar(f.proyecto), f);
+        if (!filas.length) throw new Error("No hay seguimientos disponibles para exportar con estos filtros.");
+        const entidad = S.ctx?.eo?.nombreMostrar || S.ctx?.eo?.nombre || S.ctx?.enteOperador?.nombre;
+        await generarReporteSeguimientos(boton.dataset.segReporteExportar, filas, {
+          base: `Seguimientos_GESTION_${vista}_${hoyYmd()}`,
+          titulo: ["Reporte de seguimientos", entidad, `Vista ${MODOS[vista].t}`].filter(Boolean).join(" · "),
+          filtros: criterios.join(" | ") || "Todos los seguimientos de la vista",
+          autor: nombreMostrar(), cargarPdf: cargarJsPdfApp,
+          descargar: (blob, nombre) => {
+            verificarConsultaSeguimientos(vigente);
+            descargarArchivo(blob, nombre);
+          }
+        });
+      }, { mensajeCarga: "Validando el alcance y preparando el reporte de seguimientos…" });
+    } finally {
+      exportando = false;
+      actualizar.disabled = false;
+      if (vigente()) pintar();
+    }
+  });
+  cargar();
 }
 
 function vistaSeguimiento() {

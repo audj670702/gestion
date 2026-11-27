@@ -1,4 +1,5 @@
-// SCaD Gestión · App · v0.15.15
+// SCaD Gestión · App · v0.15.16
+// v0.15.16: reporte por hitos en cada vista; exportación con revalidación del alcance en el servidor.
 // v0.11.0: banderita roja de relevancia en el registro de seguimiento (marcable por el ADM y el responsable).
 // v0.7.10: el responsable agrega requerimientos extraordinarios (categoría 2 o 3) y los edita; la categoría 1 y los validados no se editan.
 // v0.7.9: el catálogo de documentos se denomina Tipo de acreditación (la forma de acreditar el cumplimiento).
@@ -52,7 +53,9 @@ import { iconoGuardar, iconoEditar, iconoEliminar, iconoPdf, iconoGoogle, marcaC
 
 import { generarReporteProyectos, generarExcelTabla } from "./reporteProyectos.js?v=0.15.15";
 
-export const VERSION = "GESTION_APP v0.15.15";
+import { cadenaHitosReporte, COLORES_HITOS, estatusHitos, consultarHitosPermitidos, prepararReporteHitos, generarReporteHitos, ConsultaHitosCancelada } from "./reporteHitos.js?v=0.15.16";
+
+export const VERSION = "GESTION_APP v0.15.16";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -387,8 +390,11 @@ async function iniciar() {
 }
 
 async function cargarLista() {
-  const r = await tarea(() => api("PROYECTOS", { vista: S.modo }));
+  const clave = claveReporteHitos(), vista = S.modo;
+  const r = await tarea(() => api("PROYECTOS", { vista }));
+  if (clave !== claveReporteHitos()) return;
   S.proyectos = r ? (r.proyectos || []) : [];
+  reiniciarReporteHitos();
 }
 
 function ruta() {
@@ -687,7 +693,7 @@ function actualizarAlcancePro(lista = proyectosVisibles()) {
 }
 
 function pintarLista() {
-  document.querySelector("main")?.classList.toggle("ancho", configuracionPro.modo === "tabla");
+  document.querySelector("main")?.classList.toggle("ancho", configuracionPro.modo !== "tarjetas");
   const P = S.proyectos, M = MODOS[S.modo];
   const filtros = [["TODOS", "Todos"], ...Object.entries(ESTATUS), ["SIN_ASIGNAR", "Sin asignar"]];
   const tipos = S.ctx.catalogos?.tiposProyecto || [];
@@ -707,14 +713,66 @@ function pintarLista() {
     </div>
     <div class="pro-tabla-bar">
       <div role="group" aria-label="Vista de proyectos" class="pro-tabla-vistas">
-        ${["tarjetas", "tabla"].map(v => `<button type="button" class="rt-btn" data-pro-vista="${v}" aria-pressed="${configuracionPro.modo === v}">${v === "tabla" ? "Tabla" : "Tarjetas"}</button>`).join("")}
+        ${["tarjetas", "tabla", "hitos"].map(v => `<button type="button" class="rt-btn" data-pro-vista="${v}" aria-pressed="${configuracionPro.modo === v}">${v === "hitos" ? "Reporte por hitos" : v === "tabla" ? "Tabla" : "Tarjetas"}</button>`).join("")}
       </div>
-      ${configuracionPro.modo === "tabla" ? `${filtroSeleccionHTML("pro")} <button type="button" class="rt-btn" data-pro-columnas aria-controls="proColumnas" aria-expanded="false">Columnas</button>` : ""}
+      ${configuracionPro.modo !== "tarjetas" ? filtroSeleccionHTML("pro") : ""}
+      ${configuracionPro.modo === "hitos" ? `<button type="button" class="rt-btn" data-hitos-actualizar>Actualizar hitos</button><span class="muted xs" id="hitosProgreso" aria-live="polite"></span>` : ""}
+      ${configuracionPro.modo === "tabla" ? `<button type="button" class="rt-btn" data-pro-columnas aria-controls="proColumnas" aria-expanded="false">Columnas</button>` : ""}
       <span id="conteo" class="conteo" aria-live="polite"></span><span id="proAlcance" class="muted xs" aria-live="polite"></span>
     </div>
     ${configuracionPro.modo === "tabla" ? `<section class="pro-columnas" id="proColumnas" aria-label="Mostrar y ordenar columnas" hidden><p class="muted xs">Marca las columnas que quieres mostrar. Usa las flechas para cambiar su orden.</p><ul>${selectorColumnasPro()}</ul></section>` : ""}
     <section class="cards" id="cards"><div id="proTabla"></div></section>`;
   pintarTarjetas();
+}
+
+
+// El reporte comparte lista autorizada, filtros y casillas; los detalles siempre llevan la vista activa.
+const REP_HITOS = { datos: new Map(), errores: new Map(), cargando: false, revision: 0, contexto: '' };
+const claveReporteHitos = () => JSON.stringify([S.modo, S.ctx?.eo?.id || S.ctx?.enteOperador?.id || S.ctx?.eo?.codigoEO || S.ctx?.enteOperador?.codigoEO || S.ctx?.codigoEO || '', usr().memberId || usr().id || S.ctx?.memberId || usr().email || '']);
+function reiniciarReporteHitos() {
+  REP_HITOS.revision++; REP_HITOS.contexto = claveReporteHitos();
+  REP_HITOS.datos.clear(); REP_HITOS.errores.clear(); REP_HITOS.cargando = false;
+}
+function tablaReporteHitos(lista) {
+  return `<div class="rtable rh-table" tabindex="0" role="region" aria-label="Reporte por hitos"><table>
+    <thead><tr><th class="rt-casilla"><input type="checkbox" data-tabla-todas="pro" aria-label="Seleccionar o deseleccionar los registros visibles"></th><th class="rt-numero">No.</th><th>Código</th><th>Proyecto</th><th>Estatus</th><th>Cadena de hitos</th></tr></thead>
+    <tbody>${lista.map((p, i) => {
+      const hitos = REP_HITOS.datos.get(p.id)?.hitos;
+      const estado = hitos ? COLORES_HITOS[estatusHitos(hitos)] : null;
+      return `<tr data-pro-fila="${esc(p.id)}" class="${TABLAS.pro.ids.has(p.id) ? 'sel' : ''}">${celdasSeleccion('pro', p.id, i, p.nombre || p.folio)}<td>${esc(p.folio)}</td><td><button type="button" class="pro-tabla-abrir" data-pry="${esc(p.id)}">${esc(p.nombre)}</button></td><td>${estado ? `<span class="rh-status" style="--hc:${estado.color}">${estado.texto}</span><small class="muted xs" style="display:block">${hitos.filter(h => h.cumplido).length} de ${hitos.length} cumplidos</small>` : `<span class="muted xs">${REP_HITOS.errores.has(p.id) ? 'No se pudo consultar. Actualiza los hitos.' : 'Cargando…'}</span>`}</td><td>${hitos ? cadenaHitosReporte(hitos) : '—'}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+async function cargarHitosVista() {
+  if (REP_HITOS.contexto !== claveReporteHitos()) reiniciarReporteHitos();
+  const progreso = $('#hitosProgreso');
+  if (progreso) progreso.textContent = `${REP_HITOS.datos.size} de ${S.proyectos.length} consultados${REP_HITOS.errores.size ? ` · ${REP_HITOS.errores.size} sin consultar` : ''}`;
+  if (REP_HITOS.cargando || REP_HITOS.datos.size + REP_HITOS.errores.size === S.proyectos.length) return;
+  const revision = REP_HITOS.revision, clave = claveReporteHitos(), vista = S.modo;
+  const vigente = () => revision === REP_HITOS.revision && clave === claveReporteHitos();
+  REP_HITOS.cargando = true;
+  try {
+    await consultarHitosPermitidos([...S.proyectos], { vista, consultar: api, vigente, alRecibir: (id, datos, error) => {
+      if (datos) REP_HITOS.datos.set(id, datos); else REP_HITOS.errores.set(id, error);
+      if (configuracionPro.modo === 'hitos' && $('#proTabla')) pintarTarjetas();
+    } });
+  } catch (error) { if (!(error instanceof ConsultaHitosCancelada)) aviso(error.message, 'bad'); }
+  finally { if (vigente()) REP_HITOS.cargando = false; }
+}
+async function exportarHitosApp(tipo, boton) {
+  if (boton?.disabled) return;
+  const proyectos = proyectosExportables(proyectosVisibles());
+  if (!proyectos.length) { aviso('No hay proyectos para exportar.', 'bad'); return; }
+  const vista = S.modo, clave = claveReporteHitos();
+  const opciones = { base: `Hitos_GESTION_${vista}_${hoyYmd()}`, entidad: S.ctx?.eo?.nombre || S.ctx?.enteOperador?.nombre || '', autor: nombreMostrar(), vista: MODOS[vista].t, alcance: `${proyectos.length} proyectos · ${S.q.trim() ? `Búsqueda: ${S.q.trim()} · ` : ''}${TABLAS.pro.ids.size ? 'Selección y filtros actuales' : 'Filtros actuales'}`, cargarPdf: cargarJsPdfApp, descargar: (blob, nombre) => { if (clave !== claveReporteHitos()) throw new ConsultaHitosCancelada(); descargarArchivo(blob, nombre); } };
+  if (boton) boton.disabled = true;
+  try {
+    await tarea(async () => {
+      const vigente = () => clave === claveReporteHitos();
+      const registros = await prepararReporteHitos(proyectos, { vista, consultar: api, vigente });
+      if (!vigente()) throw new ConsultaHitosCancelada();
+      await generarReporteHitos(tipo, registros, opciones);
+    }, { mensajeCarga: 'Validando el alcance y preparando el reporte por hitos…' });
+  } finally { if (boton?.isConnected) boton.disabled = false; }
 }
 
 // Actividades de hoy (Programación), como en NEXUS.
@@ -729,9 +787,10 @@ function bloqueHoy() {
 function pintarTarjetas() {
   const lista = proyectosVisibles();
   $("#conteo").textContent = `${lista.length} proyecto${lista.length === 1 ? "" : "s"}`;
-  repintarTabla("pro", () => lista.length ? (configuracionPro.modo === "tabla" ? tablaProyectos(lista) : lista.map(tarjetaProyecto).join(""))
+  repintarTabla("pro", () => lista.length ? (configuracionPro.modo === "hitos" ? tablaReporteHitos(lista) : configuracionPro.modo === "tabla" ? tablaProyectos(lista) : lista.map(tarjetaProyecto).join(""))
     : `<div class="empty">${!S.proyectos.length ? (S.modo === "OPERACION" ? "Aún no tienes proyectos asignados. El administrador te los asigna desde el panel." : "No hay proyectos para mostrar.") : "Sin proyectos en este filtro."}</div>`);
   actualizarAlcancePro(lista);
+  if (configuracionPro.modo === "hitos") cargarHitosVista();
 }
 
 function tarjetaProyecto(p) {
@@ -1200,6 +1259,7 @@ async function anotarReq(id) {
 }
 
 async function exportarProyectos(tipo, boton) {
+  if (configuracionPro.modo === "hitos") return exportarHitosApp(tipo, boton);
   if (boton?.disabled) return;
   const proyectos = proyectosExportables(proyectosVisibles());
   if (!proyectos.length) { aviso("No hay proyectos para exportar.", "bad"); return; }
@@ -1892,6 +1952,7 @@ const reqPorId = id => S.det.checklist.find(x => x.id === id);
 
 async function trasCambio(r) {
   if (!r) return;
+  reiniciarReporteHitos();
   cerrarDialogo();
   await abrirProyecto(S.det.proyecto.id, { silencioso: true });
 }
@@ -2186,6 +2247,7 @@ document.addEventListener("click", e => {
   if (e.target.closest("[data-segx]")) { S.segQ = ""; const q = $("#segQ"); if (q) { q.value = ""; q.focus(); } const x = document.querySelector("[data-segx]"); if (x) x.hidden = true; pintarSegTabla(); return; }
   if (e.target.closest("[data-scols]")) { const r = $("#scols"); if (r) r.hidden = !r.hidden; return; }
   const sx = e.target.closest("[data-sexp]"); if (sx) { exportarSeg(sx.dataset.sexp); return; }
+  if (e.target.closest("[data-hitos-actualizar]")) { reiniciarReporteHitos(); pintarTarjetas(); return; }
   const proVista = e.target.closest("[data-pro-vista]");
   if (proVista) {
     configuracionPro.modo = proVista.dataset.proVista;

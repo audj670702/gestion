@@ -15,7 +15,7 @@ Menú de cuenta: avatar + nombre a mostrar, correo, Actualizar, Editar perfil (`
 
 Programación: modelo NEXUS extendido. Las actividades llegan en el contexto SYS (`actividades`). **Requeridas** (origen ADM): las programa el administrador, generales de la EO o de un proyecto. **Propias** (origen USUARIO): las programa el colaborador, siempre ligadas a un proyecto suyo. Las de proyecto se marcan cumplidas desde la actividad o desde Seguimiento (siempre dejan anotación); el ADM puede convertir una propia en requerida. Calendario, lista, filtros por origen y tipo, búsqueda, agenda por proyecto y bloque «Actividades de hoy».
 
-**Versión:** v0.14.0
+**Versión:** v0.15.16
 
 Documentos por requerimiento: todos los archivos se conservan y se muestran en su detalle, con nombre original, autor y fecha. El backend asigna un nombre `<folio-proyecto>-R<requerimiento>-<consecutivo>.<extensión>` y reserva el consecutivo antes de abrir la carga directa a Drive. Los reintentos de confirmación no crean documentos duplicados.
 
@@ -39,3 +39,5 @@ Backend: gestionCore v0.7.0 y sysDriveLeerBloque en sysGoogleDrive, con transpor
 Programación v0.11.0: modos Calendario/Lista con iconos, búsqueda ampliada con limpieza y filtros de origen simétricos. Navegación de mes con Hoy y Siguiente actividad futura según filtros, sin limitarse al mes visible. El resumen cuenta ocurrencias: total filtrado, mes visible, hoy y futuras no cumplidas.
 
 Programación v0.14.0: actividad independiente con cero, uno o varios proyectos; visibilidad combinable por rol funcional, proyectos, instancias, usuarios o toda la EO. Participantes separados de visibilidad. Filtros de proyecto, participante y alcance. Backend gestionCore v0.10.0 y sysProgramacionCore v0.2.0; panel Programación v0.3.0. Se conserva el ID único para Google Calendar y las actividades anteriores conservan sus reglas hasta editarse.
+
+Reporte por hitos: en Proyectos / Mis proyectos, seleccionar **Reporte por hitos** junto a Tarjetas y Tabla. Conserva filtros y casillas. Los iconos Excel y PDF exportan la cadena de hitos del alcance elegido. Cada consulta y cada exportación usan la vista activa; antes de exportar se vuelve a validar la lista y el acceso al detalle en el backend. No amplía los permisos ni utiliza los servicios del panel ADM.

@@ -56,9 +56,9 @@ import { generarReporteProyectos, generarExcelTabla } from "./reporteProyectos.j
 import { cadenaHitosReporte, COLORES_HITOS, estatusHitos, consultarHitosPermitidos, prepararReporteHitos, generarReporteHitos, ConsultaHitosCancelada } from "./reporteHitos.js?v=0.15.16";
 
 import { consultarSeguimientos, fechaSeguimiento, filtrarSeguimientos, COLUMNAS_SEGUIMIENTO,
-  valorSeguimiento, generarReporteSeguimientos, verificarConsultaSeguimientos } from "./reporteSeguimientos.js?v=0.15.17";
+  valorSeguimiento, generarReporteSeguimientos, verificarConsultaSeguimientos } from "./reporteSeguimientos.js?v=0.15.19";
 
-export const VERSION = "GESTION_APP v0.15.17";
+export const VERSION = "GESTION_APP v0.15.19";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -981,7 +981,9 @@ function curvaDetalle() {
 // ── Controles compartidos de las tablas del proyecto ─────────
 const VISTAS_SELECCION = { "": "Todos los registros", seleccionados: "Seleccionados", restantes: "No seleccionados" };
 const FILTROS_RAPIDOS_REQ = { TODOS: "Todos", REVISAR: "Por revisar", VENCIDOS: "Vencidos", ABIERTOS: "Sin validar" };
-const TABLAS = { req: {}, seg: {}, pro: { ids: new Set(), vista: "", columna: "", sentido: 1 } };
+const TABLAS = { reporteSeg: {}, req: {}, seg: {}, pro: { ids: new Set(), vista: "", columna: "", sentido: 1 } };
+let pintarTablaReporteSeg = () => {};
+const pintarTabla = tipo => ({ pro: pintarTarjetas, req: pintarReqTabla, seg: pintarSegTabla, reporteSeg: pintarTablaReporteSeg }[tipo])();
 const ordenTexto = new Intl.Collator("es-MX", { numeric: true, sensitivity: "base" });
 let contextoTablas;
 
@@ -1587,6 +1589,7 @@ function filasReporteSeguimientos(detalle, resumen) {
   return detalle.seguimiento.filter(esAnotacionSeg).map(s => {
     const bandera = banderaSeg(s);
     return {
+      id: JSON.stringify([p.id, s.id]),
       ...fechaSeguimiento(s.fechaRegistro),
       proyectoId: p.id, proyecto: [p.folio, p.nombre].filter(Boolean).join(" · "),
       estatusId: claveEstatus(p), estatus: etiquetaEstatus(p),
@@ -1602,11 +1605,19 @@ function filasReporteSeguimientos(detalle, resumen) {
 }
 
 function pintarReporteSeguimientos() {
+  const tipo = "reporteSeg";
+  const tabla = TABLAS[tipo] = { ids: new Set(), vista: "", columna: "", sentido: 1 };
+  const columnas = COLUMNAS_SEGUIMIENTO.map(([id, t]) => ({
+    id, t, orden: id === "fecha" ? r => r.instante : undefined
+  }));
+  const visibles = new Set(columnas.map(c => c.id));
   $("#view").innerHTML = `<section id="reporteSeguimientos">
     <header class="hero"><div class="row wrap"><h1 style="margin-right:auto">Reporte de seguimientos</h1>
       <button type="button" class="rt-btn" data-seg-reporte-actualizar>Actualizar</button>
       ${botonesExportar("data-seg-reporte-exportar")}</div></header>
     <form class="reporte-seg-filtros" hidden>
+      <label class="f">Buscar / filtrar<span class="rt-search pro-buscar"><input type="search" name="q" placeholder="Buscar seguimientos" autocomplete="off">
+        <button type="button" class="rt-clear" data-reporte-seg-limpiar aria-label="Limpiar búsqueda" hidden>×</button></span></label>
       ${[["proyecto", "Proyecto", "Todos"], ["estatus", "Estatus del proyecto", "Todos"],
         ["bandera", "Bandera", "Todas"], ["instancia", "Instancia vinculada", "Todas"],
         ["responsable", "Responsable del proyecto", "Todos"]].map(([id, etiqueta, opcion]) =>
@@ -1615,11 +1626,22 @@ function pintarReporteSeguimientos() {
       <label class="f">Hasta<input name="hasta" type="date"></label>
       <button type="reset" class="rt-btn">Limpiar filtros</button>
     </form>
+    <div class="rt-bar" data-reporte-seg-controles hidden>
+      ${filtroSeleccionHTML(tipo)}
+      <button type="button" class="rt-btn" data-reporte-seg-columnas aria-controls="reporteSegColumnas" aria-expanded="false">Columnas</button>
+    </div>
+    <div class="rcols" id="reporteSegColumnas" hidden>
+      ${columnas.map(c => `<label class="check"><input type="checkbox" value="${c.id}" checked> ${esc(c.t)}</label>`).join("")}
+    </div>
     <p class="muted sm" role="status"></p>
-    <div data-seg-reporte-resultados></div>
+    <div id="reporteSegTabla"></div>
   </section>`;
   const panel = $("#reporteSeguimientos"), form = panel.querySelector("form");
-  const estado = panel.querySelector("[role=status]"), salida = panel.querySelector("[data-seg-reporte-resultados]");
+  const estado = panel.querySelector("[role=status]"), salida = $("#reporteSegTabla");
+  const controles = panel.querySelector("[data-reporte-seg-controles]");
+  const selectorColumnas = $("#reporteSegColumnas");
+  const botonColumnas = panel.querySelector("[data-reporte-seg-columnas]");
+  const limpiar = form.querySelector("[data-reporte-seg-limpiar]");
   const actualizar = panel.querySelector("[data-seg-reporte-actualizar]");
   const exportar = [...panel.querySelectorAll("[data-seg-reporte-exportar]")];
   const contextoVista = claveReporteHitos(), vista = S.modo;
@@ -1629,29 +1651,44 @@ function pintarReporteSeguimientos() {
 
   const filtros = () => Object.fromEntries(new FormData(form));
   const periodoValido = f => !f.desde || !f.hasta || f.desde <= f.hasta;
+  const valor = (c, r) => valorSeguimiento(r, c.id);
+  const columnasVisibles = () => columnas.filter(c => visibles.has(c.id));
+  const soloMarcadas = () => !tabla.vista && tabla.ids.size > 0;
+  const filasExportables = filas => soloMarcadas() ? filas.filter(r => tabla.ids.has(r.id)) : filas;
+  tabla.actualizarExportacion = () => {
+    const f = filtros();
+    const filas = periodoValido(f) && listaCargada
+      ? filasTabla(tipo, filtrarSeguimientos(registros, f), columnasVisibles(), valor) : [];
+    for (const boton of exportar) boton.disabled = exportando || !filasExportables(filas).length;
+  };
   function pintar() {
     if (!listaCargada) return;
-    const f = filtros();
-    const filas = periodoValido(f) ? filtrarSeguimientos(registros, f) : [];
-    for (const boton of exportar) boton.disabled = exportando || !filas.length;
+    const f = filtros(), cols = columnasVisibles();
+    limpiar.hidden = !f.q;
+    const filas = periodoValido(f) ? filasTabla(tipo, filtrarSeguimientos(registros, f), cols, valor) : [];
+    tabla.actualizarExportacion();
     estado.textContent = periodoValido(f) ? `${filas.length} de ${registros.length} seguimientos` : "La fecha Desde debe ser anterior o igual a Hasta.";
-    salida.innerHTML = filas.length ? `<div class="rtable reporte-seg-tabla" tabindex="0" role="region" aria-label="Seguimientos de la consulta"><table>
-      <thead><tr><th scope="col" class="rt-numero">No.</th>${COLUMNAS_SEGUIMIENTO.map(([, etiqueta]) => `<th scope="col">${etiqueta}</th>`).join("")}</tr></thead>
-      <tbody>${filas.map((r, i) => `<tr><td class="rt-numero">${i + 1}</td>${COLUMNAS_SEGUIMIENTO.map(([campo]) => {
-        const valor = esc(valorSeguimiento(r, campo) || "—");
-        if (campo === "proyecto") return `<td><button type="button" class="pro-tabla-abrir" data-pry="${esc(r.proyectoId)}">${valor}</button></td>`;
-        if (campo === "bandera") return `<td>${etiquetaFiltroBandera(r.banderaId)}</td>`;
-        return `<td${campo === "nota" ? ' class="t-req"' : ""}>${valor}</td>`;
+    repintarTabla(tipo, () => filas.length ? `<div class="rtable reporte-seg-tabla" tabindex="0" role="region" aria-label="Seguimientos de la consulta"><table>
+      ${cabeceraTabla(tipo, cols)}
+      <tbody>${filas.map((r, i) => `<tr class="${tabla.ids.has(r.id) ? "sel" : ""}">${celdasSeleccion(tipo, r.id, i, `seguimiento ${i + 1}`)}${cols.map(c => {
+        const texto = esc(valor(c, r) || "—");
+        if (c.id === "proyecto") return `<td><button type="button" class="pro-tabla-abrir" data-pry="${esc(r.proyectoId)}">${texto}</button></td>`;
+        if (c.id === "bandera") return `<td>${etiquetaFiltroBandera(r.banderaId)}</td>`;
+        return `<td${c.id === "nota" ? ' class="t-req"' : ""}>${texto}</td>`;
       }).join("")}</tr>`).join("")}</tbody></table></div>`
-      : `<div class="empty">${registros.length ? "Sin seguimientos en esta consulta." : "No hay seguimientos en los proyectos de esta vista."}</div>`;
+      : `<div class="empty">${registros.length ? "Sin seguimientos en esta consulta." : "No hay seguimientos en los proyectos de esta vista."}</div>`);
   }
+  pintarTablaReporteSeg = pintar;
 
   function llenarFiltros() {
     const opciones = {
       proyecto: registros.map(r => [r.proyectoId, r.proyecto]),
       estatus: registros.map(r => [r.estatusId, r.estatus]),
       bandera: registros.map(r => [r.banderaId, r.bandera]),
-      instancia: registros.flatMap(r => r.instancias.map(i => [i.id, i.nombre])),
+      instancia: [
+        ...registros.flatMap(r => r.instancias.map(i => [i.id, i.nombre])),
+        ...instanciasActivas().filter(i => i.id && etiquetaIns(i)).map(i => [i.id, etiquetaIns(i)])
+      ],
       responsable: registros.map(r => [r.responsableId, r.responsable])
     };
     for (const [campo, pares] of Object.entries(opciones)) {
@@ -1666,6 +1703,9 @@ function pintarReporteSeguimientos() {
     listaCargada = false;
     registros = [];
     form.hidden = true;
+    controles.hidden = true;
+    selectorColumnas.hidden = true;
+    botonColumnas.setAttribute("aria-expanded", "false");
     actualizar.disabled = true;
     exportar.forEach(b => { b.disabled = true; });
     salida.replaceChildren();
@@ -1673,8 +1713,11 @@ function pintarReporteSeguimientos() {
     try {
       registros = await consultar();
       llenarFiltros();
+      const idsVigentes = new Set(registros.map(r => r.id));
+      for (const id of tabla.ids) if (!idsVigentes.has(id)) tabla.ids.delete(id);
       listaCargada = true;
       form.hidden = false;
+      controles.hidden = false;
       pintar();
     } catch (error) {
       if (error instanceof ApiError && contextoVista === claveReporteHitos() && panel.isConnected && error.code === "AUTH_REQUIRED") pantalla("login");
@@ -1684,6 +1727,25 @@ function pintarReporteSeguimientos() {
 
   form.addEventListener("submit", e => e.preventDefault());
   form.addEventListener("change", pintar);
+  form.elements.q.addEventListener("input", pintar);
+  limpiar.addEventListener("click", () => {
+    form.elements.q.value = "";
+    form.elements.q.focus();
+    pintar();
+  });
+  botonColumnas.addEventListener("click", () => {
+    selectorColumnas.hidden = !selectorColumnas.hidden;
+    botonColumnas.setAttribute("aria-expanded", String(!selectorColumnas.hidden));
+  });
+  selectorColumnas.addEventListener("change", ({ target }) => {
+    const id = target.value;
+    if (target.checked) visibles.add(id);
+    else if (visibles.size > 1) {
+      visibles.delete(id);
+      if (tabla.columna === id) tabla.columna = "";
+    } else target.checked = true;
+    pintar();
+  });
   form.addEventListener("reset", () => queueMicrotask(pintar));
   actualizar.addEventListener("click", cargar);
   for (const boton of exportar) boton.addEventListener("click", async () => {
@@ -1692,6 +1754,12 @@ function pintarReporteSeguimientos() {
     if (!periodoValido(f)) return;
     const criterios = [...form.querySelectorAll("select")].filter(el => el.value)
       .map(el => `${el.labels[0].firstChild.textContent} · ${el.selectedOptions[0].textContent}`);
+    const cols = columnasVisibles();
+    const permitidas = filasExportables(filasTabla(tipo, filtrarSeguimientos(registros, f), cols, valor));
+    const orden = new Map(permitidas.map((r, i) => [r.id, i]));
+    if (soloMarcadas()) criterios.push("Renglones seleccionados");
+    else if (tabla.vista) criterios.push(VISTAS_SELECCION[tabla.vista]);
+    if (f.q.trim()) criterios.push(`Búsqueda: ${f.q.trim()}`);
     if (f.desde) criterios.push(`Desde ${f.desde}`);
     if (f.hasta) criterios.push(`Hasta ${f.hasta}`);
     exportando = true;
@@ -1699,10 +1767,12 @@ function pintarReporteSeguimientos() {
     pintar();
     try {
       await tarea(async () => {
-        const filas = filtrarSeguimientos(await consultar(f.proyecto), f);
+        const filas = filtrarSeguimientos(await consultar(f.proyecto), f)
+          .filter(r => orden.has(r.id)).sort((a, b) => orden.get(a.id) - orden.get(b.id));
         if (!filas.length) throw new Error("No hay seguimientos disponibles para exportar con estos filtros.");
         const entidad = S.ctx?.eo?.nombreMostrar || S.ctx?.eo?.nombre || S.ctx?.enteOperador?.nombre;
         await generarReporteSeguimientos(boton.dataset.segReporteExportar, filas, {
+          columnas: cols.map(c => [c.id, c.t]),
           base: `Seguimientos_GESTION_${vista}_${hoyYmd()}`,
           titulo: ["Reporte de seguimientos", entidad, `Vista ${MODOS[vista].t}`].filter(Boolean).join(" · "),
           filtros: criterios.join(" | ") || "Todos los seguimientos de la vista",
@@ -2367,7 +2437,7 @@ document.addEventListener("click", e => {
     const tabla = TABLAS[tipo];
     tabla.sentido = tabla.columna === columna ? -tabla.sentido : 1;
     tabla.columna = columna;
-    (tipo === "pro" ? pintarTarjetas : tipo === "req" ? pintarReqTabla : pintarSegTabla)();
+    pintarTabla(tipo);
     $(`[data-tabla-orden="${tipo}"][data-columna="${columna}"]`)?.focus({ preventScroll: true });
     return;
   }
@@ -2521,7 +2591,7 @@ document.addEventListener("change", e => {
   const { tablaVista, tablaFila, tablaTodas } = control.dataset;
   if (tablaVista) {
     TABLAS[tablaVista].vista = control.value;
-    (tablaVista === "pro" ? pintarTarjetas : tablaVista === "req" ? pintarReqTabla : pintarSegTabla)();
+    pintarTabla(tablaVista);
     return;
   }
   const tipo = tablaFila || tablaTodas;
@@ -2535,13 +2605,14 @@ document.addEventListener("change", e => {
       else ids.delete(fila.value);
     }
     if (vista) {
-      (tipo === "pro" ? pintarTarjetas : tipo === "req" ? pintarReqTabla : pintarSegTabla)();
+      pintarTabla(tipo);
       $(`[data-tabla-vista="${tipo}"]`)?.focus({ preventScroll: true });
     } else {
       actualizarCasillaCabecera(contenedor);
-      if (tipo === "pro") {
+      if (tipo === "pro" || tipo === "reporteSeg") {
         for (const fila of filas) fila.closest("tr").classList.toggle("sel", fila.checked);
-        actualizarAlcancePro();
+        if (tipo === "pro") actualizarAlcancePro();
+        else TABLAS[tipo].actualizarExportacion();
       }
     }
     return;

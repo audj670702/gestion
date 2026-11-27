@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { consultarSeguimientos, fechaSeguimiento, filtrarSeguimientos } from '../js/reporteSeguimientos.js';
+import { consultarSeguimientos, fechaSeguimiento, filtrarSeguimientos, generarReporteSeguimientos } from '../js/reporteSeguimientos.js';
 
 for (const vista of ['DIRECCION', 'OPERACION', 'INSTANCIA']) {
   test(`consulta con el alcance de ${vista}`, async () => {
@@ -48,4 +48,31 @@ test('combina todos los filtros e incluye los extremos del período en hora de M
     { responsable: 's' }, { instancia: 'c' }, { desde: '2026-11-28' }, { hasta: '2026-11-26' }]) {
     assert.deepEqual(filtrarSeguimientos([fila], { ...filtros, ...cambio }), []);
   }
+});
+
+test('buscar combina texto sin acentos con filtros y reconoce instancias', () => {
+  const fila = { proyectoId: '1', nota: 'Revisión técnica', instancias: [{ id: 'i', nombre: 'Dirección de Obras' }] };
+  assert.deepEqual(filtrarSeguimientos([fila], { proyecto: '1', q: ' revision TECNICA ' }), [fila]);
+  assert.deepEqual(filtrarSeguimientos([fila], { instancia: 'i', q: 'direccion de obras' }), [fila]);
+  assert.deepEqual(filtrarSeguimientos([fila], { proyecto: '2', q: 'revision' }), []);
+});
+
+test('PDF conserva las columnas elegidas y el orden de las filas recibidas', async () => {
+  let tabla;
+  class Pdf {
+    internal = { pageSize: { getWidth: () => 420, getHeight: () => 297 } };
+    setTextColor() {}
+    setFontSize() {}
+    splitTextToSize(texto) { return [texto]; }
+    text() {}
+    autoTable(datos) { tabla = datos; }
+    output() { return new Blob(); }
+  }
+  await generarReporteSeguimientos('pdf', [{ nota: 'Segunda', autor: 'A' }, { nota: 'Primera', autor: 'B' }], {
+    columnas: [['nota', 'Anotación']], base: 'seguimientos', titulo: 'Seguimientos',
+    cargarPdf: async () => Pdf, descargar: (_, nombre) => assert.equal(nombre, 'seguimientos.pdf')
+  });
+  assert.deepEqual(tabla.head, [['No.', 'Anotación']]);
+  assert.deepEqual(tabla.body, [[1, 'Segunda'], [2, 'Primera']]);
+  assert.equal(tabla.columnStyles[9], undefined);
 });

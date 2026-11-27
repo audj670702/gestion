@@ -52,12 +52,16 @@ export function fechaSeguimiento(valor) {
     : { dia: '', fecha: '', instante: 0 };
 }
 
+const normalizarBusqueda = texto => String(texto ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
 export function filtrarSeguimientos(filas, f) {
+  const q = normalizarBusqueda(f.q).trim();
   return filas.filter(r => (!f.proyecto || f.proyecto === r.proyectoId)
     && (!f.estatus || f.estatus === r.estatusId)
     && (!f.bandera || f.bandera === r.banderaId)
     && (!f.instancia || r.instancias.some(i => i.id === f.instancia))
     && (!f.responsable || f.responsable === r.responsableId)
+    && (!q || normalizarBusqueda(COLUMNAS_SEGUIMIENTO.map(([campo]) => valorSeguimiento(r, campo)).join(' ')).includes(q))
     && (!(f.desde || f.hasta) || (r.dia && (!f.desde || r.dia >= f.desde) && (!f.hasta || r.dia <= f.hasta))));
 }
 
@@ -70,9 +74,9 @@ export const COLUMNAS_SEGUIMIENTO = [
 export const valorSeguimiento = (fila, campo) => campo === 'instancias'
   ? fila.instancias.map(i => i.nombre).join(', ') : fila[campo];
 
-export async function generarReporteSeguimientos(tipo, filas, { base, titulo, filtros, autor, cargarPdf, descargar }) {
-  const headers = ['No.', ...COLUMNAS_SEGUIMIENTO.map(([, etiqueta]) => etiqueta)];
-  const rows = filas.map((r, i) => [i + 1, ...COLUMNAS_SEGUIMIENTO.map(([campo]) => valorSeguimiento(r, campo))]);
+export async function generarReporteSeguimientos(tipo, filas, { base, titulo, filtros, autor, cargarPdf, descargar, columnas = COLUMNAS_SEGUIMIENTO }) {
+  const headers = ['No.', ...columnas.map(([, etiqueta]) => etiqueta)];
+  const rows = filas.map((r, i) => [i + 1, ...columnas.map(([campo]) => valorSeguimiento(r, campo))]);
   if (tipo === 'xls') {
     return generarExcelTabla({ headers, rows }, { nombre: base, hoja: 'Seguimientos', titulo, autor, filtros, descargar });
   }
@@ -87,13 +91,16 @@ export async function generarReporteSeguimientos(tipo, filas, { base, titulo, fi
   const meta = doc.splitTextToSize(`Generó: ${autor} · ${new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })} · ${filas.length} registros\n${filtros}`, W - 24);
   const inicio = 16 + encabezado.length * 5;
   doc.text(meta, 12, inicio);
+  const anotacion = columnas.findIndex(([campo]) => campo === 'nota') + 1;
+  const columnStyles = { 0: { cellWidth: 10 } };
+  if (anotacion && columnas.length > 1) columnStyles[anotacion] = { cellWidth: 110 };
   doc.autoTable({
     head: [headers], body: rows, startY: inicio + meta.length * 4,
     margin: { top: 14, bottom: 15, left: 12, right: 12 },
     styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
     headStyles: { fillColor: [21, 37, 61] },
     alternateRowStyles: { fillColor: [247, 249, 252] },
-    columnStyles: { 0: { cellWidth: 10 }, 9: { cellWidth: 110 } },
+    columnStyles,
     didDrawPage: ({ pageNumber }) => {
       doc.setFontSize(7);
       doc.setTextColor(100);

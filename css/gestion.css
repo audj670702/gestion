@@ -721,7 +721,17 @@ dialog.programar .dlg-x:hover{background:rgba(255,255,255,.3)}
 
 /* Reporte de seguimientos */
 .reporte-seg-filtros { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin-bottom: 14px; }
-.reporte-seg-filtros select { max-width: min(100%, 290px); }
+.reporte-seg-filtro { flex: 1 1 155px; max-width: 240px; }
+.reporte-seg-filtro details { position: relative; }
+.reporte-seg-filtro summary { display: flex; align-items: center; gap: 8px; justify-content: space-between; min-height: 40px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); font-size: 14px; cursor: pointer; }
+.reporte-seg-filtro summary span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.reporte-seg-filtro summary::after { content: "▾"; flex: none; }
+.reporte-seg-menu { position: absolute; inset: calc(100% + 4px) 0 auto; z-index: 5; display: grid; gap: 6px; padding: 7px; border: 1px solid var(--line); border-radius: 10px; background: #fff; box-shadow: 0 8px 22px #123f6d26; }
+.reporte-seg-menu input { width: 100%; min-width: 0; padding: 6px; }
+.reporte-seg-opciones { display: grid; max-height: 195px; overflow: auto; }
+.reporte-seg-opciones button { padding: 7px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.reporte-seg-opciones button:hover, .reporte-seg-opciones button[aria-pressed="true"] { background: #eaf3ff; }
+.reporte-seg-menu p { margin: 0; }
 .reporte-seg-filtros .f { min-width: 0; }
 .reporte-seg-tabla .t-req { min-width: 240px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .reporte-seg-tabla td { vertical-align: top; }

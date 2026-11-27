@@ -58,7 +58,7 @@ import { cadenaHitosReporte, COLORES_HITOS, estatusHitos, consultarHitosPermitid
 import { consultarSeguimientos, fechaSeguimiento, filtrarSeguimientos, COLUMNAS_SEGUIMIENTO,
   valorSeguimiento, generarReporteSeguimientos, verificarConsultaSeguimientos } from "./reporteSeguimientos.js?v=0.15.19";
 
-export const VERSION = "GESTION_APP v0.15.19";
+export const VERSION = "GESTION_APP v0.15.20";
 const PANEL_URL = "https://www.scad.mx/panel-gestion";
 
 const ESTATUS = {
@@ -1604,6 +1604,72 @@ function filasReporteSeguimientos(detalle, resumen) {
   });
 }
 
+function conectarFiltroSeguimientos(desplegable) {
+  const select = desplegable.querySelector("select");
+  const resumen = desplegable.querySelector("summary");
+  const valor = resumen.querySelector("span");
+  const buscar = desplegable.querySelector("input");
+  const lista = desplegable.querySelector(".reporte-seg-opciones");
+  const vacio = desplegable.querySelector("[role=status]");
+
+  function mostrarOpciones() {
+    const q = norm(buscar.value).trim();
+    const opciones = [...select.options].filter(opcion => norm(opcion.text).includes(q));
+    lista.replaceChildren(...opciones.map(opcion => {
+      const boton = document.createElement("button");
+      boton.type = "button";
+      boton.value = opcion.value;
+      boton.textContent = opcion.text;
+      boton.setAttribute("aria-pressed", String(opcion.value === select.value));
+      return boton;
+    }));
+    vacio.hidden = opciones.length > 0;
+  }
+
+  function sincronizar() {
+    valor.textContent = select.selectedOptions[0]?.text || select.dataset.opcionTodos;
+    if (desplegable.open) mostrarOpciones();
+  }
+
+  function cerrar() {
+    desplegable.open = false;
+    resumen.focus();
+  }
+
+  desplegable.addEventListener("toggle", () => {
+    if (!desplegable.open) return;
+    buscar.value = "";
+    mostrarOpciones();
+    buscar.focus();
+  });
+  desplegable.addEventListener("focusout", ({ relatedTarget }) => {
+    if (relatedTarget && !desplegable.contains(relatedTarget)) desplegable.open = false;
+  });
+  desplegable.addEventListener("keydown", e => {
+    if (!desplegable.open) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      cerrar();
+    }
+    if (e.target === buscar && (e.key === "ArrowDown" || e.key === "Enter")) {
+      e.preventDefault();
+      const primero = lista.querySelector("button");
+      if (e.key === "Enter") primero?.click();
+      else primero?.focus();
+    }
+  });
+  buscar.addEventListener("input", mostrarOpciones);
+  lista.addEventListener("click", e => {
+    const opcion = e.target.closest("button");
+    if (!opcion) return;
+    select.value = opcion.value;
+    cerrar();
+    sincronizar();
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  return sincronizar;
+}
+
 function pintarReporteSeguimientos() {
   const tipo = "reporteSeg";
   const tabla = TABLAS[tipo] = { ids: new Set(), vista: "", columna: "", sentido: 1 };
@@ -1621,7 +1687,18 @@ function pintarReporteSeguimientos() {
       ${[["proyecto", "Proyecto", "Todos"], ["estatus", "Estatus del proyecto", "Todos"],
         ["bandera", "Bandera", "Todas"], ["instancia", "Instancia vinculada", "Todas"],
         ["responsable", "Responsable del proyecto", "Todos"]].map(([id, etiqueta, opcion]) =>
-          `<label class="f">${etiqueta}<select name="${id}" data-opcion-todos="${opcion}"></select></label>`).join("")}
+          `<div class="f reporte-seg-filtro">
+            <span id="reporteSegFiltro-${id}">${etiqueta}</span>
+            <details name="reporte-seg-filtros" data-filtro-seg="${id}">
+              <summary aria-labelledby="reporteSegFiltro-${id} reporteSegValor-${id}"><span id="reporteSegValor-${id}">${opcion}</span></summary>
+              <div class="reporte-seg-menu">
+                <input type="search" aria-label="Buscar opciones de ${etiqueta}" placeholder="Buscar opción…" autocomplete="off">
+                <div class="reporte-seg-opciones" role="group" aria-labelledby="reporteSegFiltro-${id}"></div>
+                <p class="muted xs" role="status" hidden>Sin coincidencias.</p>
+              </div>
+              <select name="${id}" data-etiqueta="${etiqueta}" data-opcion-todos="${opcion}" hidden></select>
+            </details>
+          </div>`).join("")}
       <label class="f">Desde<input name="desde" type="date"></label>
       <label class="f">Hasta<input name="hasta" type="date"></label>
       <button type="reset" class="rt-btn">Limpiar filtros</button>
@@ -1649,6 +1726,9 @@ function pintarReporteSeguimientos() {
   const consultar = (proyectoId = "") => consultarSeguimientos({ consultar: api, vista, vigente, preparar: filasReporteSeguimientos, proyectoId });
   let registros = [], listaCargada = false, exportando = false;
 
+  const filtrosDesplegables = new Map([...form.querySelectorAll("[data-filtro-seg]")].map(
+    desplegable => [desplegable.dataset.filtroSeg, conectarFiltroSeguimientos(desplegable)]
+  ));
   const filtros = () => Object.fromEntries(new FormData(form));
   const periodoValido = f => !f.desde || !f.hasta || f.desde <= f.hasta;
   const valor = (c, r) => valorSeguimiento(r, c.id);
@@ -1696,6 +1776,7 @@ function pintarReporteSeguimientos() {
       const valores = [...new Map(pares)].sort((a, b) => a[1].localeCompare(b[1], "es", { numeric: true }));
       select.replaceChildren(new Option(select.dataset.opcionTodos, ""), ...valores.map(([id, etiqueta]) => new Option(etiqueta, id)));
       if (valores.some(([id]) => String(id) === anterior)) select.value = anterior;
+      filtrosDesplegables.get(campo)();
     }
   }
 
@@ -1746,14 +1827,17 @@ function pintarReporteSeguimientos() {
     } else target.checked = true;
     pintar();
   });
-  form.addEventListener("reset", () => queueMicrotask(pintar));
+  form.addEventListener("reset", () => queueMicrotask(() => {
+    for (const sincronizar of filtrosDesplegables.values()) sincronizar();
+    pintar();
+  }));
   actualizar.addEventListener("click", cargar);
   for (const boton of exportar) boton.addEventListener("click", async () => {
     if (exportando || !listaCargada) return;
     const f = filtros();
     if (!periodoValido(f)) return;
     const criterios = [...form.querySelectorAll("select")].filter(el => el.value)
-      .map(el => `${el.labels[0].firstChild.textContent} · ${el.selectedOptions[0].textContent}`);
+      .map(el => `${el.dataset.etiqueta} · ${el.selectedOptions[0].textContent}`);
     const cols = columnasVisibles();
     const permitidas = filasExportables(filasTabla(tipo, filtrarSeguimientos(registros, f), cols, valor));
     const orden = new Map(permitidas.map((r, i) => [r.id, i]));
@@ -2431,6 +2515,8 @@ async function consultarArchivo(id, accion) {
 
 // ── Eventos ──────────────────────────────────────────────────
 document.addEventListener("click", e => {
+  const filtroSeg = $("#reporteSeguimientos [data-filtro-seg][open]");
+  if (filtroSeg && !filtroSeg.contains(e.target)) filtroSeg.open = false;
   const ordenar = e.target.closest("[data-tabla-orden]");
   if (ordenar) {
     const { tablaOrden: tipo, columna } = ordenar.dataset;
